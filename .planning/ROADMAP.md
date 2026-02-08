@@ -53,7 +53,7 @@ Plans:
 **Plans**: TBD
 
 Plans:
-- [ ] 03-01: Event input form and Claude API integration
+- [x] 03-01: Event input form and Claude API integration
 - [ ] 03-02: Structured response display with staffing, costs, confidence, margins
 
 ### Phase 4: Polish & Presentation
@@ -74,5 +74,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 |-------|---------------|--------|-----------|
 | 1. Foundation | 3/3 | Complete | 2026-02-08 |
 | 2. Dashboard & Rate Card | 3/3 | Complete | 2026-02-08 |
-| 3. AI Scoping Assistant | 0/2 | Not started | - |
+| 3. AI Scoping Assistant | 1/2 | In progress | - |
 | 4. Polish & Presentation | 0/1 | Not started | - |
