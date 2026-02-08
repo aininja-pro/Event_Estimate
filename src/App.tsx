@@ -1,11 +1,12 @@
-import { Button } from '@/components/ui/button'
+import { BrowserRouter } from 'react-router-dom'
+import { AppLayout } from '@/components/layout/AppLayout'
 
 function App() {
   return (
-    <div className="p-8 space-y-4">
-      <h1 className="text-2xl font-semibold">Event Estimate Engine</h1>
-      <Button>Test Button</Button>
-    </div>
+    <BrowserRouter>
+      <AppLayout />
+    </BrowserRouter>
   )
 }
+
 export default App
