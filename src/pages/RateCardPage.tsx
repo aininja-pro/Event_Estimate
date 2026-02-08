@@ -1,9 +1,6 @@
 import { useState, useMemo } from 'react'
 import {
   Card,
-  CardHeader,
-  CardTitle,
-  CardDescription,
   CardContent,
 } from '@/components/ui/card'
 import {
@@ -17,7 +14,7 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { getRateCard } from '@/lib/data'
-import { Search, ChevronDown, ChevronUp } from 'lucide-react'
+import { Search, SearchX, ChevronDown, ChevronUp } from 'lucide-react'
 import type { RateCardRole, RateRange } from '@/types/rate-card'
 
 const roles = getRateCard()
@@ -162,14 +159,12 @@ export function RateCardPage() {
 
   return (
     <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-2xl font-bold tracking-tight">Historical Rate Analysis</CardTitle>
-          <CardDescription>
-            {totalRoles} unique roles and rate ranges extracted from 1,659 historical estimates.
-          </CardDescription>
-        </CardHeader>
-      </Card>
+      <div>
+        <h1 className="text-2xl font-bold tracking-tight">Historical Rate Analysis</h1>
+        <p className="text-muted-foreground">
+          {totalRoles} unique roles and rate ranges extracted from 1,659 historical estimates.
+        </p>
+      </div>
 
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -244,8 +239,11 @@ export function RateCardPage() {
             <TableBody>
               {filteredRoles.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="h-32 text-center">
-                    <p className="text-muted-foreground">No roles match your search.</p>
+                  <TableCell colSpan={7} className="h-40 text-center">
+                    <div className="flex flex-col items-center gap-2">
+                      <SearchX className="h-8 w-8 text-muted-foreground/50" />
+                      <p className="text-muted-foreground">No roles match &ldquo;{search}&rdquo;</p>
+                    </div>
                   </TableCell>
                 </TableRow>
               ) : (
@@ -286,9 +284,11 @@ function RoleRow({
   return (
     <>
       <TableRow
-        className="cursor-pointer even:bg-muted/50"
+        className="cursor-pointer even:bg-muted/50 hover:bg-muted/70 transition-colors"
         onClick={onToggle}
         tabIndex={0}
+        role="button"
+        aria-expanded={isExpanded}
         onKeyDown={(e) => {
           if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault()
@@ -307,9 +307,9 @@ function RoleRow({
         <TableCell className="text-right">
           <div>
             <span>{role.occurrences}</span>
-            <div className="mt-1 h-1 w-full rounded bg-muted">
+            <div className="mt-1 h-[4px] w-full rounded-full bg-muted">
               <div
-                className="h-full rounded bg-primary/20"
+                className="h-full rounded-full bg-primary/20"
                 style={{ width: `${occurrencePct}%` }}
               />
             </div>
