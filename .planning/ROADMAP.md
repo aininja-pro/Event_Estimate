@@ -42,7 +42,7 @@ Plans:
 
 Plans:
 - [x] 02-01: Executive Summary and Cost Analysis tabs
-- [ ] 02-02: Bid vs Actual Variance and Event Manager Performance tabs
+- [x] 02-02: Bid vs Actual Variance and Event Manager Performance tabs
 - [ ] 02-03: Rate Card Explorer — searchable/sortable table with expandable rows
 
 ### Phase 3: AI Scoping Assistant
@@ -73,6 +73,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 | Phase | Plans Complete | Status | Completed |
 |-------|---------------|--------|-----------|
 | 1. Foundation | 3/3 | Complete | 2026-02-08 |
-| 2. Dashboard & Rate Card | 1/3 | In progress | - |
+| 2. Dashboard & Rate Card | 2/3 | In progress | - |
 | 3. AI Scoping Assistant | 0/2 | Not started | - |
 | 4. Polish & Presentation | 0/1 | Not started | - |
