@@ -16,8 +16,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Sparkles } from 'lucide-react'
+import { Sparkles, Loader2 } from 'lucide-react'
 import { getAIContext } from '@/lib/data'
+import { streamScopeEstimate } from '@/lib/ai'
+import type { EventParams } from '@/lib/ai'
 
 const aiContext = getAIContext()
 
@@ -51,6 +53,10 @@ export function AIScopingPage() {
   const [selectedSections, setSelectedSections] = useState<string[]>([...SECTIONS])
   const [specialRequirements, setSpecialRequirements] = useState('')
 
+  const [isLoading, setIsLoading] = useState(false)
+  const [streamedText, setStreamedText] = useState('')
+  const [error, setError] = useState('')
+
   function handleSectionToggle(section: string) {
     setSelectedSections((prev) =>
       prev.includes(section)
@@ -59,9 +65,32 @@ export function AIScopingPage() {
     )
   }
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    // API integration will be wired in Task 2
+    setError('')
+    setStreamedText('')
+    setIsLoading(true)
+
+    const params: EventParams = {
+      eventName,
+      eventType,
+      duration: parseInt(duration, 10),
+      attendance: parseInt(attendance, 10),
+      location,
+      budgetRange,
+      sections: selectedSections,
+      specialRequirements,
+    }
+
+    try {
+      await streamScopeEstimate(params, aiContext, (text) => {
+        setStreamedText(text)
+      })
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An unexpected error occurred.')
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   return (
@@ -192,13 +221,38 @@ export function AIScopingPage() {
               />
             </div>
 
-            <Button type="submit" size="lg">
-              <Sparkles className="size-4" />
-              Generate Scope Estimate
+            <Button type="submit" size="lg" disabled={isLoading}>
+              {isLoading ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <Sparkles className="size-4" />
+              )}
+              {isLoading ? 'Generating...' : 'Generate Scope Estimate'}
             </Button>
           </form>
         </CardContent>
       </Card>
+
+      {error && (
+        <Card className="border-destructive">
+          <CardContent className="pt-6">
+            <p className="text-destructive font-medium">{error}</p>
+          </CardContent>
+        </Card>
+      )}
+
+      {streamedText && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Scope Estimate</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <pre className="whitespace-pre-wrap font-mono text-sm leading-relaxed">
+              {streamedText}
+            </pre>
+          </CardContent>
+        </Card>
+      )}
     </div>
   )
 }
