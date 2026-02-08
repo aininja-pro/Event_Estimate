@@ -3,7 +3,7 @@ import { Badge } from '@/components/ui/badge'
 
 const pageTitles: Record<string, string> = {
   '/dashboard': 'Historical Intelligence Dashboard',
-  '/rate-card': 'Rate Card Explorer',
+  '/rate-card': 'Historical Rate Analysis',
   '/ai-assistant': 'AI Scoping Assistant',
 }
 

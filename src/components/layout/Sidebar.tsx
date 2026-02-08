@@ -4,7 +4,7 @@ import { Separator } from '@/components/ui/separator'
 
 const navItems = [
   { to: '/dashboard', label: 'Historical Dashboard', icon: BarChart3 },
-  { to: '/rate-card', label: 'Rate Card Explorer', icon: ClipboardList },
+  { to: '/rate-card', label: 'Historical Rate Analysis', icon: ClipboardList },
   { to: '/ai-assistant', label: 'AI Scoping Assistant', icon: Bot },
 ]
 
