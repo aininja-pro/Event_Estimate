@@ -16,7 +16,7 @@ None
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: Foundation** - Project setup, navigation shell, and data pipeline
+- [x] **Phase 1: Foundation** - Project setup, navigation shell, and data pipeline
 - [ ] **Phase 2: Dashboard & Rate Card** - Historical Intelligence Dashboard and Rate Card Explorer
 - [ ] **Phase 3: AI Scoping Assistant** - Hero build: Claude-powered event scope estimator
 - [ ] **Phase 4: Polish & Presentation** - Final styling, branding, and demo preparation
@@ -32,7 +32,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 Plans:
 - [x] 01-01: Project scaffolding and dependency installation
 - [x] 01-02: Navigation shell with sidebar, header, routing
-- [ ] 01-03: Data pipeline — pre-compute aggregations from JSON source files
+- [x] 01-03: Data pipeline — pre-compute aggregations from JSON source files
 
 ### Phase 2: Dashboard & Rate Card
 **Goal**: 4-tab Historical Intelligence Dashboard (Executive Summary, Cost Analysis, Bid vs Actual Variance, Event Manager Performance) with KPI cards and Recharts visualizations, plus searchable Rate Card Explorer with 136 roles
@@ -72,7 +72,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 
 | Phase | Plans Complete | Status | Completed |
 |-------|---------------|--------|-----------|
-| 1. Foundation | 2/3 | In progress | - |
+| 1. Foundation | 3/3 | Complete | 2026-02-08 |
 | 2. Dashboard & Rate Card | 0/3 | Not started | - |
 | 3. AI Scoping Assistant | 0/2 | Not started | - |
 | 4. Polish & Presentation | 0/1 | Not started | - |
