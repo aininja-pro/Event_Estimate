@@ -5,32 +5,33 @@
 See: .planning/PROJECT.md (updated 2026-02-08)
 
 **Core value:** The AI Scoping Assistant is the hero — it proves that historical event data can power intelligent, data-backed scope recommendations.
-**Current focus:** Phase 1 complete — ready for Phase 2 (Dashboard & Rate Card)
+**Current focus:** Phase 2 in progress — Dashboard & Rate Card
 
 ## Current Position
 
-Phase: 1 of 4 (Foundation) — COMPLETE
-Plan: 3 of 3 in current phase
-Status: Phase complete
-Last activity: 2026-02-08 — Completed 01-03-PLAN.md
+Phase: 2 of 4 (Dashboard & Rate Card)
+Plan: 1 of 3 in current phase
+Status: In progress
+Last activity: 2026-02-08 — Completed 02-01-PLAN.md
 
-Progress: ███░░░░░░░ 33%
+Progress: ████░░░░░░ 44%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 3
-- Average duration: 8.7 min
-- Total execution time: 0.4 hours
+- Total plans completed: 4
+- Average duration: 7.5 min
+- Total execution time: 0.5 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 1. Foundation | 3/3 | 29 min | 9.7 min |
+| 2. Dashboard & Rate Card | 1/3 | 3 min | 3 min |
 
 **Recent Trend:**
-- Last 5 plans: 01-01 (6 min), 01-02 (7 min), 01-03 (16 min)
+- Last 5 plans: 01-01 (6 min), 01-02 (7 min), 01-03 (16 min), 02-01 (3 min)
 - Trend: —
 
 ## Accumulated Context
@@ -48,6 +49,8 @@ Recent decisions affecting current work:
 | 01-02 | Used sidebar theme CSS variables | bg-sidebar, text-sidebar-foreground for consistent theming |
 | 01-03 | Generated sample data when source JSON not on disk | Precompute script works identically with real ETL output, zero code changes needed |
 | 01-03 | All 6 output files under 38KB total | Well within 500KB bundling budget |
+| 02-01 | oklch string literals for Recharts fills | CSS var() not resolved by Recharts SVG renderer; must use literal oklch values |
+| 02-01 | Recharts v3 Tooltip needs Number() coercion | Strict TS generics require explicit coercion for value: number | undefined |
 
 ### Deferred Issues
 
@@ -59,6 +62,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-02-08T20:14:25Z
-Stopped at: Completed 01-03-PLAN.md — Phase 1 complete
+Last session: 2026-02-08T20:30:59Z
+Stopped at: Completed 02-01-PLAN.md
 Resume file: None
