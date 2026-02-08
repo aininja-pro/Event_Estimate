@@ -31,7 +31,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 Plans:
 - [x] 01-01: Project scaffolding and dependency installation
-- [ ] 01-02: Navigation shell with sidebar, header, routing
+- [x] 01-02: Navigation shell with sidebar, header, routing
 - [ ] 01-03: Data pipeline — pre-compute aggregations from JSON source files
 
 ### Phase 2: Dashboard & Rate Card
@@ -72,7 +72,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 
 | Phase | Plans Complete | Status | Completed |
 |-------|---------------|--------|-----------|
-| 1. Foundation | 1/3 | In progress | - |
+| 1. Foundation | 2/3 | In progress | - |
 | 2. Dashboard & Rate Card | 0/3 | Not started | - |
 | 3. AI Scoping Assistant | 0/2 | Not started | - |
 | 4. Polish & Presentation | 0/1 | Not started | - |
