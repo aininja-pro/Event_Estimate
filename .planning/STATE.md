@@ -5,33 +5,33 @@
 See: .planning/PROJECT.md (updated 2026-02-08)
 
 **Core value:** The AI Scoping Assistant is the hero — it proves that historical event data can power intelligent, data-backed scope recommendations.
-**Current focus:** Phase 2 in progress — Dashboard & Rate Card
+**Current focus:** Phase 2 complete — ready for Phase 3: AI Scoping Assistant
 
 ## Current Position
 
 Phase: 2 of 4 (Dashboard & Rate Card)
-Plan: 2 of 3 in current phase
-Status: In progress
-Last activity: 2026-02-08 — Completed 02-02-PLAN.md
+Plan: 3 of 3 in current phase
+Status: Phase complete
+Last activity: 2026-02-08 — Completed 02-03-PLAN.md
 
-Progress: █████░░░░░ 56%
+Progress: ██████░░░░ 67%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 5
-- Average duration: 7.2 min
-- Total execution time: 0.6 hours
+- Total plans completed: 6
+- Average duration: 7.5 min
+- Total execution time: 0.75 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 1. Foundation | 3/3 | 29 min | 9.7 min |
-| 2. Dashboard & Rate Card | 2/3 | 7 min | 3.5 min |
+| 2. Dashboard & Rate Card | 3/3 | 16 min | 5.3 min |
 
 **Recent Trend:**
-- Last 5 plans: 01-02 (7 min), 01-03 (16 min), 02-01 (3 min), 02-02 (4 min)
+- Last 5 plans: 01-03 (16 min), 02-01 (3 min), 02-02 (4 min), 02-03 (9 min)
 - Trend: —
 
 ## Accumulated Context
@@ -53,6 +53,8 @@ Recent decisions affecting current work:
 | 02-01 | Recharts v3 Tooltip needs Number() coercion | Strict TS generics require explicit coercion for value: number | undefined |
 | 02-02 | Per-Cell bar coloring for variance charts | Each bar checks avgVariancePct sign for over/under budget color coding |
 | 02-02 | Simple useState sort for manager leaderboard | No external table library needed for prototype scope |
+| 02-03 | Bare h1/p header instead of Card wrapper | Matches Dashboard visual pattern for consistency |
+| 02-03 | Module-level SortIndicator component | React ESLint rule prevents component creation during render |
 
 ### Deferred Issues
 
@@ -64,6 +66,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-02-08T20:37:53Z
-Stopped at: Completed 02-02-PLAN.md
+Last session: 2026-02-08T20:49:05Z
+Stopped at: Completed 02-03-PLAN.md — Phase 2 complete
 Resume file: None
