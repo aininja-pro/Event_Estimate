@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import {
   Card,
   CardHeader,
@@ -13,7 +14,8 @@ import {
   TableRow,
   TableCell,
 } from '@/components/ui/table'
-import { getExecutiveSummary, getCostAnalysis } from '@/lib/data'
+import { Badge } from '@/components/ui/badge'
+import { getExecutiveSummary, getCostAnalysis, getVarianceData, getManagerData } from '@/lib/data'
 import {
   BarChart,
   Bar,
@@ -32,6 +34,8 @@ import {
 
 const executive = getExecutiveSummary()
 const costs = getCostAnalysis()
+const variance = getVarianceData()
+const managers = getManagerData()
 
 const CHART_COLORS = [
   'oklch(0.546 0.245 262.881)', // chart-1 blue
@@ -410,6 +414,402 @@ function CostAnalysisTab() {
   )
 }
 
+// --- Bid vs Actual Variance Tab ---
+
+function VarianceTab() {
+  const { summary, bySection, byClient, byOffice, events } = variance
+
+  const top15Clients = [...byClient]
+    .sort((a, b) => Math.abs(b.avgVariancePct) - Math.abs(a.avgVariancePct))
+    .slice(0, 15)
+
+  function varianceColor(pct: number): string {
+    return pct >= 0 ? 'text-red-500' : 'text-emerald-600'
+  }
+
+  function formatVariancePct(pct: number): string {
+    const sign = pct >= 0 ? '+' : ''
+    return `${sign}${pct.toFixed(1)}%`
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* KPI Row */}
+      <div className="grid grid-cols-3 gap-4">
+        <Card>
+          <CardContent className="pt-6">
+            <p className="text-sm text-muted-foreground">Events Analyzed</p>
+            <p className="text-2xl font-bold">{summary.count.toLocaleString()}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <p className="text-sm text-muted-foreground">Average Variance</p>
+            <p className={`text-2xl font-bold ${varianceColor(summary.avgVariancePct)}`}>
+              {formatVariancePct(summary.avgVariancePct)}
+            </p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <p className="text-sm text-muted-foreground">Median Variance</p>
+            <p className={`text-2xl font-bold ${varianceColor(summary.medianVariancePct)}`}>
+              {formatVariancePct(summary.medianVariancePct)}
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Variance by Section */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Variance by Section</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <ResponsiveContainer width="100%" height={300}>
+            <BarChart
+              data={bySection}
+              layout="vertical"
+              margin={{ left: 180, right: 20, top: 5, bottom: 5 }}
+            >
+              <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+              <XAxis type="number" tickFormatter={(v) => `${Number(v).toFixed(0)}%`} />
+              <YAxis
+                type="category"
+                dataKey="name"
+                width={175}
+                tick={{ fontSize: 11 }}
+                tickFormatter={(v: string) => v.length > 28 ? v.slice(0, 25) + '...' : v}
+              />
+              <Tooltip formatter={(value) => `${Number(value).toFixed(2)}%`} />
+              <Bar dataKey="avgVariancePct" radius={[0, 4, 4, 0]}>
+                {bySection.map((entry) => (
+                  <Cell
+                    key={entry.name}
+                    fill={entry.avgVariancePct >= 0 ? CHART_COLORS[4] : CHART_COLORS[1]}
+                  />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </CardContent>
+      </Card>
+
+      {/* Client & Office Variance */}
+      <div className="grid grid-cols-2 gap-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>Variance by Client (Top 15)</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={400}>
+              <BarChart
+                data={top15Clients}
+                layout="vertical"
+                margin={{ left: 130, right: 20, top: 5, bottom: 5 }}
+              >
+                <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+                <XAxis type="number" tickFormatter={(v) => `${Number(v).toFixed(0)}%`} />
+                <YAxis
+                  type="category"
+                  dataKey="name"
+                  width={125}
+                  tick={{ fontSize: 11 }}
+                />
+                <Tooltip formatter={(value) => `${Number(value).toFixed(2)}%`} />
+                <Bar dataKey="avgVariancePct" radius={[0, 4, 4, 0]}>
+                  {top15Clients.map((entry) => (
+                    <Cell
+                      key={entry.name}
+                      fill={entry.avgVariancePct >= 0 ? CHART_COLORS[4] : CHART_COLORS[1]}
+                    />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Variance by Office</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={400}>
+              <BarChart
+                data={byOffice}
+                layout="vertical"
+                margin={{ left: 120, right: 20, top: 5, bottom: 5 }}
+              >
+                <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+                <XAxis type="number" tickFormatter={(v) => `${Number(v).toFixed(0)}%`} />
+                <YAxis
+                  type="category"
+                  dataKey="name"
+                  width={115}
+                  tick={{ fontSize: 11 }}
+                />
+                <Tooltip formatter={(value) => `${Number(value).toFixed(2)}%`} />
+                <Bar dataKey="avgVariancePct" radius={[0, 4, 4, 0]}>
+                  {byOffice.map((entry) => (
+                    <Cell
+                      key={entry.name}
+                      fill={entry.avgVariancePct >= 0 ? CHART_COLORS[4] : CHART_COLORS[1]}
+                    />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Top 50 Variance Events */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Top 50 Variance Events</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Event Name</TableHead>
+                <TableHead>Client</TableHead>
+                <TableHead>Office</TableHead>
+                <TableHead className="text-right">Bid ($)</TableHead>
+                <TableHead className="text-right">Actual ($)</TableHead>
+                <TableHead className="text-right">Variance ($)</TableHead>
+                <TableHead className="text-right">Variance (%)</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {events.map((evt, i) => (
+                <TableRow key={i}>
+                  <TableCell className="font-medium">{evt.event_name}</TableCell>
+                  <TableCell>{evt.client}</TableCell>
+                  <TableCell>{evt.lead_office}</TableCell>
+                  <TableCell className="text-right">{formatDollar(evt.grandTotalBid)}</TableCell>
+                  <TableCell className="text-right">{formatDollar(evt.grandTotalActual)}</TableCell>
+                  <TableCell className={`text-right font-medium ${varianceColor(evt.variance)}`}>
+                    {evt.variance >= 0 ? '+' : ''}{formatDollar(evt.variance)}
+                  </TableCell>
+                  <TableCell className={`text-right font-medium ${varianceColor(evt.variancePct)}`}>
+                    {formatVariancePct(evt.variancePct)}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+    </div>
+  )
+}
+
+// --- Event Manager Performance Tab ---
+
+function ManagerPerformanceTab() {
+  const [sort, setSort] = useState<{ key: string; direction: 'asc' | 'desc' }>({
+    key: 'eventCount',
+    direction: 'desc',
+  })
+
+  const totalManagers = managers.length
+  const totalEvents = managers.reduce((sum, m) => sum + m.eventCount, 0)
+  const accuracyValues = managers.filter((m) => m.avgBidAccuracy !== null).map((m) => m.avgBidAccuracy!)
+  const avgBidAccuracy = accuracyValues.length > 0
+    ? accuracyValues.reduce((sum, v) => sum + v, 0) / accuracyValues.length
+    : 0
+
+  function handleSort(key: string) {
+    setSort((prev) =>
+      prev.key === key
+        ? { key, direction: prev.direction === 'asc' ? 'desc' : 'asc' }
+        : { key, direction: 'desc' },
+    )
+  }
+
+  const sortedManagers = [...managers].sort((a, b) => {
+    const aVal = a[sort.key as keyof typeof a] ?? 0
+    const bVal = b[sort.key as keyof typeof b] ?? 0
+    if (typeof aVal === 'string' && typeof bVal === 'string') {
+      return sort.direction === 'asc' ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal)
+    }
+    return sort.direction === 'asc'
+      ? (aVal as number) - (bVal as number)
+      : (bVal as number) - (aVal as number)
+  })
+
+  function accuracyColor(accuracy: number | null): string {
+    if (accuracy === null) return ''
+    if (accuracy > 1.08) return 'text-red-500'
+    if (accuracy > 1.05) return 'text-amber-500'
+    return 'text-emerald-600'
+  }
+
+  function sortIndicator(key: string): string {
+    if (sort.key !== key) return ''
+    return sort.direction === 'asc' ? ' \u25B2' : ' \u25BC'
+  }
+
+  const revenueChartData = [...managers]
+    .sort((a, b) => b.totalRevenue - a.totalRevenue)
+    .map((m) => ({ name: m.name.split(' ')[1] || m.name, totalRevenue: m.totalRevenue, fullName: m.name }))
+
+  const eventsChartData = [...managers]
+    .sort((a, b) => b.eventCount - a.eventCount)
+    .map((m) => ({ name: m.name.split(' ')[1] || m.name, eventCount: m.eventCount, fullName: m.name }))
+
+  return (
+    <div className="space-y-6">
+      {/* KPI Row */}
+      <div className="grid grid-cols-3 gap-4">
+        <Card>
+          <CardContent className="pt-6">
+            <p className="text-sm text-muted-foreground">Total Managers</p>
+            <p className="text-2xl font-bold">{totalManagers}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <p className="text-sm text-muted-foreground">Total Events Managed</p>
+            <p className="text-2xl font-bold">{totalEvents.toLocaleString()}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <p className="text-sm text-muted-foreground">Average Bid Accuracy</p>
+            <p className="text-2xl font-bold">{(avgBidAccuracy * 100).toFixed(1)}%</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Manager Leaderboard */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Manager Leaderboard</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-12">#</TableHead>
+                <TableHead className="cursor-pointer select-none" onClick={() => handleSort('name')}>
+                  Name{sortIndicator('name')}
+                </TableHead>
+                <TableHead className="text-right cursor-pointer select-none" onClick={() => handleSort('eventCount')}>
+                  Events{sortIndicator('eventCount')}
+                </TableHead>
+                <TableHead className="text-right cursor-pointer select-none" onClick={() => handleSort('totalRevenue')}>
+                  Total Revenue ($){sortIndicator('totalRevenue')}
+                </TableHead>
+                <TableHead className="text-right cursor-pointer select-none" onClick={() => handleSort('avgEventSize')}>
+                  Avg Event Size ($){sortIndicator('avgEventSize')}
+                </TableHead>
+                <TableHead className="text-right cursor-pointer select-none" onClick={() => handleSort('clientsServed')}>
+                  Clients Served{sortIndicator('clientsServed')}
+                </TableHead>
+                <TableHead className="text-right cursor-pointer select-none" onClick={() => handleSort('recapEventCount')}>
+                  Recap Events{sortIndicator('recapEventCount')}
+                </TableHead>
+                <TableHead className="text-right cursor-pointer select-none" onClick={() => handleSort('avgBidAccuracy')}>
+                  Bid Accuracy{sortIndicator('avgBidAccuracy')}
+                </TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {sortedManagers.map((mgr, i) => (
+                <TableRow key={mgr.name} className="even:bg-muted/50">
+                  <TableCell>{i + 1}</TableCell>
+                  <TableCell className="font-medium">{mgr.name}</TableCell>
+                  <TableCell className="text-right">{mgr.eventCount}</TableCell>
+                  <TableCell className="text-right">{formatDollar(mgr.totalRevenue)}</TableCell>
+                  <TableCell className="text-right">{formatDollar(mgr.avgEventSize)}</TableCell>
+                  <TableCell className="text-right">{mgr.clientsServed}</TableCell>
+                  <TableCell className="text-right">{mgr.recapEventCount}</TableCell>
+                  <TableCell className="text-right">
+                    {mgr.avgBidAccuracy !== null ? (
+                      <Badge variant="outline" className={accuracyColor(mgr.avgBidAccuracy)}>
+                        {(mgr.avgBidAccuracy * 100).toFixed(1)}%
+                      </Badge>
+                    ) : (
+                      '—'
+                    )}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+
+      {/* Revenue & Events Bar Charts */}
+      <div className="grid grid-cols-2 gap-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>Revenue by Manager</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={350}>
+              <BarChart
+                data={revenueChartData}
+                margin={{ left: 10, right: 10, top: 5, bottom: 60 }}
+              >
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis
+                  dataKey="name"
+                  tick={{ fontSize: 11 }}
+                  angle={-45}
+                  textAnchor="end"
+                />
+                <YAxis tickFormatter={formatCurrency} />
+                <Tooltip
+                  formatter={(value) => formatDollar(Number(value))}
+                  labelFormatter={(_label, payload) => {
+                    const item = payload?.[0]?.payload as { fullName?: string } | undefined
+                    return item?.fullName ?? ''
+                  }}
+                />
+                <Bar dataKey="totalRevenue" fill={CHART_COLORS[0]} radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Events by Manager</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={350}>
+              <BarChart
+                data={eventsChartData}
+                margin={{ left: 10, right: 10, top: 5, bottom: 60 }}
+              >
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis
+                  dataKey="name"
+                  tick={{ fontSize: 11 }}
+                  angle={-45}
+                  textAnchor="end"
+                />
+                <YAxis />
+                <Tooltip
+                  labelFormatter={(_label, payload) => {
+                    const item = payload?.[0]?.payload as { fullName?: string } | undefined
+                    return item?.fullName ?? ''
+                  }}
+                />
+                <Bar dataKey="eventCount" fill={CHART_COLORS[1]} radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  )
+}
+
 // --- Main Dashboard Page ---
 
 export function DashboardPage() {
@@ -439,19 +839,11 @@ export function DashboardPage() {
         </TabsContent>
 
         <TabsContent value="variance">
-          <Card>
-            <CardContent className="pt-6">
-              <p className="text-muted-foreground">Bid vs Actual Variance analysis coming soon...</p>
-            </CardContent>
-          </Card>
+          <VarianceTab />
         </TabsContent>
 
         <TabsContent value="managers">
-          <Card>
-            <CardContent className="pt-6">
-              <p className="text-muted-foreground">Event Manager Performance analysis coming soon...</p>
-            </CardContent>
-          </Card>
+          <ManagerPerformanceTab />
         </TabsContent>
       </Tabs>
     </div>
