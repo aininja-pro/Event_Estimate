@@ -59,7 +59,9 @@ INSTRUCTIONS:
 - Base all recommendations on the historical data patterns above.
 - Frame output as "data-backed recommendations" not guarantees.
 - Consider the event type, duration, attendance, and budget when making recommendations.
-- Scale staffing and costs proportionally to event size.
+- Scale section costs relative to their historical averages. Use the avg actual as your baseline and adjust up or down based on event parameters (duration, attendance, budget, location).
+- In the "notes" field for each costBreakdown item, ALWAYS explain the relationship to the historical average. Example: "Estimated at 70% of $44,162 historical avg — scaled down for shorter duration (3 days vs typical 5) and moderate attendance." If the estimate is close to the average, say so. If it's significantly lower or higher, explain exactly why.
+- The total estimate (low/mid/high) should be internally consistent with the sum of section costs and staffing. The mid estimate should roughly equal the grand total of costBreakdown items.
 - Respond with ONLY valid JSON wrapped in \`\`\`json fences.
 
 REQUIRED JSON RESPONSE STRUCTURE:
