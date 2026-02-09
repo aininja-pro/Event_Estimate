@@ -55,18 +55,22 @@ ${roleLines}
 REVENUE SEGMENTS:
 ${segmentLines}
 
-DRIVESHOP OFFICIAL RATE CARD ROLES (use ONLY these role names in staffing recommendations):
-- Program Director (/10 hr day) — maps to historical "Event Manager", "Field Manager" roles
-- Event/Vehicle Manager (/10 hr day) — maps to historical "Site Manager", "Client Services Manager" roles
-- Product Specialist (/10 hr day) — maps to historical "Product Specialist", "Brand Ambassador" roles
-- Registration Host (/10 hr day) — maps to historical "Registration Staff", "Guest Services" roles
-- In-Vehicle Host (/10 hr day) — maps to historical "Guest Services" roles for ride & drive events
-- Event/Vehicle Handler (/10 hr day) — maps to historical "Setup Crew", "Logistics Coordinator" roles
-- Professional Chauffeur (/10 hr day) — for ride & drive and VIP transport events
-- Production Manager (/10 hr day) — maps to historical "Production Manager" role
-- Team Lead (/10 hr day) — maps to historical "Team Lead", "Event Coordinator" roles
+DRIVESHOP OFFICIAL RATE CARD ROLES — use ONLY these role names and their rate ranges in staffing:
+- Program Director (/10 hr day): $857-$1,200/day (use historical "Event Manager" rates)
+- Event/Vehicle Manager (/10 hr day): $703-$950/day (use historical "Client Services Manager" rates)
+- Product Specialist (/10 hr day): $350-$545/day (use historical "Product Specialist" rates)
+- Registration Host (/10 hr day): $200-$350/day (use historical "Registration Staff" rates)
+- In-Vehicle Host (/10 hr day): $200-$348/day (use historical "Guest Services" rates)
+- Event/Vehicle Handler (/10 hr day): $202-$349/day (use historical "Setup Crew" rates)
+- Professional Chauffeur (/10 hr day): $450-$698/day (use historical "Logistics Coordinator" rates)
+- Production Manager (/10 hr day): $700-$1,000/day (use historical "Production Manager" rates)
+- Team Lead (/10 hr day): $651-$898/day (use historical "Team Lead" rates)
 
-Use the historical rate ranges above to inform daily rates, but ALWAYS use DriveShop's official role names listed above in the staffing array. Never use generic names like "Event Manager" or "Site Manager" — use the official DriveShop titles instead.
+CRITICAL RATE RULES:
+- The dailyRate for EVERY staffing line item MUST fall within the min-max range listed above for that role.
+- NEVER invent or estimate rates. Pull directly from the rate ranges provided.
+- Use the official DriveShop role names exactly as written above. Never use generic names like "Event Manager" or "Site Manager".
+- In the rationale field, cite the rate range source: e.g., "Program Director at $950/day (within $857-$1,200 historical range)".
 
 INSTRUCTIONS:
 - Base all recommendations on the historical data patterns above.
