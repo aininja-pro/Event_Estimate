@@ -13,11 +13,28 @@ OUTPUT = os.path.join(PROJECT_ROOT, "rate_card_master.json")
 
 
 def normalize_role_name(name):
-    """Normalize role name: strip extra spaces, normalize parentheses."""
+    """Normalize role name for deduplication."""
     s = name.strip()
-    s = re.sub(r"\s+", " ", s)  # collapse multiple spaces
-    s = re.sub(r"\(\s+", "(", s)  # remove space after opening paren
-    s = re.sub(r"\s+\)", ")", s)  # remove space before closing paren
+    s = re.sub(r"\s+", " ", s)           # collapse multiple spaces
+    s = re.sub(r"\(\s+", "(", s)         # remove space after opening paren
+    s = re.sub(r"\s+\)", ")", s)         # remove space before closing paren
+    # Normalize spaces around slashes: "Event /Vehicle" -> "Event/Vehicle"
+    s = re.sub(r"\s*/\s*", "/", s)
+    # But restore space after slash in known patterns like "/10 hr" "/hr"
+    s = re.sub(r"\(/", "(/ ", s)         # "(/hr" -> "(/ hr" temporarily
+    s = s.replace("(/ ", "(/")           # undo — keep "(/hr" and "(/10"
+    # Normalize ">10hrs" variants: ">10 hrs", ">10hrs", ">10 hr"
+    s = re.sub(r">\s*10\s*hrs?", ">10hrs", s)
+    # Normalize "hr." -> "hr"
+    s = re.sub(r"\bhr\.\b", "hr", s)
+    # Ensure space before opening paren: "Driver(/hr)" -> "Driver (/hr)"
+    s = re.sub(r"(\w)\(", r"\1 (", s)
+    # Normalize space inside parens after slash: "(/hr>10hrs" -> "(/hr >10hrs"
+    s = re.sub(r"\(/hr>", "(/hr >", s)
+    # Fix title case: "labor" -> "Labor", "labor" standalone
+    # Only fix known case issues
+    s = re.sub(r"\blabor\b", "Labor", s)
+    s = re.sub(r"\bDIem\b", "Diem", s)
     return s
 
 

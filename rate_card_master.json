@@ -34,18 +34,18 @@
       "4000.32",
       "4075.07"
     ],
-    "occurrences": 1571,
+    "occurrences": 1572,
     "has_ot_variant": false,
     "unit_rate_range": {
       "min": 50.0,
       "max": 100.0,
-      "avg": 59.38,
+      "avg": 59.39,
       "median": 65.0
     },
     "cost_rate_range": {
       "min": 0.1,
       "max": 1.43,
-      "avg": 0.32,
+      "avg": 0.31,
       "median": 0.25
     }
   },
@@ -217,12 +217,12 @@
       "4000.21.01",
       "512"
     ],
-    "occurrences": 664,
+    "occurrences": 740,
     "has_ot_variant": true,
     "unit_rate_range": {
       "min": 25.0,
       "max": 60.0,
-      "avg": 27.48,
+      "avg": 28.25,
       "median": 27.5
     },
     "cost_rate_range": {
@@ -282,12 +282,12 @@
       "4000.21.01",
       "4000.32"
     ],
-    "occurrences": 580,
+    "occurrences": 581,
     "has_ot_variant": true,
     "unit_rate_range": {
       "min": 35.0,
       "max": 500.0,
-      "avg": 48.23,
+      "avg": 48.22,
       "median": 45.0
     },
     "cost_rate_range": {
@@ -318,7 +318,7 @@
     }
   },
   {
-    "role": "Promotional Model (/hr>10hrs)",
+    "role": "Promotional Model (/hr >10hrs)",
     "gl_codes": [],
     "occurrences": 571,
     "has_ot_variant": true,
@@ -331,7 +331,7 @@
     "cost_rate_range": null
   },
   {
-    "role": "Event /Vehicle Manager (/10 hr day)",
+    "role": "Event/Vehicle Manager (/10 hr day)",
     "gl_codes": [
       "4000.16",
       "4000.17",
@@ -339,12 +339,12 @@
       "4000.31",
       "4000.32"
     ],
-    "occurrences": 526,
+    "occurrences": 550,
     "has_ot_variant": false,
     "unit_rate_range": {
       "min": 350.0,
       "max": 514.3,
-      "avg": 474.76,
+      "avg": 475.09,
       "median": 450.0
     },
     "cost_rate_range": {
@@ -482,7 +482,7 @@
     }
   },
   {
-    "role": "Event/Vehicle Handler (/hr>10hrs)",
+    "role": "Event/Vehicle Handler (/hr >10hrs)",
     "gl_codes": [
       "4000.31.01"
     ],
@@ -545,11 +545,11 @@
     }
   },
   {
-    "role": "Event/Vehicle labor (/hr>10hrs)",
+    "role": "Event/Vehicle Labor (/hr >10hrs)",
     "gl_codes": [
       "4000.31.01"
     ],
-    "occurrences": 212,
+    "occurrences": 213,
     "has_ot_variant": true,
     "unit_rate_range": {
       "min": 35.0,
@@ -599,6 +599,27 @@
       "max": 450.0,
       "avg": 370.24,
       "median": 350.0
+    },
+    "cost_rate_range": {
+      "min": 0.25,
+      "max": 0.25,
+      "avg": 0.25,
+      "median": 0.25
+    }
+  },
+  {
+    "role": "Product Specialist (/hr >10hrs or shared hourly)",
+    "gl_codes": [
+      "4000.16",
+      "4000.31.01"
+    ],
+    "occurrences": 173,
+    "has_ot_variant": true,
+    "unit_rate_range": {
+      "min": 37.5,
+      "max": 45.0,
+      "avg": 40.66,
+      "median": 37.5
     },
     "cost_rate_range": {
       "min": 0.25,
@@ -749,19 +770,26 @@
     "cost_rate_range": null
   },
   {
-    "role": "Product Specialist (/hr >10hrs or shared hourly)",
+    "role": "Vehicle Handler (/hr >10hrs)",
     "gl_codes": [
-      "4000.16"
+      "4000.17",
+      "4000.21.01",
+      "4000.31.01"
     ],
-    "occurrences": 100,
+    "occurrences": 95,
     "has_ot_variant": true,
     "unit_rate_range": {
-      "min": 37.5,
-      "max": 37.5,
-      "avg": 37.5,
-      "median": 37.5
+      "min": 35.0,
+      "max": 50.0,
+      "avg": 39.21,
+      "median": 40.0
     },
-    "cost_rate_range": null
+    "cost_rate_range": {
+      "min": 0.25,
+      "max": 0.25,
+      "avg": 0.25,
+      "median": 0.25
+    }
   },
   {
     "role": "Per Diem (/day)",
@@ -860,21 +888,6 @@
     "cost_rate_range": null
   },
   {
-    "role": "Registration Host (/hr>10 hrs or shared hourly)",
-    "gl_codes": [
-      "4000.21.01"
-    ],
-    "occurrences": 76,
-    "has_ot_variant": true,
-    "unit_rate_range": {
-      "min": 35.0,
-      "max": 35.0,
-      "avg": 35.0,
-      "median": 35.0
-    },
-    "cost_rate_range": null
-  },
-  {
     "role": "Registration Staff (/10 hr day)",
     "gl_codes": [
       "4000.19"
@@ -927,26 +940,6 @@
     }
   },
   {
-    "role": "Product Specialist (/hr>10hrs or shared hourly)",
-    "gl_codes": [
-      "4000.31.01"
-    ],
-    "occurrences": 73,
-    "has_ot_variant": true,
-    "unit_rate_range": {
-      "min": 45.0,
-      "max": 45.0,
-      "avg": 45.0,
-      "median": 45.0
-    },
-    "cost_rate_range": {
-      "min": 0.25,
-      "max": 0.25,
-      "avg": 0.25,
-      "median": 0.25
-    }
-  },
-  {
     "role": "Product Specialist",
     "gl_codes": [
       "4000.31"
@@ -958,27 +951,6 @@
       "max": 450.0,
       "avg": 450.0,
       "median": 450.0
-    },
-    "cost_rate_range": {
-      "min": 0.25,
-      "max": 0.25,
-      "avg": 0.25,
-      "median": 0.25
-    }
-  },
-  {
-    "role": "Vehicle Handler (/hr>10hrs)",
-    "gl_codes": [
-      "4000.17",
-      "4000.31.01"
-    ],
-    "occurrences": 68,
-    "has_ot_variant": true,
-    "unit_rate_range": {
-      "min": 40.0,
-      "max": 40.0,
-      "avg": 40.0,
-      "median": 40.0
     },
     "cost_rate_range": {
       "min": 0.25,
@@ -1050,7 +1022,7 @@
     }
   },
   {
-    "role": "Performance Driver (/hr>10hrs)",
+    "role": "Performance Driver (/hr >10hrs)",
     "gl_codes": [
       "4000.31.01"
     ],
@@ -1170,27 +1142,6 @@
     "cost_rate_range": null
   },
   {
-    "role": "Vehicle Handler (/hr >10hrs)",
-    "gl_codes": [
-      "4000.21.01",
-      "4000.31.01"
-    ],
-    "occurrences": 27,
-    "has_ot_variant": true,
-    "unit_rate_range": {
-      "min": 35.0,
-      "max": 50.0,
-      "avg": 37.22,
-      "median": 35.0
-    },
-    "cost_rate_range": {
-      "min": 0.25,
-      "max": 0.25,
-      "avg": 0.25,
-      "median": 0.25
-    }
-  },
-  {
     "role": "Vehicle Handler/Wait Time (per hour)",
     "gl_codes": [
       "4000.26",
@@ -1227,26 +1178,6 @@
       "max": 0.1,
       "avg": 0.1,
       "median": 0.1
-    }
-  },
-  {
-    "role": "Event/Vehicle Manager (/10 hr day)",
-    "gl_codes": [
-      "4000.17"
-    ],
-    "occurrences": 23,
-    "has_ot_variant": false,
-    "unit_rate_range": {
-      "min": 450.0,
-      "max": 514.3,
-      "avg": 481.68,
-      "median": 500.0
-    },
-    "cost_rate_range": {
-      "min": 0.25,
-      "max": 0.25,
-      "avg": 0.25,
-      "median": 0.25
     }
   },
   {
@@ -1491,18 +1422,18 @@
     "gl_codes": [
       "4000.19"
     ],
-    "occurrences": 8,
+    "occurrences": 9,
     "has_ot_variant": false,
     "unit_rate_range": {
-      "min": 77.0,
+      "min": 70.0,
       "max": 100.0,
-      "avg": 88.5,
-      "median": 88.5
+      "avg": 86.44,
+      "median": 77.0
     },
     "cost_rate_range": {
       "min": 0.1,
-      "max": 0.1,
-      "avg": 0.1,
+      "max": 0.52,
+      "avg": 0.18,
       "median": 0.1
     }
   },
@@ -1517,6 +1448,47 @@
       "min": 470.0,
       "max": 500.0,
       "avg": 478.57,
+      "median": 470.0
+    },
+    "cost_rate_range": {
+      "min": 0.25,
+      "max": 0.25,
+      "avg": 0.25,
+      "median": 0.25
+    }
+  },
+  {
+    "role": "Event/Vehicle Manager (/hr)",
+    "gl_codes": [
+      "4000.17",
+      "4000.17.01"
+    ],
+    "occurrences": 7,
+    "has_ot_variant": false,
+    "unit_rate_range": {
+      "min": 45.0,
+      "max": 60.0,
+      "avg": 52.94,
+      "median": 51.4
+    },
+    "cost_rate_range": {
+      "min": 0.25,
+      "max": 0.25,
+      "avg": 0.25,
+      "median": 0.25
+    }
+  },
+  {
+    "role": "Event Manager/Staff (/10 hr. day)",
+    "gl_codes": [
+      "4000.17"
+    ],
+    "occurrences": 7,
+    "has_ot_variant": false,
+    "unit_rate_range": {
+      "min": 470.0,
+      "max": 470.0,
+      "avg": 470.0,
       "median": 470.0
     },
     "cost_rate_range": {
@@ -1578,6 +1550,26 @@
       "max": 400.0,
       "avg": 371.43,
       "median": 350.0
+    },
+    "cost_rate_range": {
+      "min": 0.25,
+      "max": 0.25,
+      "avg": 0.25,
+      "median": 0.25
+    }
+  },
+  {
+    "role": "Event Labor (/hr >10hrs or shared hourly)",
+    "gl_codes": [
+      "4000.17.01"
+    ],
+    "occurrences": 6,
+    "has_ot_variant": true,
+    "unit_rate_range": {
+      "min": 50.0,
+      "max": 50.0,
+      "avg": 50.0,
+      "median": 50.0
     },
     "cost_rate_range": {
       "min": 0.25,
@@ -1667,26 +1659,6 @@
       "max": 60.0,
       "avg": 60.0,
       "median": 60.0
-    },
-    "cost_rate_range": {
-      "min": 0.25,
-      "max": 0.25,
-      "avg": 0.25,
-      "median": 0.25
-    }
-  },
-  {
-    "role": "Event/Vehicle Manager (/hr)",
-    "gl_codes": [
-      "4000.17.01"
-    ],
-    "occurrences": 6,
-    "has_ot_variant": false,
-    "unit_rate_range": {
-      "min": 51.4,
-      "max": 60.0,
-      "avg": 54.27,
-      "median": 51.4
     },
     "cost_rate_range": {
       "min": 0.25,
@@ -2076,6 +2048,28 @@
     "cost_rate_range": null
   },
   {
+    "role": "Event Staff (/hr >10hrs or shared hourly)",
+    "gl_codes": [
+      "4000.17.01",
+      "4000.26.01",
+      "4000.31.01"
+    ],
+    "occurrences": 5,
+    "has_ot_variant": true,
+    "unit_rate_range": {
+      "min": 45.0,
+      "max": 70.0,
+      "avg": 50.4,
+      "median": 45.0
+    },
+    "cost_rate_range": {
+      "min": 0.25,
+      "max": 0.25,
+      "avg": 0.25,
+      "median": 0.25
+    }
+  },
+  {
     "role": "Professional Chauffeur (/hr) 9/8",
     "gl_codes": [
       "4000.21",
@@ -2292,26 +2286,6 @@
     "cost_rate_range": null
   },
   {
-    "role": "Event Manager / Staff (/10 hr. day)",
-    "gl_codes": [
-      "4000.17"
-    ],
-    "occurrences": 4,
-    "has_ot_variant": false,
-    "unit_rate_range": {
-      "min": 470.0,
-      "max": 470.0,
-      "avg": 470.0,
-      "median": 470.0
-    },
-    "cost_rate_range": {
-      "min": 0.25,
-      "max": 0.25,
-      "avg": 0.25,
-      "median": 0.25
-    }
-  },
-  {
     "role": "Event Labor (/hr >10hrs)",
     "gl_codes": [
       "4000.31.01"
@@ -2415,26 +2389,6 @@
     }
   },
   {
-    "role": "Event Labor (/hr >10hrs or shared hourly)",
-    "gl_codes": [
-      "4000.17.01"
-    ],
-    "occurrences": 3,
-    "has_ot_variant": true,
-    "unit_rate_range": {
-      "min": 50.0,
-      "max": 50.0,
-      "avg": 50.0,
-      "median": 50.0
-    },
-    "cost_rate_range": {
-      "min": 0.25,
-      "max": 0.25,
-      "avg": 0.25,
-      "median": 0.25
-    }
-  },
-  {
     "role": "Professional Chauffeur (/hr) 11/20",
     "gl_codes": [
       "4000.19.01"
@@ -2485,7 +2439,7 @@
     "cost_rate_range": null
   },
   {
-    "role": "Per Diem - Dispatcher / Chauffeur Drivers",
+    "role": "Per Diem - Dispatcher/Chauffeur Drivers",
     "gl_codes": [
       "4075.07"
     ],
@@ -2498,26 +2452,6 @@
       "median": 65.0
     },
     "cost_rate_range": null
-  },
-  {
-    "role": "Event Labor(/hr >10hrs or shared hourly)",
-    "gl_codes": [
-      "4000.17.01"
-    ],
-    "occurrences": 3,
-    "has_ot_variant": true,
-    "unit_rate_range": {
-      "min": 50.0,
-      "max": 50.0,
-      "avg": 50.0,
-      "median": 50.0
-    },
-    "cost_rate_range": {
-      "min": 0.25,
-      "max": 0.25,
-      "avg": 0.25,
-      "median": 0.25
-    }
   },
   {
     "role": "Event/Vehicle Manager (/hr >10hrs) DT",
@@ -2620,44 +2554,6 @@
       "median": 50.0
     },
     "cost_rate_range": null
-  },
-  {
-    "role": "Event Manager / Staff(/10 hr. day)",
-    "gl_codes": [],
-    "occurrences": 3,
-    "has_ot_variant": false,
-    "unit_rate_range": {
-      "min": 470.0,
-      "max": 470.0,
-      "avg": 470.0,
-      "median": 470.0
-    },
-    "cost_rate_range": {
-      "min": 0.25,
-      "max": 0.25,
-      "avg": 0.25,
-      "median": 0.25
-    }
-  },
-  {
-    "role": "Event Staff (/hr>10hrs or shared hourly)",
-    "gl_codes": [
-      "4000.31.01"
-    ],
-    "occurrences": 3,
-    "has_ot_variant": true,
-    "unit_rate_range": {
-      "min": 45.0,
-      "max": 45.0,
-      "avg": 45.0,
-      "median": 45.0
-    },
-    "cost_rate_range": {
-      "min": 0.25,
-      "max": 0.25,
-      "avg": 0.25,
-      "median": 0.25
-    }
   },
   {
     "role": "Event Staff",
@@ -2971,27 +2867,6 @@
       "max": 470.0,
       "avg": 470.0,
       "median": 470.0
-    },
-    "cost_rate_range": {
-      "min": 0.25,
-      "max": 0.25,
-      "avg": 0.25,
-      "median": 0.25
-    }
-  },
-  {
-    "role": "Event Staff (/hr >10hrs or shared hourly)",
-    "gl_codes": [
-      "4000.17.01",
-      "4000.26.01"
-    ],
-    "occurrences": 2,
-    "has_ot_variant": true,
-    "unit_rate_range": {
-      "min": 47.0,
-      "max": 70.0,
-      "avg": 58.5,
-      "median": 58.5
     },
     "cost_rate_range": {
       "min": 0.25,
@@ -3520,6 +3395,26 @@
     }
   },
   {
+    "role": "Event/Vehicle Handler Weekend Rate (/10 hr day)",
+    "gl_codes": [
+      "4000.31"
+    ],
+    "occurrences": 2,
+    "has_ot_variant": false,
+    "unit_rate_range": {
+      "min": 450.0,
+      "max": 450.0,
+      "avg": 450.0,
+      "median": 450.0
+    },
+    "cost_rate_range": {
+      "min": 0.25,
+      "max": 0.25,
+      "avg": 0.25,
+      "median": 0.25
+    }
+  },
+  {
     "role": "Event/Vehicle Handler (Weekend Rate) (/10 hr day)",
     "gl_codes": [
       "4000.31"
@@ -3839,7 +3734,7 @@
     }
   },
   {
-    "role": "Vehicle Handler (/hr>10hrs) DT",
+    "role": "Vehicle Handler (/hr >10hrs) DT",
     "gl_codes": [
       "4000.31.01"
     ],
@@ -3894,7 +3789,7 @@
     }
   },
   {
-    "role": "Vehicle Handler (/hr>8hrs)",
+    "role": "Vehicle Handler (/hr >8hrs)",
     "gl_codes": [
       "4000.31.01"
     ],
@@ -3955,7 +3850,7 @@
     "cost_rate_range": null
   },
   {
-    "role": "Event /Vehicle Manager (/10 hr day) OT",
+    "role": "Event/Vehicle Manager (/10 hr day) OT",
     "gl_codes": [
       "4000.17"
     ],
@@ -4088,26 +3983,6 @@
     }
   },
   {
-    "role": "Per DIem",
-    "gl_codes": [
-      "4000.32"
-    ],
-    "occurrences": 1,
-    "has_ot_variant": false,
-    "unit_rate_range": {
-      "min": 65.0,
-      "max": 65.0,
-      "avg": 65.0,
-      "median": 65.0
-    },
-    "cost_rate_range": {
-      "min": 0.25,
-      "max": 0.25,
-      "avg": 0.25,
-      "median": 0.25
-    }
-  },
-  {
     "role": "Event Manager (/10 hr. day)",
     "gl_codes": [
       "4000.17"
@@ -4188,7 +4063,7 @@
     }
   },
   {
-    "role": "Event / Logistics Staff (/10 hr day)",
+    "role": "Event/Logistics Staff (/10 hr day)",
     "gl_codes": [
       "4000.31"
     ],
@@ -4208,7 +4083,7 @@
     }
   },
   {
-    "role": "Event / Logistics (/hr >10hrs)",
+    "role": "Event/Logistics (/hr >10hrs)",
     "gl_codes": [
       "4000.31.01"
     ],
@@ -4327,42 +4202,7 @@
     }
   },
   {
-    "role": "Event /Vehicle Manager (/hr >10hrs)",
-    "gl_codes": [
-      "4000.17.01"
-    ],
-    "occurrences": 1,
-    "has_ot_variant": true,
-    "unit_rate_range": {
-      "min": 45.0,
-      "max": 45.0,
-      "avg": 45.0,
-      "median": 45.0
-    },
-    "cost_rate_range": null
-  },
-  {
-    "role": "Event / Vehicle Manager (/10 hr day)",
-    "gl_codes": [
-      "4000.17"
-    ],
-    "occurrences": 1,
-    "has_ot_variant": false,
-    "unit_rate_range": {
-      "min": 500.0,
-      "max": 500.0,
-      "avg": 500.0,
-      "median": 500.0
-    },
-    "cost_rate_range": {
-      "min": 0.25,
-      "max": 0.25,
-      "avg": 0.25,
-      "median": 0.25
-    }
-  },
-  {
-    "role": "Vehicle Manager(s) (/10 hr day)",
+    "role": "Vehicle Manager (s) (/10 hr day)",
     "gl_codes": [
       "4000.17"
     ],
@@ -4442,7 +4282,7 @@
     }
   },
   {
-    "role": "Coordinators/Drive Team Support/Cone resetting (/hr>10 hrs)",
+    "role": "Coordinators/Drive Team Support/Cone resetting (/hr >10hrs)",
     "gl_codes": [
       "4000.31.01"
     ],
@@ -5194,46 +5034,6 @@
     }
   },
   {
-    "role": "Event/Vehicle Handler Weekend Rate (/10 hr day)",
-    "gl_codes": [
-      "4000.31"
-    ],
-    "occurrences": 1,
-    "has_ot_variant": false,
-    "unit_rate_range": {
-      "min": 450.0,
-      "max": 450.0,
-      "avg": 450.0,
-      "median": 450.0
-    },
-    "cost_rate_range": {
-      "min": 0.25,
-      "max": 0.25,
-      "avg": 0.25,
-      "median": 0.25
-    }
-  },
-  {
-    "role": "Event/Vehicle Handler Weekend Rate(/10 hr day)",
-    "gl_codes": [
-      "4000.31"
-    ],
-    "occurrences": 1,
-    "has_ot_variant": false,
-    "unit_rate_range": {
-      "min": 450.0,
-      "max": 450.0,
-      "avg": 450.0,
-      "median": 450.0
-    },
-    "cost_rate_range": {
-      "min": 0.25,
-      "max": 0.25,
-      "avg": 0.25,
-      "median": 0.25
-    }
-  },
-  {
     "role": "Event/Vehicle Manager (/hr >10hrs) (Holiday Rate)",
     "gl_codes": [
       "4000.17.01"
@@ -5245,26 +5045,6 @@
       "max": 67.5,
       "avg": 67.5,
       "median": 67.5
-    },
-    "cost_rate_range": {
-      "min": 0.25,
-      "max": 0.25,
-      "avg": 0.25,
-      "median": 0.25
-    }
-  },
-  {
-    "role": "Event/Vehicle Labor (/hr>10hrs)",
-    "gl_codes": [
-      "4000.31.01"
-    ],
-    "occurrences": 1,
-    "has_ot_variant": true,
-    "unit_rate_range": {
-      "min": 35.0,
-      "max": 35.0,
-      "avg": 35.0,
-      "median": 35.0
     },
     "cost_rate_range": {
       "min": 0.25,
@@ -5389,26 +5169,6 @@
       "max": 0.1,
       "avg": 0.1,
       "median": 0.1
-    }
-  },
-  {
-    "role": "Event /Vehicle Manager (/hr)",
-    "gl_codes": [
-      "4000.17"
-    ],
-    "occurrences": 1,
-    "has_ot_variant": false,
-    "unit_rate_range": {
-      "min": 45.0,
-      "max": 45.0,
-      "avg": 45.0,
-      "median": 45.0
-    },
-    "cost_rate_range": {
-      "min": 0.25,
-      "max": 0.25,
-      "avg": 0.25,
-      "median": 0.25
     }
   },
   {
@@ -5640,25 +5400,7 @@
     }
   },
   {
-    "role": "Professional Driver(/hr)",
-    "gl_codes": [],
-    "occurrences": 1,
-    "has_ot_variant": false,
-    "unit_rate_range": {
-      "min": 70.0,
-      "max": 70.0,
-      "avg": 70.0,
-      "median": 70.0
-    },
-    "cost_rate_range": {
-      "min": 0.52,
-      "max": 0.52,
-      "avg": 0.52,
-      "median": 0.52
-    }
-  },
-  {
-    "role": "Vehicle Manager (After Hours / day)",
+    "role": "Vehicle Manager (After Hours/day)",
     "gl_codes": [
       "4000.17"
     ],
@@ -5673,7 +5415,7 @@
     "cost_rate_range": null
   },
   {
-    "role": "Event/Vehicle labor (/hr>10hrs) OT",
+    "role": "Event/Vehicle Labor (/hr >10hrs) OT",
     "gl_codes": [
       "4000.31.01"
     ],
