@@ -1,0 +1,353 @@
+{
+  "total_events": 1675,
+  "total_revenue": 15433401.71,
+  "grand_total_ranges": {
+    "min": 370.0,
+    "max": 252171.1,
+    "avg": 9597.89,
+    "median": 5008.47,
+    "total": 15433401.71,
+    "count_nonzero": 1608
+  },
+  "files_with_bid_and_recap": 988,
+  "by_client": {
+    "Genesis": {
+      "event_count": 187,
+      "total_revenue": 1748690.27,
+      "avg_event_size": 9351.28
+    },
+    "Volvo": {
+      "event_count": 146,
+      "total_revenue": 1741692.13,
+      "avg_event_size": 11929.4
+    },
+    "Audi": {
+      "event_count": 170,
+      "total_revenue": 1384197.63,
+      "avg_event_size": 8142.34
+    },
+    "Unknown": {
+      "event_count": 120,
+      "total_revenue": 1342287.73,
+      "avg_event_size": 11185.73
+    },
+    "Mazda": {
+      "event_count": 79,
+      "total_revenue": 997826.84,
+      "avg_event_size": 12630.72
+    },
+    "Other": {
+      "event_count": 60,
+      "total_revenue": 933838.34,
+      "avg_event_size": 15563.97
+    },
+    "Toyota": {
+      "event_count": 134,
+      "total_revenue": 913597.24,
+      "avg_event_size": 6817.89
+    },
+    "Hyundai": {
+      "event_count": 127,
+      "total_revenue": 841515.09,
+      "avg_event_size": 6626.1
+    },
+    "VW": {
+      "event_count": 127,
+      "total_revenue": 764244.2,
+      "avg_event_size": 6017.67
+    },
+    "Verde Events": {
+      "event_count": 20,
+      "total_revenue": 677691.39,
+      "avg_event_size": 33884.57
+    },
+    "Innocean": {
+      "event_count": 10,
+      "total_revenue": 457479.45,
+      "avg_event_size": 45747.95
+    },
+    "Mercedes": {
+      "event_count": 82,
+      "total_revenue": 452777.68,
+      "avg_event_size": 5521.68
+    },
+    "Maserati": {
+      "event_count": 33,
+      "total_revenue": 347128.38,
+      "avg_event_size": 10519.04
+    },
+    "Team One Lexus": {
+      "event_count": 54,
+      "total_revenue": 339063.11,
+      "avg_event_size": 6278.95
+    },
+    "Automotive  Events": {
+      "event_count": 14,
+      "total_revenue": 318118.75,
+      "avg_event_size": 22722.77
+    },
+    "Honda": {
+      "event_count": 47,
+      "total_revenue": 306128.71,
+      "avg_event_size": 6513.38
+    },
+    "LUCID": {
+      "event_count": 29,
+      "total_revenue": 232921.71,
+      "avg_event_size": 8031.78
+    },
+    "Polestar": {
+      "event_count": 11,
+      "total_revenue": 225852.28,
+      "avg_event_size": 20532.03
+    },
+    "Porsche": {
+      "event_count": 40,
+      "total_revenue": 197710.94,
+      "avg_event_size": 4942.77
+    },
+    "160/90": {
+      "event_count": 15,
+      "total_revenue": 197543.96,
+      "avg_event_size": 13169.6
+    },
+    "Team One": {
+      "event_count": 24,
+      "total_revenue": 159810.39,
+      "avg_event_size": 6658.77
+    },
+    "Acura": {
+      "event_count": 30,
+      "total_revenue": 138188.76,
+      "avg_event_size": 4606.29
+    },
+    "Lamborghini": {
+      "event_count": 38,
+      "total_revenue": 125983.7,
+      "avg_event_size": 3315.36
+    },
+    "Bentley": {
+      "event_count": 12,
+      "total_revenue": 105704.51,
+      "avg_event_size": 8808.71
+    },
+    "Jackson Dawson": {
+      "event_count": 19,
+      "total_revenue": 100643.79,
+      "avg_event_size": 5297.04
+    },
+    "Walton Isaacson": {
+      "event_count": 12,
+      "total_revenue": 100097.05,
+      "avg_event_size": 8341.42
+    },
+    "Merkley": {
+      "event_count": 1,
+      "total_revenue": 81053.68,
+      "avg_event_size": 81053.68
+    },
+    "Reliable": {
+      "event_count": 3,
+      "total_revenue": 48442.69,
+      "avg_event_size": 16147.56
+    },
+    "Two Story": {
+      "event_count": 8,
+      "total_revenue": 37449.37,
+      "avg_event_size": 4681.17
+    },
+    "IW Group Inc.": {
+      "event_count": 4,
+      "total_revenue": 17236.14,
+      "avg_event_size": 4309.03
+    },
+    "Frequency Agency": {
+      "event_count": 1,
+      "total_revenue": 16030.0,
+      "avg_event_size": 16030.0
+    },
+    "Public School": {
+      "event_count": 3,
+      "total_revenue": 14891.13,
+      "avg_event_size": 4963.71
+    },
+    "Dow Jones & Company": {
+      "event_count": 1,
+      "total_revenue": 13528.5,
+      "avg_event_size": 13528.5
+    },
+    "The Designory Inc.": {
+      "event_count": 1,
+      "total_revenue": 12452.56,
+      "avg_event_size": 12452.56
+    },
+    "Ferrari": {
+      "event_count": 3,
+      "total_revenue": 9721.07,
+      "avg_event_size": 3240.36
+    },
+    "Third Avenue Events": {
+      "event_count": 1,
+      "total_revenue": 8602.0,
+      "avg_event_size": 8602.0
+    },
+    "Honda Racing Corporation USA": {
+      "event_count": 1,
+      "total_revenue": 6259.0,
+      "avg_event_size": 6259.0
+    },
+    "Canvas Worldwide": {
+      "event_count": 3,
+      "total_revenue": 5299.69,
+      "avg_event_size": 1766.56
+    },
+    "Nth Degree": {
+      "event_count": 1,
+      "total_revenue": 4861.99,
+      "avg_event_size": 4861.99
+    },
+    "INEOS": {
+      "event_count": 1,
+      "total_revenue": 4289.02,
+      "avg_event_size": 4289.02
+    },
+    "Conde Nast": {
+      "event_count": 1,
+      "total_revenue": 1780.8,
+      "avg_event_size": 1780.8
+    },
+    "Airways Freight": {
+      "event_count": 1,
+      "total_revenue": 770.0,
+      "avg_event_size": 770.0
+    },
+    "NEW BUSINESS": {
+      "event_count": 1,
+      "total_revenue": 0.0,
+      "avg_event_size": 0.0
+    }
+  },
+  "by_lead_office": {
+    "New York": {
+      "event_count": 500,
+      "total_revenue": 3733444.23,
+      "avg_event_size": 7466.89
+    },
+    "Los Angeles": {
+      "event_count": 370,
+      "total_revenue": 3717545.69,
+      "avg_event_size": 10047.42
+    },
+    "Miami": {
+      "event_count": 139,
+      "total_revenue": 2479722.28,
+      "avg_event_size": 17839.73
+    },
+    "Unknown": {
+      "event_count": 120,
+      "total_revenue": 1342287.73,
+      "avg_event_size": 11185.73
+    },
+    "Washington DC": {
+      "event_count": 108,
+      "total_revenue": 1079188.93,
+      "avg_event_size": 9992.49
+    },
+    "Dallas": {
+      "event_count": 87,
+      "total_revenue": 663074.63,
+      "avg_event_size": 7621.55
+    },
+    "Chicago": {
+      "event_count": 64,
+      "total_revenue": 557132.66,
+      "avg_event_size": 8705.2
+    },
+    "Seattle": {
+      "event_count": 68,
+      "total_revenue": 501913.54,
+      "avg_event_size": 7381.08
+    },
+    "Atlanta": {
+      "event_count": 69,
+      "total_revenue": 460292.8,
+      "avg_event_size": 6670.91
+    },
+    "San Francisco": {
+      "event_count": 64,
+      "total_revenue": 452168.38,
+      "avg_event_size": 7065.13
+    },
+    "Denver": {
+      "event_count": 40,
+      "total_revenue": 200657.2,
+      "avg_event_size": 5016.43
+    },
+    "Detroit": {
+      "event_count": 22,
+      "total_revenue": 117768.98,
+      "avg_event_size": 5353.14
+    },
+    "Charlotte": {
+      "event_count": 14,
+      "total_revenue": 95544.49,
+      "avg_event_size": 6824.61
+    },
+    "Phoenix": {
+      "event_count": 9,
+      "total_revenue": 32660.16,
+      "avg_event_size": 3628.91
+    },
+    "Headquarters": {
+      "event_count": 1,
+      "total_revenue": 0.0,
+      "avg_event_size": 0.0
+    }
+  },
+  "by_revenue_segment": {
+    "Experiential \u2013 Affiliate": {
+      "event_count": 637,
+      "total_revenue": 6114689.84
+    },
+    "Press": {
+      "event_count": 362,
+      "total_revenue": 3302356.57
+    },
+    "Experiential": {
+      "event_count": 272,
+      "total_revenue": 2406999.34
+    },
+    "Auto Media Event \u2013 Affiliate": {
+      "event_count": 268,
+      "total_revenue": 2177128.29
+    },
+    "Unknown": {
+      "event_count": 120,
+      "total_revenue": 1342287.73
+    },
+    "Auto Media Loans": {
+      "event_count": 5,
+      "total_revenue": 48641.03
+    },
+    "LSM": {
+      "event_count": 7,
+      "total_revenue": 27531.26
+    },
+    "LSM Event \u2013 Affiliate": {
+      "event_count": 3,
+      "total_revenue": 10777.81
+    },
+    "LSM Loans": {
+      "event_count": 1,
+      "total_revenue": 2989.85
+    }
+  },
+  "by_status": {
+    "Invoiced": 893,
+    "Recap": 653,
+    "Unknown": 120,
+    "Duplicate": 5,
+    "Billed In FMS": 2,
+    "Cancelled": 2
+  }
+}

@@ -1,0 +1,65 @@
+{
+  "ONSITE LABOR ACTIVITY": {
+    "files_where_exists": 1612,
+    "files_with_nonzero_bid": 1573,
+    "files_with_nonzero_recap": 924,
+    "total_bid_dollars": 7694864.86,
+    "total_recap_dollars": 4364059.62
+  },
+  "LOGISTICS EXPENSES": {
+    "files_where_exists": 1613,
+    "files_with_nonzero_bid": 1553,
+    "files_with_nonzero_recap": 923,
+    "total_bid_dollars": 3002840.75,
+    "total_recap_dollars": 2120549.85
+  },
+  "PRODUCTION EXPENSES": {
+    "files_where_exists": 1613,
+    "files_with_nonzero_bid": 1426,
+    "files_with_nonzero_recap": 277,
+    "total_bid_dollars": 2066637.13,
+    "total_recap_dollars": 388047.31
+  },
+  "PLANNING & ADMINISTRATION": {
+    "files_where_exists": 1613,
+    "files_with_nonzero_bid": 1562,
+    "files_with_nonzero_recap": 908,
+    "total_bid_dollars": 1677877.62,
+    "total_recap_dollars": 1027619.78
+  },
+  "TRAVEL EXPENSES": {
+    "files_where_exists": 1613,
+    "files_with_nonzero_bid": 478,
+    "files_with_nonzero_recap": 34,
+    "total_bid_dollars": 959938.68,
+    "total_recap_dollars": 51834.89
+  },
+  "AGENCY FEES": {
+    "files_where_exists": 4,
+    "files_with_nonzero_bid": 4,
+    "files_with_nonzero_recap": 1,
+    "total_bid_dollars": 73864.82,
+    "total_recap_dollars": 5377.65
+  },
+  "ACCESS/SPONSORSHIP FEES": {
+    "files_where_exists": 1605,
+    "files_with_nonzero_bid": 8,
+    "files_with_nonzero_recap": 0,
+    "total_bid_dollars": 40337.5,
+    "total_recap_dollars": 0.0
+  },
+  "CREATIVE COSTS": {
+    "files_where_exists": 1613,
+    "files_with_nonzero_bid": 48,
+    "files_with_nonzero_recap": 38,
+    "total_bid_dollars": 17960.35,
+    "total_recap_dollars": 14091.76
+  },
+  "OTHER": {
+    "files_where_exists": 2,
+    "files_with_nonzero_bid": 0,
+    "files_with_nonzero_recap": 0,
+    "total_bid_dollars": 0.0,
+    "total_recap_dollars": 0.0
+  }
+}
