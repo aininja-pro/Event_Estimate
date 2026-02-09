@@ -29,3 +29,28 @@ export interface AIContext {
   commonRoles: CommonRole[]
   revenueSegments: SegmentSize[]
 }
+
+export interface StaffingItem {
+  role: string
+  quantity: number
+  days: number
+  dailyRate: number
+  totalCost: number
+  rationale: string
+}
+
+export interface CostBreakdownItem {
+  section: string
+  estimatedCost: number
+  percentOfTotal: number
+  notes: string
+}
+
+export interface ScopeEstimate {
+  summary: string
+  staffing: StaffingItem[]
+  costBreakdown: CostBreakdownItem[]
+  totalEstimate: { low: number; mid: number; high: number }
+  confidenceNotes: string[]
+  marginRecommendation: { suggestedMarginPct: number; rationale: string }
+}
