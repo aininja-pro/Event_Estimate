@@ -12,7 +12,8 @@ export function Sidebar() {
   return (
     <aside className="flex h-screen w-64 shrink-0 flex-col bg-sidebar text-sidebar-foreground">
       <div className="px-6 py-5">
-        <span className="text-lg font-bold tracking-tight">DriveShop</span>
+        <span className="text-xl font-extrabold tracking-tight">DriveShop</span>
+        <p className="mt-0.5 text-xs font-medium text-zinc-400">Event Estimate Engine</p>
       </div>
       <Separator className="bg-sidebar-border" />
       <nav className="flex-1 space-y-1 px-3 py-4">
@@ -24,8 +25,8 @@ export function Sidebar() {
               [
                 'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
                 isActive
-                  ? 'border-l-4 border-blue-400 bg-sidebar-accent text-sidebar-accent-foreground'
-                  : 'border-l-4 border-transparent text-zinc-400 hover:text-zinc-300',
+                  ? 'border-l-[3px] border-sidebar-primary bg-sidebar-accent text-sidebar-accent-foreground'
+                  : 'border-l-[3px] border-transparent text-zinc-400 hover:bg-sidebar-accent/50 hover:text-zinc-300',
               ].join(' ')
             }
           >
@@ -35,8 +36,9 @@ export function Sidebar() {
         ))}
       </nav>
       <div className="px-6 py-4">
-        <p className="text-xs text-zinc-500">Phase 1 Discovery</p>
-        <p className="text-xs text-zinc-600">v0.1.0</p>
+        <p className="text-xs text-zinc-400">Phase 1 Discovery</p>
+        <p className="text-xs text-zinc-400">Intelligence Report</p>
+        <p className="mt-1 text-xs text-zinc-500">February 2026</p>
       </div>
     </aside>
   )
