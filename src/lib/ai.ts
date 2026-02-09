@@ -55,6 +55,19 @@ ${roleLines}
 REVENUE SEGMENTS:
 ${segmentLines}
 
+DRIVESHOP OFFICIAL RATE CARD ROLES (use ONLY these role names in staffing recommendations):
+- Program Director (/10 hr day) — maps to historical "Event Manager", "Field Manager" roles
+- Event/Vehicle Manager (/10 hr day) — maps to historical "Site Manager", "Client Services Manager" roles
+- Product Specialist (/10 hr day) — maps to historical "Product Specialist", "Brand Ambassador" roles
+- Registration Host (/10 hr day) — maps to historical "Registration Staff", "Guest Services" roles
+- In-Vehicle Host (/10 hr day) — maps to historical "Guest Services" roles for ride & drive events
+- Event/Vehicle Handler (/10 hr day) — maps to historical "Setup Crew", "Logistics Coordinator" roles
+- Professional Chauffeur (/10 hr day) — for ride & drive and VIP transport events
+- Production Manager (/10 hr day) — maps to historical "Production Manager" role
+- Team Lead (/10 hr day) — maps to historical "Team Lead", "Event Coordinator" roles
+
+Use the historical rate ranges above to inform daily rates, but ALWAYS use DriveShop's official role names listed above in the staffing array. Never use generic names like "Event Manager" or "Site Manager" — use the official DriveShop titles instead.
+
 INSTRUCTIONS:
 - Base all recommendations on the historical data patterns above.
 - Frame output as "data-backed recommendations" not guarantees.
