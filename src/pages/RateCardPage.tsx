@@ -159,7 +159,7 @@ export function RateCardPage() {
 
   return (
     <div className="space-y-6">
-      <div>
+      <div className="pb-2 border-b border-border">
         <h1 className="text-2xl font-bold tracking-tight">Historical Rate Analysis</h1>
         <p className="text-muted-foreground">
           {totalRoles} unique roles and rate ranges extracted from 1,659 historical estimates.

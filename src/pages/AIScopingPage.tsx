@@ -160,7 +160,7 @@ export function AIScopingPage() {
 
   return (
     <div className="space-y-6">
-      <div>
+      <div className="pb-2 border-b border-border">
         <h1 className="text-2xl font-bold tracking-tight">AI Scoping Assistant</h1>
         <p className="text-muted-foreground">
           Generate data-backed event scope estimates powered by Claude and {aiContext.totalEvents.toLocaleString()} historical events.

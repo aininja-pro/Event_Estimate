@@ -358,7 +358,7 @@ function CostAnalysisTab() {
               {sortedSections.map((section) => {
                 const overBudget = section.avgActual !== null && section.avgActual > section.avgBid
                 return (
-                  <TableRow key={section.name}>
+                  <TableRow key={section.name} className="even:bg-muted/50">
                     <TableCell className="font-medium">
                       {section.name}
                       {overBudget && (
@@ -584,7 +584,7 @@ function VarianceTab() {
             </TableHeader>
             <TableBody>
               {events.map((evt, i) => (
-                <TableRow key={i}>
+                <TableRow key={i} className="even:bg-muted/50">
                   <TableCell className="font-medium">{evt.event_name}</TableCell>
                   <TableCell>{evt.client}</TableCell>
                   <TableCell>{evt.lead_office}</TableCell>
@@ -815,7 +815,7 @@ function ManagerPerformanceTab() {
 export function DashboardPage() {
   return (
     <div className="space-y-6">
-      <div>
+      <div className="pb-2 border-b border-border">
         <h1 className="text-2xl font-bold tracking-tight">Historical Intelligence Dashboard</h1>
         <p className="text-muted-foreground">
           Analyze historical event estimates and performance data across 1,659 events.
