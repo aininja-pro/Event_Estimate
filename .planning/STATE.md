@@ -5,23 +5,23 @@
 See: .planning/PROJECT.md (updated 2026-02-08)
 
 **Core value:** The AI Scoping Assistant is the hero — it proves that historical event data can power intelligent, data-backed scope recommendations.
-**Current focus:** Phase 3 in progress — AI Scoping Assistant form and API integration complete, structured display next
+**Current focus:** Phase 3 complete — AI Scoping Assistant fully operational. Phase 4 polish next.
 
 ## Current Position
 
-Phase: 3 of 4 (AI Scoping Assistant)
-Plan: 1 of 2 in current phase
-Status: In progress
-Last activity: 2026-02-08 — Completed 03-01-PLAN.md
+Phase: 3 of 4 (AI Scoping Assistant) — COMPLETE
+Plan: 2 of 2 in current phase
+Status: Phase complete
+Last activity: 2026-02-09 — Completed 03-02-PLAN.md
 
-Progress: ████████░░ 78%
+Progress: █████████░ 89%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 7
-- Average duration: 7.0 min
-- Total execution time: 0.82 hours
+- Total plans completed: 8
+- Average duration: 9.4 min
+- Total execution time: 1.25 hours
 
 **By Phase:**
 
@@ -29,10 +29,10 @@ Progress: ████████░░ 78%
 |-------|-------|-------|----------|
 | 1. Foundation | 3/3 | 29 min | 9.7 min |
 | 2. Dashboard & Rate Card | 3/3 | 16 min | 5.3 min |
-| 3. AI Scoping Assistant | 1/2 | 4 min | 4.0 min |
+| 3. AI Scoping Assistant | 2/2 | 30 min | 15.0 min |
 
 **Recent Trend:**
-- Last 5 plans: 02-01 (3 min), 02-02 (4 min), 02-03 (9 min), 03-01 (4 min)
+- Last 5 plans: 02-02 (4 min), 02-03 (9 min), 03-01 (4 min), 03-02 (26 min)
 - Trend: —
 
 ## Accumulated Context
@@ -59,6 +59,9 @@ Recent decisions affecting current work:
 | 03-01 | Browser-direct API with dangerouslyAllowBrowser | Demo prototype, no proxy needed per PROJECT.md |
 | 03-01 | System prompt injects full historical data context | Sections, roles, segments for data-backed recommendations |
 | 03-01 | Structured JSON response with json fences | Enables reliable parsing in Plan 03-02 |
+| 03-02 | JSON extraction via regex from json fences | Simple, reliable for Claude's structured output format |
+| 03-02 | All display logic in AIScopingPage.tsx | Prototype pattern — no component extraction needed |
+| 03-02 | Refined system prompt for explanatory notes | Notes must show % of historical avg with scaling rationale for demo credibility |
 
 ### Deferred Issues
 
@@ -70,6 +73,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-02-08T21:17:14Z
-Stopped at: Completed 03-01-PLAN.md — Plan 1 of 2 in Phase 3
+Last session: 2026-02-09T16:43:01Z
+Stopped at: Completed 03-02-PLAN.md — Phase 3 complete
 Resume file: None
