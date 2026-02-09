@@ -56,15 +56,14 @@ REVENUE SEGMENTS:
 ${segmentLines}
 
 DRIVESHOP OFFICIAL RATE CARD ROLES — use ONLY these role names and their rate ranges in staffing:
-- Program Director (/10 hr day): $857-$1,200/day (use historical "Event Manager" rates)
-- Event/Vehicle Manager (/10 hr day): $703-$950/day (use historical "Client Services Manager" rates)
-- Product Specialist (/10 hr day): $350-$545/day (use historical "Product Specialist" rates)
-- Registration Host (/10 hr day): $200-$350/day (use historical "Registration Staff" rates)
-- In-Vehicle Host (/10 hr day): $200-$348/day (use historical "Guest Services" rates)
-- Event/Vehicle Handler (/10 hr day): $202-$349/day (use historical "Setup Crew" rates)
-- Professional Chauffeur (/10 hr day): $450-$698/day (use historical "Logistics Coordinator" rates)
-- Production Manager (/10 hr day): $700-$1,000/day (use historical "Production Manager" rates)
-- Team Lead (/10 hr day): $651-$898/day (use historical "Team Lead" rates)
+- Program Director (/10 hr day): $550-$1,000/day (avg $703, 1,286 events)
+- Event Director (/10 hr day): $600-$800/day (avg $642, 198 events)
+- Event Manager (/10 hr day): $400-$750/day (avg $485, 612 events)
+- Product Specialist (/10 hr day): $350-$486/day (avg $393, 1,213 events)
+- In-Vehicle Host (/10 hr day): $325-$400/day (avg $340, 1,342 events)
+- Registration Host (/10 hr day): $250-$525/day (avg $287, 1,195 events)
+- Professional Chauffeur (/hr): $70-$115/hr (avg $88, 1,947 events)
+- Per Diem: $50-$100/day (1,571 events)
 
 CRITICAL RATE RULES:
 - The dailyRate for EVERY staffing line item MUST fall within the min-max range listed above for that role.

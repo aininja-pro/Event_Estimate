@@ -4,29 +4,42 @@ import * as path from 'node:path'
 const ROOT = path.resolve(import.meta.dirname, '..')
 const OUT_DIR = path.join(ROOT, 'src', 'data')
 
+// Real data types (from Python extraction pipeline)
+interface SectionInfo {
+  canonical_name: string
+  section_exists: boolean
+  start_row: number
+  total_row: number | null
+  bid_total: number | null
+  recap_total: number | null
+}
+
+interface LaborRole {
+  role: string
+  unit_rate: number
+  gl_code: string | null
+  cost_rate: number | null
+  has_ot_variant: boolean
+}
+
 interface MasterRecord {
-  client: string
-  event_name: string
-  lead_office: string
-  status: string
-  event_manager: string
-  revenue_segment: string
-  event_start_date: string
-  event_end_date: string
-  grand_total: number
-  sections: Array<{
-    section_name: string
-    bid_total: number
-    recap_total: number | null
-  }>
-  labor_roles: Array<{
-    role: string
-    unit_rate: number
-    gl_code: string
-  }>
+  // From Project List
+  client?: string
+  event_name?: string
+  lead_office?: string
+  status?: string
+  event_manager?: string
+  revenue_segment?: string
+  event_start_date?: string
+  event_end_date?: string
+  // From scan
+  filename: string
+  format?: string
+  grand_total: number | null
+  sections: Record<string, SectionInfo>
+  labor_roles: LaborRole[]
   has_recap_data: boolean
-  agency_fees: number
-  other_production_costs: number
+  join_status?: string
 }
 
 interface RateCardRecord {
@@ -35,22 +48,7 @@ interface RateCardRecord {
   occurrences: number
   has_ot_variant: boolean
   unit_rate_range: { min: number; max: number; avg: number; median: number }
-  cost_rate_range: { min: number; max: number; avg: number; median: number }
-}
-
-interface FinancialSummaryData {
-  grandTotalRanges: Array<{ label: string; count: number }>
-  totalEvents: number
-  filesBidAndRecap: number
-  byRevenueSegment: Array<{ name: string; count: number; totalRevenue: number }>
-  byClient: Array<{ name: string; count: number; totalRevenue: number }>
-  byLeadOffice: Array<{ name: string; count: number; totalRevenue: number }>
-  byStatus: Array<{ name: string; count: number; totalRevenue: number }>
-}
-
-interface SectionSummaryData {
-  totalEventsAnalyzed: number
-  sections: Array<{ name: string; eventCount: number; percentOfEvents: number }>
+  cost_rate_range: { min: number; max: number; avg: number; median: number } | null
 }
 
 function readJSON<T>(filename: string): T {
@@ -86,12 +84,36 @@ function round2(n: number): number {
   return Math.round(n * 100) / 100
 }
 
+function parseDateToMonth(dateStr: string | undefined): string | null {
+  if (!dateStr) return null
+  // Try "YYYY-MM-DD" format first
+  if (/^\d{4}-\d{2}/.test(dateStr)) return dateStr.slice(0, 7)
+  // Try "Mon DD, YYYY" format (e.g. "Jun 27, 2023")
+  const match = dateStr.match(/^(\w+)\s+(\d+),?\s+(\d{4})/)
+  if (match) {
+    const months: Record<string, string> = {
+      Jan: '01', Feb: '02', Mar: '03', Apr: '04', May: '05', Jun: '06',
+      Jul: '07', Aug: '08', Sep: '09', Oct: '10', Nov: '11', Dec: '12',
+    }
+    const m = months[match[1]]
+    if (m) return `${match[3]}-${m}`
+  }
+  return null
+}
+
+function getSections(r: MasterRecord): Array<{ section_name: string; bid_total: number; recap_total: number | null }> {
+  if (!r.sections || typeof r.sections !== 'object') return []
+  return Object.entries(r.sections).map(([name, info]) => ({
+    section_name: name,
+    bid_total: info.bid_total ?? 0,
+    recap_total: info.recap_total ?? null,
+  }))
+}
+
 // Read source files
 console.log('Reading source files...')
 const masterIndex = readJSON<MasterRecord[]>('enriched_master_index.json')
 const rateCard = readJSON<RateCardRecord[]>('rate_card_master.json')
-const financialSummary = readJSON<FinancialSummaryData>('financial_summary.json')
-const sectionSummary = readJSON<SectionSummaryData>('section_summary.json')
 
 console.log(`  ${masterIndex.length} records from enriched_master_index.json`)
 console.log(`  ${rateCard.length} roles from rate_card_master.json`)
@@ -104,19 +126,20 @@ console.log('Generating pre-computed data files...\n')
 
 // 1. Dashboard Executive Summary
 function generateExecutiveSummary() {
-  const eventsWithRevenue = masterIndex.filter(r => r.grand_total > 0)
-  const totalRevenue = round2(eventsWithRevenue.reduce((sum, r) => sum + r.grand_total, 0))
-  const avgEventSize = round2(totalRevenue / eventsWithRevenue.length)
-  const medianEventSize = round2(median(eventsWithRevenue.map(r => r.grand_total)))
+  const eventsWithRevenue = masterIndex.filter(r => (r.grand_total ?? 0) > 0)
+  const totalRevenue = round2(eventsWithRevenue.reduce((sum, r) => sum + (r.grand_total ?? 0), 0))
+  const avgEventSize = eventsWithRevenue.length > 0 ? round2(totalRevenue / eventsWithRevenue.length) : 0
+  const medianEventSize = round2(median(eventsWithRevenue.map(r => r.grand_total ?? 0)))
   const eventsWithRecap = masterIndex.filter(r => r.has_recap_data).length
 
   // Top clients by revenue
   const clientMap = new Map<string, { count: number; totalRevenue: number }>()
   for (const r of masterIndex) {
-    const entry = clientMap.get(r.client) ?? { count: 0, totalRevenue: 0 }
+    const client = r.client ?? 'Unknown'
+    const entry = clientMap.get(client) ?? { count: 0, totalRevenue: 0 }
     entry.count++
-    entry.totalRevenue += r.grand_total
-    clientMap.set(r.client, entry)
+    entry.totalRevenue += r.grand_total ?? 0
+    clientMap.set(client, entry)
   }
   const topClientsByRevenue = Array.from(clientMap.entries())
     .map(([name, d]) => ({ name, count: d.count, totalRevenue: round2(d.totalRevenue) }))
@@ -126,10 +149,11 @@ function generateExecutiveSummary() {
   // Top offices by volume
   const officeMap = new Map<string, { count: number; totalRevenue: number }>()
   for (const r of masterIndex) {
-    const entry = officeMap.get(r.lead_office) ?? { count: 0, totalRevenue: 0 }
+    const office = r.lead_office ?? 'Unknown'
+    const entry = officeMap.get(office) ?? { count: 0, totalRevenue: 0 }
     entry.count++
-    entry.totalRevenue += r.grand_total
-    officeMap.set(r.lead_office, entry)
+    entry.totalRevenue += r.grand_total ?? 0
+    officeMap.set(office, entry)
   }
   const topOfficesByVolume = Array.from(officeMap.entries())
     .map(([name, d]) => ({ name, count: d.count, totalRevenue: round2(d.totalRevenue) }))
@@ -138,7 +162,8 @@ function generateExecutiveSummary() {
   // Status distribution
   const statusMap = new Map<string, number>()
   for (const r of masterIndex) {
-    statusMap.set(r.status, (statusMap.get(r.status) ?? 0) + 1)
+    const status = r.status ?? 'Unknown'
+    statusMap.set(status, (statusMap.get(status) ?? 0) + 1)
   }
   const statusDistribution = Array.from(statusMap.entries())
     .map(([name, count]) => ({ name, count }))
@@ -147,10 +172,11 @@ function generateExecutiveSummary() {
   // Revenue segment distribution
   const segmentMap = new Map<string, { count: number; totalRevenue: number }>()
   for (const r of masterIndex) {
-    const entry = segmentMap.get(r.revenue_segment) ?? { count: 0, totalRevenue: 0 }
+    const segment = r.revenue_segment ?? 'Unknown'
+    const entry = segmentMap.get(segment) ?? { count: 0, totalRevenue: 0 }
     entry.count++
-    entry.totalRevenue += r.grand_total
-    segmentMap.set(r.revenue_segment, entry)
+    entry.totalRevenue += r.grand_total ?? 0
+    segmentMap.set(segment, entry)
   }
   const revenueSegmentDistribution = Array.from(segmentMap.entries())
     .map(([name, d]) => ({ name, count: d.count, totalRevenue: round2(d.totalRevenue) }))
@@ -159,11 +185,11 @@ function generateExecutiveSummary() {
   // Events by month
   const monthMap = new Map<string, { count: number; revenue: number }>()
   for (const r of masterIndex) {
-    if (!r.event_start_date) continue
-    const month = r.event_start_date.slice(0, 7)
+    const month = parseDateToMonth(r.event_start_date)
+    if (!month) continue
     const entry = monthMap.get(month) ?? { count: 0, revenue: 0 }
     entry.count++
-    entry.revenue += r.grand_total
+    entry.revenue += r.grand_total ?? 0
     monthMap.set(month, entry)
   }
   const eventsByMonth = Array.from(monthMap.entries())
@@ -186,7 +212,7 @@ function generateExecutiveSummary() {
 
 // 2. Dashboard Cost Analysis
 function generateCostAnalysis() {
-  // Per-section aggregates from master index
+  // Per-section aggregates
   const sectionAggMap = new Map<string, {
     bidTotal: number
     actualTotal: number
@@ -195,13 +221,13 @@ function generateCostAnalysis() {
   }>()
 
   for (const r of masterIndex) {
-    for (const s of r.sections) {
+    for (const s of getSections(r)) {
       const entry = sectionAggMap.get(s.section_name) ?? {
         bidTotal: 0, actualTotal: 0, bidCount: 0, actualCount: 0,
       }
       entry.bidTotal += s.bid_total
       entry.bidCount++
-      if (s.recap_total !== null) {
+      if (s.recap_total !== null && s.recap_total > 0) {
         entry.actualTotal += s.recap_total
         entry.actualCount++
       }
@@ -214,15 +240,107 @@ function generateCostAnalysis() {
       name,
       totalBid: round2(d.bidTotal),
       totalActual: round2(d.actualTotal),
-      avgBid: round2(d.bidTotal / d.bidCount),
+      avgBid: d.bidCount > 0 ? round2(d.bidTotal / d.bidCount) : 0,
       avgActual: d.actualCount > 0 ? round2(d.actualTotal / d.actualCount) : null,
       eventCount: d.bidCount,
       recapCount: d.actualCount,
     }))
     .sort((a, b) => b.totalBid - a.totalBid)
 
+  // Grand total ranges for histogram
+  const grandTotals = masterIndex
+    .map(r => r.grand_total ?? 0)
+    .filter(v => v > 0)
+    .sort((a, b) => a - b)
+
+  const ranges = [
+    { label: 'Under $1K', min: 0, max: 1000 },
+    { label: '$1K-$5K', min: 1000, max: 5000 },
+    { label: '$5K-$10K', min: 5000, max: 10000 },
+    { label: '$10K-$25K', min: 10000, max: 25000 },
+    { label: '$25K-$50K', min: 25000, max: 50000 },
+    { label: '$50K-$100K', min: 50000, max: 100000 },
+    { label: '$100K+', min: 100000, max: Infinity },
+  ]
+
+  const grandTotalRanges = ranges.map(range => ({
+    label: range.label,
+    count: grandTotals.filter(v => v >= range.min && v < range.max).length,
+  }))
+
+  const recapCount = masterIndex.filter(r => r.has_recap_data).length
+
+  // By client
+  const clientMap = new Map<string, { count: number; totalRevenue: number }>()
+  for (const r of masterIndex) {
+    const client = r.client ?? 'Unknown'
+    const entry = clientMap.get(client) ?? { count: 0, totalRevenue: 0 }
+    entry.count++
+    entry.totalRevenue += r.grand_total ?? 0
+    clientMap.set(client, entry)
+  }
+  const byClient = Array.from(clientMap.entries())
+    .map(([name, d]) => ({ name, count: d.count, totalRevenue: round2(d.totalRevenue) }))
+    .sort((a, b) => b.totalRevenue - a.totalRevenue)
+
+  // By office
+  const officeMap = new Map<string, { count: number; totalRevenue: number }>()
+  for (const r of masterIndex) {
+    const office = r.lead_office ?? 'Unknown'
+    const entry = officeMap.get(office) ?? { count: 0, totalRevenue: 0 }
+    entry.count++
+    entry.totalRevenue += r.grand_total ?? 0
+    officeMap.set(office, entry)
+  }
+  const byLeadOffice = Array.from(officeMap.entries())
+    .map(([name, d]) => ({ name, count: d.count, totalRevenue: round2(d.totalRevenue) }))
+    .sort((a, b) => b.totalRevenue - a.totalRevenue)
+
+  // By revenue segment
+  const segmentMap = new Map<string, { count: number; totalRevenue: number }>()
+  for (const r of masterIndex) {
+    const segment = r.revenue_segment ?? 'Unknown'
+    const entry = segmentMap.get(segment) ?? { count: 0, totalRevenue: 0 }
+    entry.count++
+    entry.totalRevenue += r.grand_total ?? 0
+    segmentMap.set(segment, entry)
+  }
+  const byRevenueSegment = Array.from(segmentMap.entries())
+    .map(([name, d]) => ({ name, count: d.count, totalRevenue: round2(d.totalRevenue) }))
+    .sort((a, b) => b.totalRevenue - a.totalRevenue)
+
+  // By status
+  const statusMap = new Map<string, { count: number; totalRevenue: number }>()
+  for (const r of masterIndex) {
+    const status = r.status ?? 'Unknown'
+    const entry = statusMap.get(status) ?? { count: 0, totalRevenue: 0 }
+    entry.count++
+    entry.totalRevenue += r.grand_total ?? 0
+    statusMap.set(status, entry)
+  }
+  const byStatus = Array.from(statusMap.entries())
+    .map(([name, d]) => ({ name, count: d.count, totalRevenue: round2(d.totalRevenue) }))
+
+  // Section summary
+  const sectionSummary = {
+    totalEventsAnalyzed: masterIndex.length,
+    sections: sectionAggregates.map(s => ({
+      name: s.name,
+      eventCount: s.eventCount,
+      percentOfEvents: masterIndex.length > 0
+        ? round2((s.eventCount / masterIndex.length) * 100)
+        : 0,
+    })),
+  }
+
   return {
-    ...financialSummary,
+    grandTotalRanges,
+    totalEvents: masterIndex.length,
+    filesBidAndRecap: recapCount,
+    byRevenueSegment,
+    byClient,
+    byLeadOffice,
+    byStatus,
     sectionSummary,
     sectionAggregates,
   }
@@ -233,15 +351,16 @@ function generateVarianceData() {
   const recapEvents = masterIndex.filter(r => r.has_recap_data)
 
   const eventVariances = recapEvents.map(r => {
-    const grandTotalBid = round2(r.sections.reduce((sum, s) => sum + s.bid_total, 0))
+    const sections = getSections(r)
+    const grandTotalBid = round2(sections.reduce((sum, s) => sum + s.bid_total, 0))
     const grandTotalActual = round2(
-      r.sections.reduce((sum, s) => sum + (s.recap_total ?? s.bid_total), 0),
+      sections.reduce((sum, s) => sum + (s.recap_total ?? s.bid_total), 0),
     )
     const variance = round2(grandTotalActual - grandTotalBid)
     const variancePct = grandTotalBid !== 0 ? round2((variance / grandTotalBid) * 100) : 0
 
-    const sectionVariances = r.sections
-      .filter(s => s.recap_total !== null)
+    const sectionVariances = sections
+      .filter(s => s.recap_total !== null && s.recap_total > 0)
       .map(s => ({
         name: s.section_name,
         bid: s.bid_total,
@@ -253,9 +372,9 @@ function generateVarianceData() {
       }))
 
     return {
-      event_name: r.event_name,
-      client: r.client,
-      lead_office: r.lead_office,
+      event_name: r.event_name ?? r.filename,
+      client: r.client ?? 'Unknown',
+      lead_office: r.lead_office ?? 'Unknown',
       grandTotalBid,
       grandTotalActual,
       variance,
@@ -265,8 +384,10 @@ function generateVarianceData() {
   })
 
   // Summary stats
-  const variancePcts = eventVariances.map(e => e.variancePct)
-  const avgVariancePct = round2(variancePcts.reduce((s, v) => s + v, 0) / variancePcts.length)
+  const variancePcts = eventVariances.map(e => e.variancePct).filter(v => isFinite(v))
+  const avgVariancePct = variancePcts.length > 0
+    ? round2(variancePcts.reduce((s, v) => s + v, 0) / variancePcts.length)
+    : 0
   const medianVariancePct = round2(median(variancePcts))
 
   // By section
@@ -276,14 +397,16 @@ function generateVarianceData() {
       const entry = bySectionMap.get(sv.name) ?? { totalVariance: 0, count: 0, variances: [] }
       entry.totalVariance += sv.variance
       entry.count++
-      entry.variances.push(sv.variancePct)
+      if (isFinite(sv.variancePct)) entry.variances.push(sv.variancePct)
       bySectionMap.set(sv.name, entry)
     }
   }
   const bySection = Array.from(bySectionMap.entries())
     .map(([name, d]) => ({
       name,
-      avgVariancePct: round2(d.variances.reduce((s, v) => s + v, 0) / d.variances.length),
+      avgVariancePct: d.variances.length > 0
+        ? round2(d.variances.reduce((s, v) => s + v, 0) / d.variances.length)
+        : 0,
       totalOverUnder: round2(d.totalVariance),
       eventCount: d.count,
     }))
@@ -295,13 +418,15 @@ function generateVarianceData() {
     const entry = byClientMap.get(ev.client) ?? { totalVariance: 0, count: 0, variances: [] }
     entry.totalVariance += ev.variance
     entry.count++
-    entry.variances.push(ev.variancePct)
+    if (isFinite(ev.variancePct)) entry.variances.push(ev.variancePct)
     byClientMap.set(ev.client, entry)
   }
   const byClient = Array.from(byClientMap.entries())
     .map(([name, d]) => ({
       name,
-      avgVariancePct: round2(d.variances.reduce((s, v) => s + v, 0) / d.variances.length),
+      avgVariancePct: d.variances.length > 0
+        ? round2(d.variances.reduce((s, v) => s + v, 0) / d.variances.length)
+        : 0,
       totalOverUnder: round2(d.totalVariance),
       eventCount: d.count,
     }))
@@ -313,13 +438,15 @@ function generateVarianceData() {
     const entry = byOfficeMap.get(ev.lead_office) ?? { totalVariance: 0, count: 0, variances: [] }
     entry.totalVariance += ev.variance
     entry.count++
-    entry.variances.push(ev.variancePct)
+    if (isFinite(ev.variancePct)) entry.variances.push(ev.variancePct)
     byOfficeMap.set(ev.lead_office, entry)
   }
   const byOffice = Array.from(byOfficeMap.entries())
     .map(([name, d]) => ({
       name,
-      avgVariancePct: round2(d.variances.reduce((s, v) => s + v, 0) / d.variances.length),
+      avgVariancePct: d.variances.length > 0
+        ? round2(d.variances.reduce((s, v) => s + v, 0) / d.variances.length)
+        : 0,
       totalOverUnder: round2(d.totalVariance),
       eventCount: d.count,
     }))
@@ -362,42 +489,46 @@ function generateManagerData() {
   }>()
 
   for (const r of masterIndex) {
-    if (!r.event_manager) continue
-    const entry = managerMap.get(r.event_manager) ?? {
+    const manager = r.event_manager
+    if (!manager) continue
+    const entry = managerMap.get(manager) ?? {
       eventCount: 0,
       totalRevenue: 0,
       clients: new Set<string>(),
       recapEvents: [],
     }
     entry.eventCount++
-    entry.totalRevenue += r.grand_total
-    entry.clients.add(r.client)
+    entry.totalRevenue += r.grand_total ?? 0
+    entry.clients.add(r.client ?? 'Unknown')
 
     if (r.has_recap_data) {
-      const bidTotal = r.sections.reduce((sum, s) => sum + s.bid_total, 0)
-      const actualTotal = r.sections.reduce((sum, s) => sum + (s.recap_total ?? s.bid_total), 0)
+      const sections = getSections(r)
+      const bidTotal = sections.reduce((sum, s) => sum + s.bid_total, 0)
+      const actualTotal = sections.reduce((sum, s) => sum + (s.recap_total ?? s.bid_total), 0)
       entry.recapEvents.push({ bidTotal, actualTotal })
     }
-    managerMap.set(r.event_manager, entry)
+    managerMap.set(manager, entry)
   }
 
   const managers = Array.from(managerMap.entries())
     .map(([name, d]) => {
       let avgBidAccuracy: number | null = null
       if (d.recapEvents.length > 0) {
-        const accuracies = d.recapEvents.map(e =>
-          e.bidTotal !== 0 ? e.actualTotal / e.bidTotal : 1,
-        )
-        avgBidAccuracy = round2(
-          accuracies.reduce((s, v) => s + v, 0) / accuracies.length,
-        )
+        const accuracies = d.recapEvents
+          .filter(e => e.bidTotal !== 0)
+          .map(e => e.actualTotal / e.bidTotal)
+        if (accuracies.length > 0) {
+          avgBidAccuracy = round2(
+            accuracies.reduce((s, v) => s + v, 0) / accuracies.length,
+          )
+        }
       }
 
       return {
         name,
         eventCount: d.eventCount,
         totalRevenue: round2(d.totalRevenue),
-        avgEventSize: round2(d.totalRevenue / d.eventCount),
+        avgEventSize: d.eventCount > 0 ? round2(d.totalRevenue / d.eventCount) : 0,
         clientsServed: d.clients.size,
         recapEventCount: d.recapEvents.length,
         avgBidAccuracy,
@@ -408,27 +539,35 @@ function generateManagerData() {
   return managers
 }
 
-// 5. AI Context
+// 5. Rate Card (pass through, but ensure cost_rate_range is not null)
+function generateRateCard() {
+  return rateCard.map(r => ({
+    ...r,
+    cost_rate_range: r.cost_rate_range ?? { min: 0, max: 0, avg: 0, median: 0 },
+  }))
+}
+
+// 6. AI Context
 function generateAIContext() {
   const allDates = masterIndex
     .map(r => r.event_start_date)
-    .filter(Boolean)
+    .filter((d): d is string => !!d)
     .sort()
 
   // Section cost averages
   const sectionCosts = new Map<string, { bids: number[]; actuals: number[] }>()
   for (const r of masterIndex) {
-    for (const s of r.sections) {
+    for (const s of getSections(r)) {
       const entry = sectionCosts.get(s.section_name) ?? { bids: [], actuals: [] }
       entry.bids.push(s.bid_total)
-      if (s.recap_total !== null) entry.actuals.push(s.recap_total)
+      if (s.recap_total !== null && s.recap_total > 0) entry.actuals.push(s.recap_total)
       sectionCosts.set(s.section_name, entry)
     }
   }
   const sectionStats = Array.from(sectionCosts.entries())
     .map(([name, d]) => ({
       name,
-      avgBid: round2(d.bids.reduce((s, v) => s + v, 0) / d.bids.length),
+      avgBid: d.bids.length > 0 ? round2(d.bids.reduce((s, v) => s + v, 0) / d.bids.length) : 0,
       avgActual: d.actuals.length > 0
         ? round2(d.actuals.reduce((s, v) => s + v, 0) / d.actuals.length)
         : null,
@@ -436,7 +575,7 @@ function generateAIContext() {
     .sort((a, b) => b.avgBid - a.avgBid)
 
   // Common roles with rate ranges
-  const commonRoles = rateCard
+  const commonRoles = [...rateCard]
     .sort((a, b) => b.occurrences - a.occurrences)
     .slice(0, 20)
     .map(r => ({
@@ -450,15 +589,16 @@ function generateAIContext() {
   // Revenue segments with avg size
   const segmentMap = new Map<string, { total: number; count: number }>()
   for (const r of masterIndex) {
-    const entry = segmentMap.get(r.revenue_segment) ?? { total: 0, count: 0 }
-    entry.total += r.grand_total
+    const segment = r.revenue_segment ?? 'Unknown'
+    const entry = segmentMap.get(segment) ?? { total: 0, count: 0 }
+    entry.total += r.grand_total ?? 0
     entry.count++
-    segmentMap.set(r.revenue_segment, entry)
+    segmentMap.set(segment, entry)
   }
   const avgEventSizeBySegment = Array.from(segmentMap.entries())
     .map(([name, d]) => ({
       name,
-      avgSize: round2(d.total / d.count),
+      avgSize: d.count > 0 ? round2(d.total / d.count) : 0,
       count: d.count,
     }))
 
@@ -480,14 +620,13 @@ writeJSON('dashboard-executive.json', generateExecutiveSummary())
 writeJSON('dashboard-costs.json', generateCostAnalysis())
 writeJSON('dashboard-variance.json', generateVarianceData())
 writeJSON('dashboard-managers.json', generateManagerData())
-writeJSON('rate-card.json', rateCard)
+writeJSON('rate-card.json', generateRateCard())
 writeJSON('ai-context.json', generateAIContext())
 
 // Print total size
-const dataDir = OUT_DIR
-const files = fs.readdirSync(dataDir).filter(f => f.endsWith('.json'))
+const files = fs.readdirSync(OUT_DIR).filter(f => f.endsWith('.json'))
 const totalSize = files.reduce((sum, f) => {
-  return sum + fs.statSync(path.join(dataDir, f)).size
+  return sum + fs.statSync(path.join(OUT_DIR, f)).size
 }, 0)
 
 console.log(`\nTotal src/data/ size: ${(totalSize / 1024).toFixed(1)} KB`)
