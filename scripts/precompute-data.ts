@@ -485,6 +485,75 @@ function generateVarianceData() {
 }
 
 // 4. Dashboard Manager Performance
+
+// Normalize inconsistent event manager names from the Project List.
+// Keys are lowercased/trimmed variants; values are the canonical name.
+const MANAGER_NAME_MAP: Record<string, string> = {
+  // Mark Duffus variants
+  'duffus': 'Mark Duffus',
+  'dufffus': 'Mark Duffus',
+  'mark duffus': 'Mark Duffus',
+  'mark duffas': 'Mark Duffus',
+  // Johnny Tapanes variants
+  'johnny tapanes': 'Johnny Tapanes',
+  'johnny tapenas': 'Johnny Tapanes',
+  'johnny tapanese': 'Johnny Tapanes',
+  'johnnytapanes': 'Johnny Tapanes',
+  'johnnytapenas': 'Johnny Tapanes',
+  'johnny tapanas': 'Johnny Tapanes',
+  'johnny tapenes': 'Johnny Tapanes',
+  // Chris Ruballos variants
+  'chris ruballos': 'Chris Ruballos',
+  'chris rubellos': 'Chris Ruballos',
+  'chis ruballos': 'Chris Ruballos',
+  'chris rubllos': 'Chris Ruballos',
+  // Rafael Rivera variants
+  'rafael rivera': 'Rafael Rivera',
+  'rafael riveria': 'Rafael Rivera',
+  'rafale rivera': 'Rafael Rivera',
+  // Matt Hruska variants
+  'matt hruska': 'Matt Hruska',
+  'matthew hruska': 'Matt Hruska',
+  // Aaron Hansen variants
+  'aaron hanson': 'Aaron Hansen',
+  // Summer Stacey variants
+  'summer stacy': 'Summer Stacey',
+  // Josh Plies variants
+  'josh piles': 'Josh Plies',
+  // Office name misattributed as a person
+  'los angeles': 'Unassigned (Los Angeles)',
+  // Multi-person entries — normalize to consistent format
+  'eric goetz, aaron hansen': 'Eric Goetz, Aaron Hansen',
+  'aaron hansen, eric goetz': 'Eric Goetz, Aaron Hansen',
+  'eric goetz / aaron hansen': 'Eric Goetz, Aaron Hansen',
+  'eric goetz/aaron hansen': 'Eric Goetz, Aaron Hansen',
+  'aaron hansen/eric goetz': 'Eric Goetz, Aaron Hansen',
+  'aaron hansen / eric goetz': 'Eric Goetz, Aaron Hansen',
+  'chris / rafael': 'Chris Ruballos, Rafael Rivera',
+  'chris /rafael': 'Chris Ruballos, Rafael Rivera',
+  'rafael/chris': 'Rafael Rivera, Chris Ruballos',
+  'rafael/chrs': 'Rafael Rivera, Chris Ruballos',
+  'rafael rivera/chris ruballos': 'Chris Ruballos, Rafael Rivera',
+  'rafael rivera/chris rubellos': 'Chris Ruballos, Rafael Rivera',
+  'rafael and chris': 'Rafael Rivera, Chris Ruballos',
+  'bill hahn/ matt hruska': 'Bill Hahn, Matt Hruska',
+  'matt hruska and bill hahn': 'Bill Hahn, Matt Hruska',
+  'johnny and summer': 'Johnny Tapanes, Summer Stacey',
+  'josh, eric': 'Josh Plies, Eric Goetz',
+  'josh piles, eric goetz': 'Josh Plies, Eric Goetz',
+  'eric goetz, josh plies': 'Eric Goetz, Josh Plies',
+  'eric goetz, aaron hansen, johnny tapanes': 'Eric Goetz, Aaron Hansen, Johnny Tapanes',
+  'john / jennifer harper': 'John Harper, Jennifer Harper',
+  'matt hruska and tony giacalone': 'Matt Hruska, Tony Giacalone',
+  'matt hruska and friends': 'Matt Hruska',
+  'aaron hansen (and others)': 'Aaron Hansen',
+}
+
+function normalizeManagerName(raw: string): string {
+  const key = raw.trim().toLowerCase()
+  return MANAGER_NAME_MAP[key] ?? raw.trim()
+}
+
 function generateManagerData() {
   const managerMap = new Map<string, {
     eventCount: number
@@ -494,8 +563,9 @@ function generateManagerData() {
   }>()
 
   for (const r of masterIndex) {
-    const manager = r.event_manager
-    if (!manager) continue
+    const rawManager = r.event_manager
+    if (!rawManager) continue
+    const manager = normalizeManagerName(rawManager)
     const entry = managerMap.get(manager) ?? {
       eventCount: 0,
       totalRevenue: 0,
