@@ -354,28 +354,28 @@ function generateCostAnalysis() {
 function generateVarianceData() {
   const recapEvents = masterIndex.filter(r => r.has_recap_data)
 
-  const eventVariances = recapEvents.map(r => {
+  const eventVariances = recapEvents.flatMap(r => {
     const sections = getSections(r)
-    const grandTotalBid = round2(sections.reduce((sum, s) => sum + s.bid_total, 0))
-    const grandTotalActual = round2(
-      sections.reduce((sum, s) => sum + (s.recap_total ?? s.bid_total), 0),
-    )
+    // Only include sections that actually have recap data
+    const recapSections = sections.filter(s => s.recap_total !== null && s.recap_total > 0)
+    if (recapSections.length === 0) return []
+
+    const grandTotalBid = round2(recapSections.reduce((sum, s) => sum + s.bid_total, 0))
+    const grandTotalActual = round2(recapSections.reduce((sum, s) => sum + s.recap_total!, 0))
     const variance = round2(grandTotalActual - grandTotalBid)
     const variancePct = grandTotalBid !== 0 ? round2((variance / grandTotalBid) * 100) : 0
 
-    const sectionVariances = sections
-      .filter(s => s.recap_total !== null && s.recap_total > 0)
-      .map(s => ({
-        name: s.section_name,
-        bid: s.bid_total,
-        actual: s.recap_total!,
-        variance: round2(s.recap_total! - s.bid_total),
-        variancePct: s.bid_total !== 0
-          ? round2(((s.recap_total! - s.bid_total) / s.bid_total) * 100)
-          : 0,
-      }))
+    const sectionVariances = recapSections.map(s => ({
+      name: s.section_name,
+      bid: s.bid_total,
+      actual: s.recap_total!,
+      variance: round2(s.recap_total! - s.bid_total),
+      variancePct: s.bid_total !== 0
+        ? round2(((s.recap_total! - s.bid_total) / s.bid_total) * 100)
+        : 0,
+    }))
 
-    return {
+    return [{
       event_name: r.event_name ?? r.filename,
       client: r.client ?? 'Unknown',
       lead_office: r.lead_office ?? 'Unknown',
@@ -384,7 +384,7 @@ function generateVarianceData() {
       variance,
       variancePct,
       sectionVariances,
-    }
+    }]
   })
 
   // Summary stats
@@ -474,7 +474,7 @@ function generateVarianceData() {
     summary: {
       avgVariancePct,
       medianVariancePct,
-      count: recapEvents.length,
+      count: eventVariances.length,
     },
     bySection,
     byClient,
@@ -507,9 +507,12 @@ function generateManagerData() {
 
     if (r.has_recap_data) {
       const sections = getSections(r)
-      const bidTotal = sections.reduce((sum, s) => sum + s.bid_total, 0)
-      const actualTotal = sections.reduce((sum, s) => sum + (s.recap_total ?? s.bid_total), 0)
-      entry.recapEvents.push({ bidTotal, actualTotal })
+      const recapSections = sections.filter(s => s.recap_total !== null && s.recap_total > 0)
+      if (recapSections.length > 0) {
+        const bidTotal = recapSections.reduce((sum, s) => sum + s.bid_total, 0)
+        const actualTotal = recapSections.reduce((sum, s) => sum + s.recap_total!, 0)
+        entry.recapEvents.push({ bidTotal, actualTotal })
+      }
     }
     managerMap.set(manager, entry)
   }

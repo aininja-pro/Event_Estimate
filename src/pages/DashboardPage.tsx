@@ -479,7 +479,7 @@ function VarianceTab() {
       <div className="grid grid-cols-3 gap-4">
         <Card>
           <CardContent className="pt-6">
-            <p className="text-sm text-muted-foreground">Events Analyzed</p>
+            <p className="text-sm text-muted-foreground">Events with Recap Data</p>
             <p className="text-2xl font-bold">{summary.count.toLocaleString()}</p>
           </CardContent>
         </Card>
@@ -527,7 +527,7 @@ function VarianceTab() {
                 {bySection.map((entry) => (
                   <Cell
                     key={entry.name}
-                    fill={entry.avgVariancePct >= 0 ? CHART_COLORS[4] : CHART_COLORS[1]}
+                    fill={entry.avgVariancePct >= 0 ? '#ef4444' : '#059669'}
                   />
                 ))}
               </Bar>
@@ -562,7 +562,7 @@ function VarianceTab() {
                   {top15Clients.map((entry) => (
                     <Cell
                       key={entry.name}
-                      fill={entry.avgVariancePct >= 0 ? CHART_COLORS[4] : CHART_COLORS[1]}
+                      fill={entry.avgVariancePct >= 0 ? '#ef4444' : '#059669'}
                     />
                   ))}
                 </Bar>
@@ -595,7 +595,7 @@ function VarianceTab() {
                   {byOffice.map((entry) => (
                     <Cell
                       key={entry.name}
-                      fill={entry.avgVariancePct >= 0 ? CHART_COLORS[4] : CHART_COLORS[1]}
+                      fill={entry.avgVariancePct >= 0 ? '#ef4444' : '#059669'}
                     />
                   ))}
                 </Bar>
