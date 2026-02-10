@@ -7,12 +7,24 @@ and typos into base roles. Target: ~50-80 unique base roles.
 """
 
 import json
+import math
 import os
 import re
 import statistics
 from collections import defaultdict
 
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+
+def filter_outliers(values, n_sigma=3):
+    """Remove values beyond n_sigma standard deviations from the median."""
+    if len(values) < 3:
+        return values
+    med = statistics.median(values)
+    std = statistics.stdev(values)
+    if std == 0:
+        return values
+    return [v for v in values if abs(v - med) <= n_sigma * std]
 SCAN_RESULTS = os.path.join(PROJECT_ROOT, "scan_results.json")
 OUTPUT = os.path.join(PROJECT_ROOT, "rate_card_master.json")
 
@@ -289,7 +301,7 @@ def main():
                 rd["has_afterhours_variant"] = True
             if role.get("unit_rate") is not None and role["unit_rate"] > 0:
                 rd["unit_rates"].append(role["unit_rate"])
-            if role.get("cost_rate") is not None and role["cost_rate"] > 0:
+            if role.get("cost_rate") is not None and 0 < role["cost_rate"] <= 1.0:
                 rd["cost_rates"].append(role["cost_rate"])
 
     # Build output
@@ -307,26 +319,34 @@ def main():
         }
 
         if rd["unit_rates"]:
-            rates = rd["unit_rates"]
+            raw = rd["unit_rates"]
+            filtered = filter_outliers(raw, n_sigma=3)
             entry["unit_rate_range"] = {
-                "min": round(min(rates), 2),
-                "max": round(max(rates), 2),
-                "avg": round(statistics.mean(rates), 2),
-                "median": round(statistics.median(rates), 2),
+                "min": round(min(filtered), 2),
+                "max": round(max(filtered), 2),
+                "avg": round(statistics.mean(filtered), 2),
+                "median": round(statistics.median(filtered), 2),
+            }
+            entry["unit_rate_range_raw"] = {
+                "min": round(min(raw), 2),
+                "max": round(max(raw), 2),
+                "avg": round(statistics.mean(raw), 2),
+                "median": round(statistics.median(raw), 2),
             }
         else:
             entry["unit_rate_range"] = {"min": 0, "max": 0, "avg": 0, "median": 0}
+            entry["unit_rate_range_raw"] = {"min": 0, "max": 0, "avg": 0, "median": 0}
 
         if rd["cost_rates"]:
             rates = rd["cost_rates"]
-            entry["cost_rate_range"] = {
-                "min": round(min(rates), 2),
-                "max": round(max(rates), 2),
-                "avg": round(statistics.mean(rates), 2),
-                "median": round(statistics.median(rates), 2),
+            entry["margin_range"] = {
+                "min": round(min(rates), 4),
+                "max": round(max(rates), 4),
+                "avg": round(statistics.mean(rates), 4),
+                "median": round(statistics.median(rates), 4),
             }
         else:
-            entry["cost_rate_range"] = None
+            entry["margin_range"] = None
 
         roles.append(entry)
 

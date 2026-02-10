@@ -20,7 +20,7 @@ import type { RateCardRole, RateRange } from '@/types/rate-card'
 const roles = getRateCard()
 const maxOccurrences = Math.max(...roles.map((r) => r.occurrences))
 
-type SortKey = 'role' | 'occurrences' | 'unitRateAvg' | 'costRateAvg'
+type SortKey = 'role' | 'occurrences' | 'unitRateAvg' | 'marginAvg'
 type SortDirection = 'asc' | 'desc'
 
 function formatRate(value: number): string {
@@ -32,6 +32,15 @@ function formatRateRange(range: RateRange): string {
   return `${formatRate(range.min)} - ${formatRate(range.max)}`
 }
 
+function formatMargin(value: number): string {
+  return `${(value * 100).toFixed(0)}%`
+}
+
+function formatMarginRange(range: RateRange): string {
+  if (range.min === range.max) return formatMargin(range.min)
+  return `${formatMargin(range.min)} - ${formatMargin(range.max)}`
+}
+
 function getSortValue(role: RateCardRole, key: SortKey): string | number {
   switch (key) {
     case 'role':
@@ -40,8 +49,8 @@ function getSortValue(role: RateCardRole, key: SortKey): string | number {
       return role.occurrences
     case 'unitRateAvg':
       return role.unit_rate_range.avg
-    case 'costRateAvg':
-      return role.cost_rate_range.avg
+    case 'marginAvg':
+      return role.margin_range.avg
   }
 }
 
@@ -116,6 +125,32 @@ function RangeBar({ range, label }: { range: RateRange; label: string }) {
   )
 }
 
+function MarginDetail({ range }: { range: RateRange }) {
+  return (
+    <div>
+      <p className="text-sm font-medium mb-2">Margin Details</p>
+      <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-sm">
+        <div className="flex justify-between">
+          <span className="text-muted-foreground">Min</span>
+          <span className="font-medium">{formatMargin(range.min)}</span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-muted-foreground">Max</span>
+          <span className="font-medium">{formatMargin(range.max)}</span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-muted-foreground">Average</span>
+          <span className="font-medium">{formatMargin(range.avg)}</span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-muted-foreground">Median</span>
+          <span className="font-medium">{formatMargin(range.median)}</span>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export function RateCardPage() {
   const [search, setSearch] = useState('')
   const [sortKey, setSortKey] = useState<SortKey>('occurrences')
@@ -167,7 +202,7 @@ export function RateCardPage() {
       <div className="pb-2 border-b border-border">
         <h1 className="text-2xl font-bold tracking-tight">Historical Rate Analysis</h1>
         <p className="text-muted-foreground">
-          Showing {filteredRoles.length} of {totalRoles} roles from 1,659 historical estimates.
+          Showing {filteredRoles.length} standard roles from 1,659 historical estimates.
         </p>
       </div>
 
@@ -243,10 +278,10 @@ export function RateCardPage() {
                 </TableHead>
                 <TableHead
                   className="cursor-pointer select-none text-right"
-                  onClick={() => handleSort('costRateAvg')}
+                  onClick={() => handleSort('marginAvg')}
                 >
-                  Cost Rate Range
-                  <SortIndicator columnKey="costRateAvg" sortKey={sortKey} sortDirection={sortDirection} />
+                  Margin %
+                  <SortIndicator columnKey="marginAvg" sortKey={sortKey} sortDirection={sortDirection} />
                 </TableHead>
                 <TableHead className="text-center">OT</TableHead>
                 <TableHead className="w-10" />
@@ -315,9 +350,12 @@ function RoleRow({
         <TableCell className="font-medium">{role.role}</TableCell>
         <TableCell>
           <div className="flex gap-1 flex-wrap">
-            {role.gl_codes.map((code) => (
+            {role.gl_codes.slice(0, 3).map((code) => (
               <Badge key={code} variant="outline">{code}</Badge>
             ))}
+            {role.gl_codes.length > 3 && (
+              <Badge variant="secondary">+{role.gl_codes.length - 3} more</Badge>
+            )}
           </div>
         </TableCell>
         <TableCell className="text-right">
@@ -339,8 +377,8 @@ function RoleRow({
         </TableCell>
         <TableCell className="text-right">
           <div>
-            <span className="text-sm">{formatRateRange(role.cost_rate_range)}</span>
-            <p className="text-xs text-muted-foreground">avg: {formatRate(role.cost_rate_range.avg)}</p>
+            <span className="text-sm">{formatMarginRange(role.margin_range)}</span>
+            <p className="text-xs text-muted-foreground">avg: {formatMargin(role.margin_range.avg)}</p>
           </div>
         </TableCell>
         <TableCell className="text-center">
@@ -363,8 +401,8 @@ function RoleRow({
         <TableRow className="bg-muted/30">
           <TableCell colSpan={7} className="border-l-4 border-primary p-6">
             <div className="grid grid-cols-2 gap-8 mb-4">
-              <RangeBar range={role.unit_rate_range} label="Unit Rate Details" />
-              <RangeBar range={role.cost_rate_range} label="Cost Rate Details" />
+              <RangeBar range={role.unit_rate_range_raw} label="Unit Rate Details (unfiltered)" />
+              <MarginDetail range={role.margin_range} />
             </div>
             <div className="mt-8 flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
               <span>Found in <span className="font-medium text-foreground">{role.occurrences}</span> events</span>

@@ -23,7 +23,13 @@
       "avg": 186.0,
       "median": 40.0
     },
-    "cost_rate_range": {
+    "unit_rate_range_raw": {
+      "min": 32.5,
+      "max": 400.0,
+      "avg": 186.0,
+      "median": 40.0
+    },
+    "margin_range": {
       "min": 0.25,
       "max": 0.25,
       "avg": 0.25,
@@ -61,10 +67,16 @@
       "avg": 387.13,
       "median": 100.0
     },
-    "cost_rate_range": {
+    "unit_rate_range_raw": {
+      "min": 45.0,
+      "max": 1000.0,
+      "avg": 387.13,
+      "median": 100.0
+    },
+    "margin_range": {
       "min": 0.1,
       "max": 1.0,
-      "avg": 0.26,
+      "avg": 0.2554,
       "median": 0.25
     }
   },
@@ -92,7 +104,13 @@
       "avg": 221.69,
       "median": 350.0
     },
-    "cost_rate_range": {
+    "unit_rate_range_raw": {
+      "min": 35.0,
+      "max": 485.7,
+      "avg": 221.69,
+      "median": 350.0
+    },
+    "margin_range": {
       "min": 0.25,
       "max": 0.25,
       "avg": 0.25,
@@ -124,7 +142,13 @@
       "avg": 161.38,
       "median": 250.0
     },
-    "cost_rate_range": {
+    "unit_rate_range_raw": {
+      "min": 25.0,
+      "max": 525.0,
+      "avg": 161.38,
+      "median": 250.0
+    },
+    "margin_range": {
       "min": 0.25,
       "max": 0.25,
       "avg": 0.25,
@@ -155,14 +179,20 @@
     "has_afterhours_variant": false,
     "unit_rate_range": {
       "min": 27.5,
+      "max": 125.0,
+      "avg": 87.12,
+      "median": 90.0
+    },
+    "unit_rate_range_raw": {
+      "min": 27.5,
       "max": 3800.0,
       "avg": 88.67,
       "median": 90.0
     },
-    "cost_rate_range": {
+    "margin_range": {
       "min": 0.1,
-      "max": 800.0,
-      "avg": 1.22,
+      "max": 0.9,
+      "avg": 0.223,
       "median": 0.1
     }
   },
@@ -185,14 +215,20 @@
     "has_afterhours_variant": false,
     "unit_rate_range": {
       "min": 50.0,
+      "max": 75.0,
+      "avg": 59.64,
+      "median": 65.0
+    },
+    "unit_rate_range_raw": {
+      "min": 50.0,
       "max": 100.0,
       "avg": 59.71,
       "median": 65.0
     },
-    "cost_rate_range": {
+    "margin_range": {
       "min": 0.1,
-      "max": 1.43,
-      "avg": 0.31,
+      "max": 1.0,
+      "avg": 0.2974,
       "median": 0.25
     }
   },
@@ -220,7 +256,13 @@
       "avg": 233.35,
       "median": 400.0
     },
-    "cost_rate_range": null
+    "unit_rate_range_raw": {
+      "min": 40.0,
+      "max": 700.0,
+      "avg": 233.35,
+      "median": 400.0
+    },
+    "margin_range": null
   },
   {
     "role": "Event Manager",
@@ -253,10 +295,16 @@
       "avg": 268.37,
       "median": 470.0
     },
-    "cost_rate_range": {
+    "unit_rate_range_raw": {
+      "min": 47.0,
+      "max": 750.0,
+      "avg": 268.37,
+      "median": 470.0
+    },
+    "margin_range": {
       "min": 0.25,
       "max": 1.0,
-      "avg": 0.26,
+      "avg": 0.2567,
       "median": 0.25
     }
   },
@@ -289,10 +337,16 @@
       "avg": 253.68,
       "median": 51.4
     },
-    "cost_rate_range": {
+    "unit_rate_range_raw": {
+      "min": 35.0,
+      "max": 675.0,
+      "avg": 253.68,
+      "median": 51.4
+    },
+    "margin_range": {
       "min": 0.1,
       "max": 0.25,
-      "avg": 0.25,
+      "avg": 0.2469,
       "median": 0.25
     }
   },
@@ -322,14 +376,20 @@
     "has_afterhours_variant": true,
     "unit_rate_range": {
       "min": 45.0,
+      "max": 650.0,
+      "avg": 268.54,
+      "median": 75.0
+    },
+    "unit_rate_range_raw": {
+      "min": 45.0,
       "max": 750.0,
       "avg": 269.02,
       "median": 75.0
     },
-    "cost_rate_range": {
+    "margin_range": {
       "min": 0.2,
-      "max": 337.5,
-      "avg": 5.33,
+      "max": 0.88,
+      "avg": 0.2529,
       "median": 0.25
     }
   },
@@ -361,10 +421,16 @@
       "avg": 186.02,
       "median": 70.0
     },
-    "cost_rate_range": {
+    "unit_rate_range_raw": {
+      "min": 30.0,
+      "max": 500.0,
+      "avg": 186.02,
+      "median": 70.0
+    },
+    "margin_range": {
       "min": 0.25,
-      "max": 175.0,
-      "avg": 1.54,
+      "max": 1.0,
+      "avg": 0.2547,
       "median": 0.25
     }
   },
@@ -390,7 +456,13 @@
       "avg": 188.35,
       "median": 45.0
     },
-    "cost_rate_range": {
+    "unit_rate_range_raw": {
+      "min": 33.0,
+      "max": 450.0,
+      "avg": 188.35,
+      "median": 45.0
+    },
+    "margin_range": {
       "min": 0.25,
       "max": 0.25,
       "avg": 0.25,
@@ -423,14 +495,20 @@
     "has_afterhours_variant": true,
     "unit_rate_range": {
       "min": 25.0,
+      "max": 500.0,
+      "avg": 168.56,
+      "median": 45.0
+    },
+    "unit_rate_range_raw": {
+      "min": 25.0,
       "max": 675.0,
       "avg": 170.6,
       "median": 45.0
     },
-    "cost_rate_range": {
+    "margin_range": {
       "min": 0.1,
       "max": 0.25,
-      "avg": 0.25,
+      "avg": 0.2483,
       "median": 0.25
     }
   },
@@ -461,10 +539,16 @@
       "avg": 351.86,
       "median": 80.0
     },
-    "cost_rate_range": {
+    "unit_rate_range_raw": {
+      "min": 60.0,
+      "max": 800.0,
+      "avg": 351.86,
+      "median": 80.0
+    },
+    "margin_range": {
       "min": 0.25,
-      "max": 450.0,
-      "avg": 8.86,
+      "max": 1.0,
+      "avg": 0.2635,
       "median": 0.25
     }
   },
@@ -486,14 +570,20 @@
     "has_afterhours_variant": false,
     "unit_rate_range": {
       "min": 35.0,
+      "max": 400.0,
+      "avg": 151.69,
+      "median": 35.0
+    },
+    "unit_rate_range_raw": {
+      "min": 35.0,
       "max": 975.0,
       "avg": 155.97,
       "median": 35.0
     },
-    "cost_rate_range": {
+    "margin_range": {
       "min": 0.1,
-      "max": 0.51,
-      "avg": 0.24,
+      "max": 0.5143,
+      "avg": 0.2415,
       "median": 0.25
     }
   },
@@ -529,7 +619,13 @@
       "avg": 201.17,
       "median": 50.0
     },
-    "cost_rate_range": {
+    "unit_rate_range_raw": {
+      "min": 32.5,
+      "max": 525.0,
+      "avg": 201.17,
+      "median": 50.0
+    },
+    "margin_range": {
       "min": 0.25,
       "max": 0.25,
       "avg": 0.25,
@@ -557,7 +653,13 @@
       "avg": 176.0,
       "median": 176.0
     },
-    "cost_rate_range": null
+    "unit_rate_range_raw": {
+      "min": 32.0,
+      "max": 320.0,
+      "avg": 176.0,
+      "median": 176.0
+    },
+    "margin_range": null
   },
   {
     "role": "Production Manager",
@@ -580,7 +682,13 @@
       "avg": 409.92,
       "median": 75.0
     },
-    "cost_rate_range": {
+    "unit_rate_range_raw": {
+      "min": 75.0,
+      "max": 750.0,
+      "avg": 409.92,
+      "median": 75.0
+    },
+    "margin_range": {
       "min": 0.25,
       "max": 0.25,
       "avg": 0.25,
@@ -608,7 +716,13 @@
       "avg": 267.24,
       "median": 50.0
     },
-    "cost_rate_range": null
+    "unit_rate_range_raw": {
+      "min": 50.0,
+      "max": 500.0,
+      "avg": 267.24,
+      "median": 50.0
+    },
+    "margin_range": null
   },
   {
     "role": "Program Manager",
@@ -632,7 +746,13 @@
       "avg": 499.79,
       "median": 600.0
     },
-    "cost_rate_range": {
+    "unit_rate_range_raw": {
+      "min": 60.0,
+      "max": 600.0,
+      "avg": 499.79,
+      "median": 600.0
+    },
+    "margin_range": {
       "min": 0.25,
       "max": 0.25,
       "avg": 0.25,
@@ -660,7 +780,13 @@
       "avg": 440.0,
       "median": 440.0
     },
-    "cost_rate_range": null
+    "unit_rate_range_raw": {
+      "min": 80.0,
+      "max": 800.0,
+      "avg": 440.0,
+      "median": 440.0
+    },
+    "margin_range": null
   },
   {
     "role": "Uniformed Chauffeur Driver",
@@ -683,10 +809,16 @@
       "avg": 100.0,
       "median": 100.0
     },
-    "cost_rate_range": {
+    "unit_rate_range_raw": {
+      "min": 100.0,
+      "max": 100.0,
+      "avg": 100.0,
+      "median": 100.0
+    },
+    "margin_range": {
       "min": 0.1,
       "max": 0.25,
-      "avg": 0.11,
+      "avg": 0.1143,
       "median": 0.1
     }
   },
@@ -707,7 +839,13 @@
       "avg": 70.0,
       "median": 70.0
     },
-    "cost_rate_range": {
+    "unit_rate_range_raw": {
+      "min": 70.0,
+      "max": 70.0,
+      "avg": 70.0,
+      "median": 70.0
+    },
+    "margin_range": {
       "min": 0.1,
       "max": 0.1,
       "avg": 0.1,
@@ -739,7 +877,13 @@
       "avg": 294.58,
       "median": 500.0
     },
-    "cost_rate_range": {
+    "unit_rate_range_raw": {
+      "min": 50.0,
+      "max": 500.0,
+      "avg": 294.58,
+      "median": 500.0
+    },
+    "margin_range": {
       "min": 0.25,
       "max": 0.25,
       "avg": 0.25,
@@ -766,7 +910,13 @@
       "avg": 40.0,
       "median": 40.0
     },
-    "cost_rate_range": {
+    "unit_rate_range_raw": {
+      "min": 40.0,
+      "max": 40.0,
+      "avg": 40.0,
+      "median": 40.0
+    },
+    "margin_range": {
       "min": 0.25,
       "max": 0.25,
       "avg": 0.25,
@@ -799,7 +949,13 @@
       "avg": 297.7,
       "median": 350.0
     },
-    "cost_rate_range": {
+    "unit_rate_range_raw": {
+      "min": 45.0,
+      "max": 700.0,
+      "avg": 297.7,
+      "median": 350.0
+    },
+    "margin_range": {
       "min": 0.25,
       "max": 0.25,
       "avg": 0.25,
@@ -827,7 +983,13 @@
       "avg": 195.91,
       "median": 205.0
     },
-    "cost_rate_range": null
+    "unit_rate_range_raw": {
+      "min": 35.0,
+      "max": 400.0,
+      "avg": 195.91,
+      "median": 205.0
+    },
+    "margin_range": null
   },
   {
     "role": "Program Labor",
@@ -846,11 +1008,17 @@
     "has_afterhours_variant": true,
     "unit_rate_range": {
       "min": 35.0,
+      "max": 50.0,
+      "avg": 45.26,
+      "median": 50.0
+    },
+    "unit_rate_range_raw": {
+      "min": 35.0,
       "max": 500.0,
       "avg": 88.57,
       "median": 50.0
     },
-    "cost_rate_range": {
+    "margin_range": {
       "min": 0.25,
       "max": 0.25,
       "avg": 0.25,
@@ -879,10 +1047,16 @@
       "avg": 164.05,
       "median": 70.0
     },
-    "cost_rate_range": {
+    "unit_rate_range_raw": {
+      "min": 35.0,
+      "max": 400.0,
+      "avg": 164.05,
+      "median": 70.0
+    },
+    "margin_range": {
       "min": 0.1,
       "max": 0.43,
-      "avg": 0.24,
+      "avg": 0.2389,
       "median": 0.25
     }
   },
@@ -907,7 +1081,13 @@
       "avg": 178.75,
       "median": 55.0
     },
-    "cost_rate_range": null
+    "unit_rate_range_raw": {
+      "min": 35.0,
+      "max": 350.0,
+      "avg": 178.75,
+      "median": 55.0
+    },
+    "margin_range": null
   },
   {
     "role": "Professional Chauffeur Insurance/vehicle",
@@ -924,7 +1104,13 @@
       "avg": 25.0,
       "median": 25.0
     },
-    "cost_rate_range": {
+    "unit_rate_range_raw": {
+      "min": 25.0,
+      "max": 25.0,
+      "avg": 25.0,
+      "median": 25.0
+    },
+    "margin_range": {
       "min": 0.1,
       "max": 0.1,
       "avg": 0.1,
@@ -952,11 +1138,17 @@
       "avg": 180.0,
       "median": 45.0
     },
-    "cost_rate_range": {
-      "min": 0.44,
-      "max": 0.44,
-      "avg": 0.44,
-      "median": 0.44
+    "unit_rate_range_raw": {
+      "min": 45.0,
+      "max": 450.0,
+      "avg": 180.0,
+      "median": 45.0
+    },
+    "margin_range": {
+      "min": 0.4444,
+      "max": 0.4444,
+      "avg": 0.4444,
+      "median": 0.4444
     }
   },
   {
@@ -978,9 +1170,15 @@
       "avg": 82.33,
       "median": 77.0
     },
-    "cost_rate_range": {
+    "unit_rate_range_raw": {
+      "min": 70.0,
+      "max": 100.0,
+      "avg": 82.33,
+      "median": 77.0
+    },
+    "margin_range": {
       "min": 0.1,
-      "max": 0.52,
+      "max": 0.5201,
       "avg": 0.17,
       "median": 0.1
     }
@@ -1004,7 +1202,13 @@
       "avg": 476.67,
       "median": 470.0
     },
-    "cost_rate_range": {
+    "unit_rate_range_raw": {
+      "min": 470.0,
+      "max": 500.0,
+      "avg": 476.67,
+      "median": 470.0
+    },
+    "margin_range": {
       "min": 0.25,
       "max": 0.25,
       "avg": 0.25,
@@ -1032,7 +1236,13 @@
       "avg": 247.5,
       "median": 247.5
     },
-    "cost_rate_range": {
+    "unit_rate_range_raw": {
+      "min": 45.0,
+      "max": 450.0,
+      "avg": 247.5,
+      "median": 247.5
+    },
+    "margin_range": {
       "min": 0.25,
       "max": 0.25,
       "avg": 0.25,
@@ -1056,10 +1266,16 @@
       "avg": 70.0,
       "median": 70.0
     },
-    "cost_rate_range": {
+    "unit_rate_range_raw": {
+      "min": 70.0,
+      "max": 70.0,
+      "avg": 70.0,
+      "median": 70.0
+    },
+    "margin_range": {
       "min": 0.1,
       "max": 0.25,
-      "avg": 0.12,
+      "avg": 0.1214,
       "median": 0.1
     }
   },
@@ -1084,7 +1300,13 @@
       "avg": 348.5,
       "median": 425.0
     },
-    "cost_rate_range": {
+    "unit_rate_range_raw": {
+      "min": 42.5,
+      "max": 425.0,
+      "avg": 348.5,
+      "median": 425.0
+    },
+    "margin_range": {
       "min": 0.25,
       "max": 0.25,
       "avg": 0.25,
@@ -1110,11 +1332,17 @@
       "avg": 450.0,
       "median": 450.0
     },
-    "cost_rate_range": {
-      "min": 0.44,
-      "max": 0.44,
-      "avg": 0.44,
-      "median": 0.44
+    "unit_rate_range_raw": {
+      "min": 450.0,
+      "max": 450.0,
+      "avg": 450.0,
+      "median": 450.0
+    },
+    "margin_range": {
+      "min": 0.4444,
+      "max": 0.4444,
+      "avg": 0.4444,
+      "median": 0.4444
     }
   },
   {
@@ -1136,7 +1364,13 @@
       "avg": 70.0,
       "median": 70.0
     },
-    "cost_rate_range": {
+    "unit_rate_range_raw": {
+      "min": 70.0,
+      "max": 70.0,
+      "avg": 70.0,
+      "median": 70.0
+    },
+    "margin_range": {
       "min": 0.25,
       "max": 0.25,
       "avg": 0.25,
@@ -1158,12 +1392,13 @@
       "avg": 330.0,
       "median": 330.0
     },
-    "cost_rate_range": {
-      "min": 450.0,
-      "max": 450.0,
-      "avg": 450.0,
-      "median": 450.0
-    }
+    "unit_rate_range_raw": {
+      "min": 60.0,
+      "max": 600.0,
+      "avg": 330.0,
+      "median": 330.0
+    },
+    "margin_range": null
   },
   {
     "role": "Precision Driver",
@@ -1180,12 +1415,13 @@
       "avg": 330.0,
       "median": 330.0
     },
-    "cost_rate_range": {
-      "min": 40.0,
-      "max": 400.0,
-      "avg": 220.0,
-      "median": 220.0
-    }
+    "unit_rate_range_raw": {
+      "min": 60.0,
+      "max": 600.0,
+      "avg": 330.0,
+      "median": 330.0
+    },
+    "margin_range": null
   },
   {
     "role": "Per Diem/Chauffeur Drivers",
@@ -1204,7 +1440,13 @@
       "avg": 65.0,
       "median": 65.0
     },
-    "cost_rate_range": null
+    "unit_rate_range_raw": {
+      "min": 65.0,
+      "max": 65.0,
+      "avg": 65.0,
+      "median": 65.0
+    },
+    "margin_range": null
   },
   {
     "role": "Coordinators/Drive Team Support/Cone resetting",
@@ -1227,7 +1469,13 @@
       "avg": 225.0,
       "median": 225.0
     },
-    "cost_rate_range": {
+    "unit_rate_range_raw": {
+      "min": 50.0,
+      "max": 400.0,
+      "avg": 225.0,
+      "median": 225.0
+    },
+    "margin_range": {
       "min": 0.25,
       "max": 0.25,
       "avg": 0.25,
@@ -1251,7 +1499,13 @@
       "avg": 39.0,
       "median": 39.0
     },
-    "cost_rate_range": {
+    "unit_rate_range_raw": {
+      "min": 39.0,
+      "max": 39.0,
+      "avg": 39.0,
+      "median": 39.0
+    },
+    "margin_range": {
       "min": 0.1,
       "max": 0.1,
       "avg": 0.1,
@@ -1273,12 +1527,13 @@
       "avg": 840.0,
       "median": 840.0
     },
-    "cost_rate_range": {
-      "min": 630.0,
-      "max": 630.0,
-      "avg": 630.0,
-      "median": 630.0
-    }
+    "unit_rate_range_raw": {
+      "min": 840.0,
+      "max": 840.0,
+      "avg": 840.0,
+      "median": 840.0
+    },
+    "margin_range": null
   },
   {
     "role": "Vehicle Handler/Will Call",
@@ -1297,7 +1552,13 @@
       "avg": 55.0,
       "median": 55.0
     },
-    "cost_rate_range": {
+    "unit_rate_range_raw": {
+      "min": 55.0,
+      "max": 55.0,
+      "avg": 55.0,
+      "median": 55.0
+    },
+    "margin_range": {
       "min": 0.25,
       "max": 0.25,
       "avg": 0.25,
@@ -1323,7 +1584,13 @@
       "avg": 350.0,
       "median": 350.0
     },
-    "cost_rate_range": {
+    "unit_rate_range_raw": {
+      "min": 350.0,
+      "max": 350.0,
+      "avg": 350.0,
+      "median": 350.0
+    },
+    "margin_range": {
       "min": 0.25,
       "max": 0.25,
       "avg": 0.25,
@@ -1349,7 +1616,13 @@
       "avg": 35.0,
       "median": 35.0
     },
-    "cost_rate_range": null
+    "unit_rate_range_raw": {
+      "min": 35.0,
+      "max": 35.0,
+      "avg": 35.0,
+      "median": 35.0
+    },
+    "margin_range": null
   },
   {
     "role": "Afterhours Labor",
@@ -1370,7 +1643,13 @@
       "avg": 60.0,
       "median": 60.0
     },
-    "cost_rate_range": {
+    "unit_rate_range_raw": {
+      "min": 60.0,
+      "max": 60.0,
+      "avg": 60.0,
+      "median": 60.0
+    },
+    "margin_range": {
       "min": 0.25,
       "max": 0.25,
       "avg": 0.25,
@@ -1396,7 +1675,13 @@
       "avg": 60.0,
       "median": 60.0
     },
-    "cost_rate_range": {
+    "unit_rate_range_raw": {
+      "min": 60.0,
+      "max": 60.0,
+      "avg": 60.0,
+      "median": 60.0
+    },
+    "margin_range": {
       "min": 0.25,
       "max": 0.25,
       "avg": 0.25,
@@ -1422,7 +1707,13 @@
       "avg": 350.0,
       "median": 350.0
     },
-    "cost_rate_range": {
+    "unit_rate_range_raw": {
+      "min": 350.0,
+      "max": 350.0,
+      "avg": 350.0,
+      "median": 350.0
+    },
+    "margin_range": {
       "min": 0.25,
       "max": 0.25,
       "avg": 0.25,
@@ -1444,7 +1735,13 @@
       "avg": 800.0,
       "median": 800.0
     },
-    "cost_rate_range": null
+    "unit_rate_range_raw": {
+      "min": 800.0,
+      "max": 800.0,
+      "avg": 800.0,
+      "median": 800.0
+    },
+    "margin_range": null
   },
   {
     "role": "Driver",
@@ -1465,7 +1762,13 @@
       "avg": 35.0,
       "median": 35.0
     },
-    "cost_rate_range": {
+    "unit_rate_range_raw": {
+      "min": 35.0,
+      "max": 35.0,
+      "avg": 35.0,
+      "median": 35.0
+    },
+    "margin_range": {
       "min": 0.25,
       "max": 0.25,
       "avg": 0.25,
@@ -1491,7 +1794,13 @@
       "avg": 75.0,
       "median": 75.0
     },
-    "cost_rate_range": {
+    "unit_rate_range_raw": {
+      "min": 75.0,
+      "max": 75.0,
+      "avg": 75.0,
+      "median": 75.0
+    },
+    "margin_range": {
       "min": 0.25,
       "max": 0.25,
       "avg": 0.25,
@@ -1517,7 +1826,13 @@
       "avg": 200.0,
       "median": 200.0
     },
-    "cost_rate_range": {
+    "unit_rate_range_raw": {
+      "min": 200.0,
+      "max": 200.0,
+      "avg": 200.0,
+      "median": 200.0
+    },
+    "margin_range": {
       "min": 0.1,
       "max": 0.1,
       "avg": 0.1,

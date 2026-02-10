@@ -15,5 +15,6 @@ export interface RateCardRole {
   has_weekend_variant: boolean
   has_afterhours_variant: boolean
   unit_rate_range: RateRange
-  cost_rate_range: RateRange
+  unit_rate_range_raw: RateRange
+  margin_range: RateRange
 }

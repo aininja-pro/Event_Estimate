@@ -52,7 +52,8 @@ interface RateCardRecord {
   has_weekend_variant: boolean
   has_afterhours_variant: boolean
   unit_rate_range: { min: number; max: number; avg: number; median: number }
-  cost_rate_range: { min: number; max: number; avg: number; median: number } | null
+  unit_rate_range_raw: { min: number; max: number; avg: number; median: number }
+  margin_range: { min: number; max: number; avg: number; median: number } | null
 }
 
 function readJSON<T>(filename: string): T {
@@ -546,11 +547,11 @@ function generateManagerData() {
   return managers
 }
 
-// 5. Rate Card (pass through, but ensure cost_rate_range is not null)
+// 5. Rate Card (pass through, ensure nulls have defaults)
 function generateRateCard() {
   return rateCard.map(r => ({
     ...r,
-    cost_rate_range: r.cost_rate_range ?? { min: 0, max: 0, avg: 0, median: 0 },
+    margin_range: r.margin_range ?? { min: 0, max: 0, avg: 0, median: 0 },
   }))
 }
 
