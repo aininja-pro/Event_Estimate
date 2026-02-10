@@ -6,7 +6,7 @@ import { AIScopingPage } from '@/pages/AIScopingPage'
 import { SystemArchitecturePage } from '@/pages/SystemArchitecturePage'
 import { DatabaseSchemaPage } from '@/pages/DatabaseSchemaPage'
 import { EstimateLifecyclePage } from '@/pages/EstimateLifecyclePage'
-import { ComingSoonPage } from '@/pages/ComingSoonPage'
+import { Phase2RoadmapPage } from '@/pages/Phase2RoadmapPage'
 
 function App() {
   return (
@@ -20,7 +20,7 @@ function App() {
           <Route path="/system-architecture" element={<SystemArchitecturePage />} />
           <Route path="/database-schema" element={<DatabaseSchemaPage />} />
           <Route path="/estimate-lifecycle" element={<EstimateLifecyclePage />} />
-          <Route path="/phase2-roadmap" element={<ComingSoonPage />} />
+          <Route path="/phase2-roadmap" element={<Phase2RoadmapPage />} />
         </Route>
       </Routes>
     </BrowserRouter>
