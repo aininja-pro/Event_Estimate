@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { ArrowRight, FileInput, FileOutput, BarChart3 } from 'lucide-react'
+import { useState, Fragment } from 'react'
+import { ChevronRight, FileInput, FileOutput, BarChart3 } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { ExpandableCard } from '@/components/ExpandableCard'
 
@@ -172,6 +172,47 @@ const lifecycleStates: { id: string; label: string; detail: StateDetail }[] = [
   },
 ]
 
+const stateColor: Record<string, string> = {
+  new: 'blue',
+  draft: 'slate',
+  pending: 'amber',
+  approved: 'emerald',
+  active: 'indigo',
+  recap: 'violet',
+  complete: 'green',
+  intacct: 'slate',
+}
+
+const activeNodeClass: Record<string, string> = {
+  blue: 'bg-blue-500 text-white shadow-lg shadow-blue-500/25 ring-2 ring-blue-400 border-blue-400',
+  slate: 'bg-slate-600 text-white shadow-lg shadow-slate-500/25 ring-2 ring-slate-400 border-slate-400',
+  amber: 'bg-amber-500 text-white shadow-lg shadow-amber-500/25 ring-2 ring-amber-400 border-amber-400',
+  emerald: 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/25 ring-2 ring-emerald-400 border-emerald-400',
+  indigo: 'bg-indigo-500 text-white shadow-lg shadow-indigo-500/25 ring-2 ring-indigo-400 border-indigo-400',
+  violet: 'bg-violet-500 text-white shadow-lg shadow-violet-500/25 ring-2 ring-violet-400 border-violet-400',
+  green: 'bg-green-500 text-white shadow-lg shadow-green-500/25 ring-2 ring-green-400 border-green-400',
+}
+
+const passedNodeClass: Record<string, string> = {
+  blue: 'bg-blue-100 border-blue-300 text-blue-700 dark:bg-blue-500/15 dark:border-blue-500/40 dark:text-blue-300',
+  slate: 'bg-slate-100 border-slate-300 text-slate-700 dark:bg-slate-500/15 dark:border-slate-500/40 dark:text-slate-300',
+  amber: 'bg-amber-100 border-amber-300 text-amber-700 dark:bg-amber-500/15 dark:border-amber-500/40 dark:text-amber-300',
+  emerald: 'bg-emerald-100 border-emerald-300 text-emerald-700 dark:bg-emerald-500/15 dark:border-emerald-500/40 dark:text-emerald-300',
+  indigo: 'bg-indigo-100 border-indigo-300 text-indigo-700 dark:bg-indigo-500/15 dark:border-indigo-500/40 dark:text-indigo-300',
+  violet: 'bg-violet-100 border-violet-300 text-violet-700 dark:bg-violet-500/15 dark:border-violet-500/40 dark:text-violet-300',
+  green: 'bg-green-100 border-green-300 text-green-700 dark:bg-green-500/15 dark:border-green-500/40 dark:text-green-300',
+}
+
+const connectorColorClass: Record<string, string> = {
+  blue: 'text-blue-400',
+  slate: 'text-slate-400',
+  amber: 'text-amber-400',
+  emerald: 'text-emerald-400',
+  indigo: 'text-indigo-400',
+  violet: 'text-violet-400',
+  green: 'text-green-400',
+}
+
 const dataFlows = [
   {
     id: 'intake',
@@ -218,6 +259,7 @@ export function EstimateLifecyclePage() {
   const [selectedState, setSelectedState] = useState<string>('new')
   const [expandedFlow, setExpandedFlow] = useState<string | null>(null)
 
+  const selectedIndex = lifecycleStates.findIndex((s) => s.id === selectedState)
   const currentState = lifecycleStates.find((s) => s.id === selectedState)
 
   function toggleFlow(id: string) {
@@ -235,28 +277,59 @@ export function EstimateLifecyclePage() {
         </p>
       </div>
 
-      {/* Horizontal flow */}
+      {/* Lifecycle flow visualization */}
       <Card>
-        <CardContent className="pt-6">
-          <div className="flex items-center gap-1 overflow-x-auto pb-2">
-            {lifecycleStates.map((state, i) => (
-              <div key={state.id} className="flex shrink-0 items-center">
-                <button
-                  onClick={() => setSelectedState(state.id)}
-                  className={[
-                    'rounded-lg border px-4 py-2 text-sm font-medium transition-colors',
-                    selectedState === state.id
-                      ? 'border-primary bg-primary text-primary-foreground'
-                      : 'border-border bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground',
-                  ].join(' ')}
-                >
-                  {state.label}
-                </button>
-                {i < lifecycleStates.length - 1 && (
-                  <ArrowRight className="mx-1 h-4 w-4 shrink-0 text-muted-foreground" />
-                )}
+        <CardContent className="pt-6 pb-4">
+          <div className="overflow-x-auto pb-2">
+            <div className="relative min-w-max">
+              {/* Subtle progress line behind nodes */}
+              <div className="absolute top-1/2 inset-x-4 -translate-y-1/2 h-[2px]">
+                <div className="h-full rounded-full bg-border/40 overflow-hidden">
+                  <div
+                    className="h-full rounded-full bg-gradient-to-r from-blue-400/50 via-indigo-400/50 to-green-400/50 transition-all duration-500"
+                    style={{ width: `${(selectedIndex / (lifecycleStates.length - 1)) * 100}%` }}
+                  />
+                </div>
               </div>
-            ))}
+
+              {/* Nodes and connector arrows */}
+              <div className="relative flex items-center">
+                {lifecycleStates.map((state, i) => {
+                  const color = stateColor[state.id]
+                  const isSelected = i === selectedIndex
+                  const isPassed = i < selectedIndex
+
+                  return (
+                    <Fragment key={state.id}>
+                      <button
+                        onClick={() => setSelectedState(state.id)}
+                        className={[
+                          'shrink-0 rounded-lg border px-4 py-2.5 text-sm font-medium transition-all duration-300',
+                          isSelected
+                            ? activeNodeClass[color]
+                            : isPassed
+                              ? passedNodeClass[color]
+                              : 'bg-muted/70 border-border/80 text-muted-foreground hover:bg-muted hover:text-foreground',
+                        ].join(' ')}
+                      >
+                        {state.label}
+                      </button>
+                      {i < lifecycleStates.length - 1 && (
+                        <div
+                          className={[
+                            'flex items-center shrink-0 flex-1 min-w-[20px] mx-0.5 transition-colors duration-300',
+                            i < selectedIndex ? connectorColorClass[color] : 'text-border',
+                          ].join(' ')}
+                        >
+                          <div className="flex-1 h-[2px] bg-current rounded-full" />
+                          <ChevronRight className="h-3.5 w-3.5 -ml-1 shrink-0" />
+                        </div>
+                      )}
+                    </Fragment>
+                  )
+                })}
+              </div>
+            </div>
           </div>
         </CardContent>
       </Card>

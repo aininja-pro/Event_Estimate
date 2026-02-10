@@ -112,7 +112,7 @@ const tableGroups: TableGroup[] = [
     icon: Users,
     iconColor: 'text-blue-500',
     title: 'Labor & Rates',
-    subtitle: 'labor roles, entries, and rate cards',
+    subtitle: 'labor roles, logs, entries, and rate cards',
     tables: [
       {
         name: 'labor_roles',
@@ -125,15 +125,32 @@ const tableGroups: TableGroup[] = [
         ],
       },
       {
-        name: 'labor_entries',
+        name: 'labor_logs',
         columns: [
           { name: 'id', type: 'uuid', constraints: ['PK'] },
           { name: 'estimate_id', type: 'uuid', constraints: ['FK', 'NOT NULL'] },
+          { name: 'location_name', type: 'text', constraints: ['NOT NULL'] },
+          { name: 'location_order', type: 'integer', constraints: [] },
+          { name: 'start_date', type: 'date', constraints: [] },
+          { name: 'end_date', type: 'date', constraints: [] },
+        ],
+      },
+      {
+        name: 'labor_entries',
+        columns: [
+          { name: 'id', type: 'uuid', constraints: ['PK'] },
+          { name: 'labor_log_id', type: 'uuid', constraints: ['FK', 'NOT NULL'] },
           { name: 'role_id', type: 'uuid', constraints: ['FK', 'NOT NULL'] },
-          { name: 'hours', type: 'numeric(8,2)', constraints: [] },
-          { name: 'rate', type: 'numeric(10,2)', constraints: [] },
+          { name: 'quantity', type: 'integer', constraints: ['NOT NULL'] },
+          { name: 'days', type: 'integer', constraints: ['NOT NULL'] },
+          { name: 'unit_rate', type: 'numeric(10,2)', constraints: [] },
+          { name: 'cost_rate_corporate', type: 'numeric(10,2)', constraints: [] },
+          { name: 'cost_rate_office', type: 'numeric(10,2)', constraints: [] },
+          { name: 'override_rate', type: 'numeric(10,2)', constraints: [] },
+          { name: 'override_reason', type: 'text', constraints: [] },
+          { name: 'total_revenue', type: 'numeric(12,2)', constraints: [] },
+          { name: 'total_cost', type: 'numeric(12,2)', constraints: [] },
           { name: 'per_diem', type: 'numeric(10,2)', constraints: [] },
-          { name: 'total', type: 'numeric(12,2)', constraints: [] },
         ],
       },
       {
@@ -367,7 +384,7 @@ export function DatabaseSchemaPage() {
             <p className="text-xs text-muted-foreground">
               <span className="font-medium text-foreground">Key relationships:</span>{' '}
               estimates → events (event_id) · line_items → estimates (estimate_id) · line_items → sections (section_id) ·
-              labor_entries → estimates (estimate_id) · labor_entries → labor_roles (role_id) ·
+              labor_logs → estimates (estimate_id) · labor_entries → labor_logs (labor_log_id) · labor_entries → labor_roles (role_id) ·
               rate_cards → labor_roles (role_id) · approvals → estimates (estimate_id) ·
               approvals → users (approver_id) · change_orders → estimates (estimate_id) ·
               users → roles (role_id) · permissions → roles (role_id) · audit_log → users (user_id)
