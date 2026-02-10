@@ -121,10 +121,15 @@ export function RateCardPage() {
   const [sortKey, setSortKey] = useState<SortKey>('occurrences')
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc')
   const [expandedRole, setExpandedRole] = useState<string | null>(null)
+  const [showAll, setShowAll] = useState(false)
 
   const filteredRoles = useMemo(() => {
     const term = search.toLowerCase()
-    let filtered = roles.filter((r) => r.role.toLowerCase().includes(term))
+    let filtered = roles.filter((r) => {
+      if (!r.role.toLowerCase().includes(term)) return false
+      if (!showAll && r.occurrences < 10) return false
+      return true
+    })
 
     filtered = [...filtered].sort((a, b) => {
       const aVal = getSortValue(a, sortKey)
@@ -138,7 +143,7 @@ export function RateCardPage() {
     })
 
     return filtered
-  }, [search, sortKey, sortDirection])
+  }, [search, sortKey, sortDirection, showAll])
 
   const totalRoles = roles.length
   const mostUsedRole = roles.reduce((a, b) => (a.occurrences > b.occurrences ? a : b))
@@ -162,18 +167,29 @@ export function RateCardPage() {
       <div className="pb-2 border-b border-border">
         <h1 className="text-2xl font-bold tracking-tight">Historical Rate Analysis</h1>
         <p className="text-muted-foreground">
-          {totalRoles} unique roles and rate ranges extracted from 1,659 historical estimates.
+          Showing {filteredRoles.length} of {totalRoles} roles from 1,659 historical estimates.
         </p>
       </div>
 
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-        <Input
-          placeholder="Search roles..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="pl-9"
-        />
+      <div className="flex items-center gap-4">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search roles..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-9"
+          />
+        </div>
+        <label className="flex items-center gap-2 text-sm text-muted-foreground whitespace-nowrap cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={showAll}
+            onChange={(e) => setShowAll(e.target.checked)}
+            className="rounded border-border"
+          />
+          Show all roles including rare variants
+        </label>
       </div>
 
       <div className="grid grid-cols-3 gap-4">
