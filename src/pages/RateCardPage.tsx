@@ -328,7 +328,12 @@ function RoleRow({
           </div>
         </TableCell>
         <TableCell className="text-center">
-          {role.has_ot_variant && <Badge variant="secondary">OT</Badge>}
+          <div className="flex flex-wrap gap-1 justify-center">
+            {role.has_ot_variant && <Badge variant="secondary">OT</Badge>}
+            {role.has_dt_variant && <Badge variant="secondary">DT</Badge>}
+            {role.has_weekend_variant && <Badge variant="outline">WE</Badge>}
+            {role.has_afterhours_variant && <Badge variant="outline">AH</Badge>}
+          </div>
         </TableCell>
         <TableCell>
           {isExpanded ? (
@@ -345,12 +350,23 @@ function RoleRow({
               <RangeBar range={role.unit_rate_range} label="Unit Rate Details" />
               <RangeBar range={role.cost_rate_range} label="Cost Rate Details" />
             </div>
-            <div className="mt-8 flex items-center gap-4 text-sm text-muted-foreground">
+            <div className="mt-8 flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
               <span>Found in <span className="font-medium text-foreground">{role.occurrences}</span> events</span>
               <span className="text-border">|</span>
               <span>GL: {role.gl_codes.join(', ')}</span>
+              {role.rate_units.length > 0 && (
+                <>
+                  <span className="text-border">|</span>
+                  <span>Rate Units: {role.rate_units.join(', ')}</span>
+                </>
+              )}
               <span className="text-border">|</span>
-              <span>OT Variant: {role.has_ot_variant ? 'Yes' : 'No'}</span>
+              <span>Variants: {[
+                role.has_ot_variant && 'OT',
+                role.has_dt_variant && 'DT',
+                role.has_weekend_variant && 'Weekend',
+                role.has_afterhours_variant && 'After Hours',
+              ].filter(Boolean).join(', ') || 'None'}</span>
             </div>
           </TableCell>
         </TableRow>
