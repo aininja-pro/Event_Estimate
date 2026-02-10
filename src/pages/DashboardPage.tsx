@@ -43,13 +43,19 @@ const CHART_COLORS = [
   'oklch(0.398 0.07 227.392)',  // chart-3 slate
   'oklch(0.828 0.189 84.429)',  // chart-4 amber
   'oklch(0.769 0.188 70.08)',   // chart-5 orange
+  'oklch(0.627 0.265 303.9)',   // chart-6 violet
+  'oklch(0.645 0.246 16.439)',  // chart-7 rose
+  'oklch(0.72 0.191 22.216)',   // chart-8 coral
+  'oklch(0.588 0.158 241.966)', // chart-9 cyan
 ]
 
 const STATUS_COLORS: Record<string, string> = {
-  Won: CHART_COLORS[0],
-  Lost: CHART_COLORS[2],
+  Invoiced: CHART_COLORS[0],
+  Recap: CHART_COLORS[1],
+  Unknown: CHART_COLORS[3],
   Cancelled: CHART_COLORS[4],
-  Pending: CHART_COLORS[3],
+  Duplicate: CHART_COLORS[2],
+  'Billed In FMS': CHART_COLORS[5],
 }
 
 function formatCurrency(value: number): string {
@@ -207,22 +213,27 @@ function ExecutiveSummaryTab() {
             <CardTitle>Status Distribution</CardTitle>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={250}>
+            <ResponsiveContainer width="100%" height={300}>
               <PieChart>
                 <Pie
                   data={executive.statusDistribution}
                   dataKey="count"
                   nameKey="name"
                   cx="50%"
-                  cy="50%"
+                  cy="45%"
                   outerRadius={90}
-                  label={({ name, percent }) => `${name ?? ''} ${((percent ?? 0) * 100).toFixed(0)}%`}
+                  label={({ name, percent }) => {
+                    const pct = (percent ?? 0) * 100
+                    if (pct < 2) return ''
+                    return `${name ?? ''} ${pct.toFixed(0)}%`
+                  }}
+                  labelLine={false}
                 >
                   {executive.statusDistribution.map((entry) => (
-                    <Cell key={entry.name} fill={STATUS_COLORS[entry.name] || CHART_COLORS[0]} />
+                    <Cell key={entry.name} fill={STATUS_COLORS[entry.name] || CHART_COLORS[2]} />
                   ))}
                 </Pie>
-                <Tooltip />
+                <Tooltip formatter={(value) => Number(value).toLocaleString()} />
                 <Legend />
               </PieChart>
             </ResponsiveContainer>
@@ -234,22 +245,47 @@ function ExecutiveSummaryTab() {
             <CardTitle>Revenue Segment Distribution</CardTitle>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={250}>
+            <ResponsiveContainer width="100%" height={300}>
               <PieChart>
                 <Pie
-                  data={executive.revenueSegmentDistribution}
+                  data={(() => {
+                    const total = executive.revenueSegmentDistribution.reduce((s, d) => s + d.count, 0)
+                    const major: typeof executive.revenueSegmentDistribution = []
+                    let otherCount = 0
+                    for (const d of executive.revenueSegmentDistribution) {
+                      if (d.count / total >= 0.02) major.push(d)
+                      else otherCount += d.count
+                    }
+                    if (otherCount > 0) major.push({ name: 'Other', count: otherCount })
+                    return major
+                  })()}
                   dataKey="count"
                   nameKey="name"
                   cx="50%"
-                  cy="50%"
+                  cy="45%"
                   outerRadius={90}
-                  label={({ name, percent }) => `${(name ?? '').split('(')[0].trim()} ${((percent ?? 0) * 100).toFixed(0)}%`}
+                  label={({ name, percent }) => {
+                    const pct = (percent ?? 0) * 100
+                    if (pct < 3) return ''
+                    const short = (name ?? '').replace(' – Affiliate', '').replace('Auto Media Event', 'AME')
+                    return `${short} ${pct.toFixed(0)}%`
+                  }}
+                  labelLine={false}
                 >
-                  {executive.revenueSegmentDistribution.map((_, i) => (
-                    <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
-                  ))}
+                  {(() => {
+                    const total = executive.revenueSegmentDistribution.reduce((s, d) => s + d.count, 0)
+                    const colors: string[] = []
+                    let ci = 0
+                    for (const d of executive.revenueSegmentDistribution) {
+                      if (d.count / total >= 0.02) colors.push(CHART_COLORS[ci++ % CHART_COLORS.length])
+                    }
+                    if (executive.revenueSegmentDistribution.some(d => d.count / total < 0.02)) {
+                      colors.push(CHART_COLORS[2]) // slate for "Other"
+                    }
+                    return colors.map((c, i) => <Cell key={i} fill={c} />)
+                  })()}
                 </Pie>
-                <Tooltip />
+                <Tooltip formatter={(value) => Number(value).toLocaleString()} />
                 <Legend />
               </PieChart>
             </ResponsiveContainer>
@@ -388,19 +424,24 @@ function CostAnalysisTab() {
             <CardTitle>Revenue by Status</CardTitle>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={250}>
+            <ResponsiveContainer width="100%" height={300}>
               <PieChart>
                 <Pie
                   data={costs.byStatus}
                   dataKey="totalRevenue"
                   nameKey="name"
                   cx="50%"
-                  cy="50%"
+                  cy="45%"
                   outerRadius={90}
-                  label={({ name, percent }) => `${name ?? ''} ${((percent ?? 0) * 100).toFixed(0)}%`}
+                  label={({ name, percent }) => {
+                    const pct = (percent ?? 0) * 100
+                    if (pct < 2) return ''
+                    return `${name ?? ''} ${pct.toFixed(0)}%`
+                  }}
+                  labelLine={false}
                 >
                   {costs.byStatus.map((entry) => (
-                    <Cell key={entry.name} fill={STATUS_COLORS[entry.name] || CHART_COLORS[0]} />
+                    <Cell key={entry.name} fill={STATUS_COLORS[entry.name] || CHART_COLORS[2]} />
                   ))}
                 </Pie>
                 <Tooltip formatter={(value) => formatDollar(Number(value))} />
