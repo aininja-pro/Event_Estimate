@@ -252,11 +252,12 @@ function ExecutiveSummaryTab() {
                     const total = executive.revenueSegmentDistribution.reduce((s, d) => s + d.count, 0)
                     const major: typeof executive.revenueSegmentDistribution = []
                     let otherCount = 0
+                    let otherRevenue = 0
                     for (const d of executive.revenueSegmentDistribution) {
                       if (d.count / total >= 0.02) major.push(d)
-                      else otherCount += d.count
+                      else { otherCount += d.count; otherRevenue += d.totalRevenue }
                     }
-                    if (otherCount > 0) major.push({ name: 'Other', count: otherCount })
+                    if (otherCount > 0) major.push({ name: 'Other', count: otherCount, totalRevenue: otherRevenue })
                     return major
                   })()}
                   dataKey="count"

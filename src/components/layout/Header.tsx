@@ -5,6 +5,10 @@ const pageTitles: Record<string, string> = {
   '/dashboard': 'Historical Intelligence Dashboard',
   '/rate-card': 'Historical Rate Analysis',
   '/ai-assistant': 'AI Scoping Assistant',
+  '/system-architecture': 'System Architecture',
+  '/database-schema': 'Database Schema',
+  '/estimate-lifecycle': 'Estimate Lifecycle',
+  '/phase2-roadmap': 'Phase 2 Roadmap',
 }
 
 export function Header() {
