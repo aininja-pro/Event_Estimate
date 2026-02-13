@@ -9,6 +9,9 @@ const pageTitles: Record<string, string> = {
   '/database-schema': 'Database Schema',
   '/estimate-lifecycle': 'Estimate Lifecycle',
   '/phase2-roadmap': 'Phase 2 Roadmap',
+  '/estimate-builder': 'Estimate Builder',
+  '/rate-card-management': 'Rate Card Management',
+  '/admin/feedback': 'Feedback Management',
 }
 
 export function Header() {
