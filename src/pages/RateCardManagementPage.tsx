@@ -16,13 +16,6 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
-import {
   Dialog,
   DialogContent,
   DialogHeader,
@@ -35,6 +28,7 @@ import {
   Search,
   Pencil,
   Loader2,
+  ChevronDown,
 } from 'lucide-react'
 import type {
   Client,
@@ -65,6 +59,12 @@ const COST_TYPE_LABELS: Record<string, string> = {
   labor: 'Labor',
   flat_fee: 'Flat Fee',
   pass_through: 'Pass-Through',
+}
+
+const COST_TYPE_BORDER: Record<string, string> = {
+  labor: 'border-l-blue-500',
+  flat_fee: 'border-l-green-500',
+  pass_through: 'border-l-amber-500',
 }
 
 // ── Rate Form Dialog ─────────────────────────────────────────────────────────
@@ -182,11 +182,14 @@ interface SectionTableProps {
   section: RateCardSection
   items: RateCardItem[]
   search: string
+  thirdPartyMarkup: number
+  collapsed: boolean
+  onToggle: () => void
   onAddRate: (section: RateCardSection) => void
   onEditRate: (item: RateCardItem) => void
 }
 
-function SectionTable({ section, items, search, onAddRate, onEditRate }: SectionTableProps) {
+function SectionTable({ section, items, search, thirdPartyMarkup, collapsed, onToggle, onAddRate, onEditRate }: SectionTableProps) {
   const isPassThrough = section.cost_type === 'pass_through'
   const term = search.toLowerCase()
   const filtered = items.filter((item) => item.name.toLowerCase().includes(term))
@@ -194,22 +197,28 @@ function SectionTable({ section, items, search, onAddRate, onEditRate }: Section
   if (search && filtered.length === 0) return null
 
   return (
-    <Card>
-      <CardContent className="pt-5 pb-4">
-        {/* Section header */}
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-2">
-            <h3 className="text-sm font-semibold">{section.name}</h3>
-            <Badge variant="secondary" className="text-[10px]">
-              {COST_TYPE_LABELS[section.cost_type] ?? section.cost_type}
-            </Badge>
-            <span className="text-xs text-muted-foreground">{filtered.length} items</span>
-          </div>
-          <Button variant="ghost" size="sm" className="gap-1.5 text-muted-foreground" onClick={() => onAddRate(section)}>
-            <Plus className="h-3.5 w-3.5" />
-            Add Rate
-          </Button>
+    <Card className={`shadow-md border-l-[3px] ${COST_TYPE_BORDER[section.cost_type]} overflow-hidden`}>
+      {/* Section header */}
+      <div className="bg-slate-100 border-b border-slate-200 rounded-t-lg px-4 py-2.5 flex items-center justify-between cursor-pointer select-none" onClick={onToggle}>
+        <div className="flex items-center gap-2">
+          <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform duration-200 ${collapsed ? '-rotate-90' : ''}`} />
+          <h3 className="text-sm font-semibold text-slate-800">{section.name}</h3>
+          <Badge variant="secondary" className="text-[10px]">
+            {COST_TYPE_LABELS[section.cost_type] ?? section.cost_type}
+          </Badge>
+          <span className="text-xs text-slate-500">{filtered.length} items</span>
         </div>
+        <Button variant="ghost" size="sm" className="gap-1.5 text-slate-500 hover:bg-slate-200 hover:text-slate-700" onClick={(e) => { e.stopPropagation(); onAddRate(section) }}>
+          <Plus className="h-3.5 w-3.5" />
+          Add Rate
+        </Button>
+      </div>
+      {!collapsed && (
+      <CardContent className="p-0">
+        <div className="px-6 pb-4 pt-3">
+        {isPassThrough && thirdPartyMarkup > 0 && (
+          <p className="text-xs text-muted-foreground mb-3">Pass-through costs subject to {pct(thirdPartyMarkup)} markup</p>
+        )}
 
         {/* Rate items table */}
         <Table>
@@ -225,14 +234,14 @@ function SectionTable({ section, items, search, onAddRate, onEditRate }: Section
           </TableHeader>
           <TableBody>
             {filtered.map((item) => (
-              <TableRow key={item.id} className="group hover:bg-muted/50">
+              <TableRow key={item.id} className="group even:bg-muted/20 hover:bg-muted/50">
                 <TableCell className="font-medium">
                   <div>
                     {item.name}
                     {item.has_overtime_rate && item.overtime_rate != null && (
                       <div className="text-xs text-muted-foreground mt-0.5">
                         OT: {fmt(item.overtime_rate)} {item.overtime_unit_label}
-                        {item.overtime_gl_code && <span className="ml-2 text-muted-foreground/60">GL {item.overtime_gl_code}</span>}
+                        {item.overtime_gl_code && <span className="ml-2 text-muted-foreground/60 font-mono">GL {item.overtime_gl_code}</span>}
                       </div>
                     )}
                   </div>
@@ -241,12 +250,12 @@ function SectionTable({ section, items, search, onAddRate, onEditRate }: Section
                   <TableCell className="text-right font-medium tabular-nums">{fmt(item.unit_rate)}</TableCell>
                 )}
                 <TableCell className="text-sm text-muted-foreground">{item.unit_label ?? '—'}</TableCell>
-                <TableCell className="text-sm text-muted-foreground tabular-nums">{item.gl_code ?? '—'}</TableCell>
+                <TableCell className="text-sm text-muted-foreground tabular-nums font-mono">{item.gl_code ?? '—'}</TableCell>
                 <TableCell>
                   {item.is_from_msa ? (
-                    <Badge variant="outline" className="border-green-500/30 text-green-400 text-xs">MSA</Badge>
+                    <Badge variant="outline" className="border-green-500/30 text-green-400 text-xs ring-1 ring-green-500/20">MSA</Badge>
                   ) : (
-                    <Badge variant="outline" className="border-blue-500/30 text-blue-400 text-xs">Custom</Badge>
+                    <Badge variant="outline" className="border-blue-500/30 text-blue-400 text-xs ring-1 ring-blue-500/20">Custom</Badge>
                   )}
                 </TableCell>
                 <TableCell>
@@ -270,7 +279,9 @@ function SectionTable({ section, items, search, onAddRate, onEditRate }: Section
             )}
           </TableBody>
         </Table>
+        </div>
       </CardContent>
+      )}
     </Card>
   )
 }
@@ -285,6 +296,11 @@ export function RateCardManagementPage() {
   const [loadingItems, setLoadingItems] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [search, setSearch] = useState('')
+  const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({})
+
+  function toggleSection(sectionId: string) {
+    setCollapsedSections((prev) => ({ ...prev, [sectionId]: !prev[sectionId] }))
+  }
 
   // Dialog state
   const [dialogOpen, setDialogOpen] = useState(false)
@@ -434,39 +450,49 @@ export function RateCardManagementPage() {
         <p className="text-muted-foreground">Manage client-specific pricing from MSA rate cards</p>
       </div>
 
-      {/* Client selector + search bar */}
-      <div className="flex items-center gap-4">
-        <Select value={selectedClientId ?? ''} onValueChange={setSelectedClientId}>
-          <SelectTrigger className="w-[220px]">
-            <SelectValue placeholder="Select client..." />
-          </SelectTrigger>
-          <SelectContent>
-            {clients.map((c) => (
-              <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+      {/* Client selector cards */}
+      <div className="flex gap-3 overflow-x-auto pb-1">
+        {clients.map((client) => {
+          const isActive = client.id === selectedClientId
+          return (
+            <button
+              key={client.id}
+              onClick={() => setSelectedClientId(client.id)}
+              className={`flex flex-col items-center gap-1 rounded-lg border px-5 py-3 min-w-[120px] shrink-0 transition-colors ${
+                isActive
+                  ? 'border-primary bg-primary/10 ring-1 ring-primary/30'
+                  : 'border-border bg-card hover:bg-muted/50'
+              }`}
+            >
+              <span className="text-sm font-semibold">{client.name}</span>
+              {isActive && <span className="text-[11px] text-muted-foreground">{totalItems} rates</span>}
+              <span className="text-[11px] text-muted-foreground">{pct(client.third_party_markup)} markup</span>
+            </button>
+          )
+        })}
+      </div>
 
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Search rates..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-9"
-          />
-        </div>
+      {/* Search bar */}
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <Input
+          placeholder="Search rates..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="pl-9"
+        />
       </div>
 
       {/* Client markup summary bar */}
       {selectedClient && (
-        <Card>
+        <Card className="bg-gradient-to-r from-zinc-50 to-transparent">
           <CardContent className="pt-5 pb-4">
-            <div className="flex items-center gap-8">
+            <div className="flex items-center gap-6">
               <div>
-                <p className="text-xs text-muted-foreground">Client</p>
-                <p className="text-sm font-semibold">{selectedClient.name}</p>
+                <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Client</p>
+                <p className="text-lg font-bold">{selectedClient.name}</p>
               </div>
+              <div className="h-10 w-px bg-border" />
               <div>
                 <p className="text-xs text-muted-foreground">Third Party Markup</p>
                 <p className="text-sm font-semibold">{pct(selectedClient.third_party_markup)}</p>
@@ -483,11 +509,15 @@ export function RateCardManagementPage() {
                   <p className="text-sm font-semibold">{pct(selectedClient.trucking_markup)}</p>
                 </div>
               )}
+              <div className="h-10 w-px bg-border" />
+              <div>
+                <p className="text-xs text-muted-foreground">Total Rates</p>
+                <p className="text-lg font-bold">{totalItems}</p>
+                <p className="text-[11px] text-muted-foreground">{msaItems} MSA · {customItems} custom</p>
+              </div>
               <div className="ml-auto text-right">
-                <p className="text-xs text-muted-foreground">Rates</p>
-                <p className="text-sm font-semibold">
-                  {totalItems} <span className="text-muted-foreground font-normal">({msaItems} MSA, {customItems} custom)</span>
-                </p>
+                <p className="text-xs text-muted-foreground">Last Updated</p>
+                <p className="text-sm font-medium">{new Date(selectedClient.updated_at).toLocaleDateString()}</p>
               </div>
             </div>
           </CardContent>
@@ -507,6 +537,9 @@ export function RateCardManagementPage() {
             section={section}
             items={items}
             search={search}
+            thirdPartyMarkup={selectedClient?.third_party_markup ?? 0}
+            collapsed={!!collapsedSections[section.id]}
+            onToggle={() => toggleSection(section.id)}
             onAddRate={handleAddRate}
             onEditRate={handleEditRate}
           />
