@@ -18,15 +18,20 @@ export function Header() {
   const location = useLocation()
   const title = pageTitles[location.pathname] ?? 'Event Estimate Engine'
 
+  const productionPages = ['/rate-card-management']
+  const isProduction = productionPages.includes(location.pathname)
+
   return (
     <header className="flex items-center justify-between border-b border-border bg-background px-6 py-4 shadow-sm">
       <div>
         <h1 className="text-lg font-semibold">{title}</h1>
-        <p className="text-sm text-muted-foreground">
-          Phase 1 Discovery Intelligence Report
-          <span className="mx-2 text-border">|</span>
-          <span className="text-muted-foreground/70">Prepared for DriveShop</span>
-        </p>
+        {!isProduction && (
+          <p className="text-sm text-muted-foreground">
+            Phase 1 Discovery Intelligence Report
+            <span className="mx-2 text-border">|</span>
+            <span className="text-muted-foreground/70">Prepared for DriveShop</span>
+          </p>
+        )}
       </div>
       <Badge variant="destructive" className="text-xs font-semibold tracking-wide">CONFIDENTIAL</Badge>
     </header>
