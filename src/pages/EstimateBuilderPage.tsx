@@ -883,16 +883,14 @@ function AddLineItemModal({
 // ── Summary Tab ──────────────────────────────────────────────────────────────
 
 function SummaryTab({
+  laborLogs,
   allEntriesMap,
   lineItems,
 }: {
+  laborLogs: LaborLog[]
   allEntriesMap: Record<string, LaborEntry[]>
   lineItems: EstimateLineItem[]
 }) {
-  const allEntries = Object.values(allEntriesMap).flat()
-  const laborEntries = allEntries.filter((e) => !e.role_name.toLowerCase().includes('per diem'))
-  const perDiemEntries = allEntries.filter((e) => e.role_name.toLowerCase().includes('per diem'))
-
   function laborTotals(entries: LaborEntry[]) {
     const revenue = entries.reduce((s, e) => s + e.quantity * e.days * (e.override_rate ?? e.unit_rate), 0)
     const cost = entries.reduce((s, e) => s + e.quantity * e.days * (e.cost_rate ?? 0), 0)
@@ -906,17 +904,54 @@ function SummaryTab({
     return { revenue, cost }
   }
 
-  const labor = laborTotals(laborEntries)
-  const perDiem = laborTotals(perDiemEntries)
+  // Build per-location labor and per diem rows
+  const hasMultipleLocations = laborLogs.length > 1
+  type Row = { section: string; revenue: number; cost: number; isSubtotal?: boolean }
+  const laborRows: Row[] = []
+  let laborSubRevenue = 0
+  let laborSubCost = 0
+  let perDiemSubRevenue = 0
+  let perDiemSubCost = 0
+
+  for (const log of laborLogs) {
+    const entries = allEntriesMap[log.id] ?? []
+    const labor = entries.filter((e) => !e.role_name.toLowerCase().includes('per diem'))
+    const perDiem = entries.filter((e) => e.role_name.toLowerCase().includes('per diem'))
+
+    const lt = laborTotals(labor)
+    if (lt.revenue > 0 || lt.cost > 0) {
+      laborRows.push({
+        section: hasMultipleLocations ? `Labor — ${log.location_name}` : 'Labor',
+        ...lt,
+      })
+      laborSubRevenue += lt.revenue
+      laborSubCost += lt.cost
+    }
+
+    const pt = laborTotals(perDiem)
+    if (pt.revenue > 0 || pt.cost > 0) {
+      laborRows.push({
+        section: hasMultipleLocations ? `Per Diem — ${log.location_name}` : 'Per Diem',
+        ...pt,
+      })
+      perDiemSubRevenue += pt.revenue
+      perDiemSubCost += pt.cost
+    }
+  }
+
+  // Add labor subtotal row when multiple locations exist and there's data
+  const laborSubtotalRow: Row | null =
+    hasMultipleLocations && laborRows.length > 1
+      ? { section: 'Labor Subtotal', revenue: laborSubRevenue + perDiemSubRevenue, cost: laborSubCost + perDiemSubCost, isSubtotal: true }
+      : null
+
   const production = lineItemTotals('production')
   const travel = lineItemTotals('travel')
   const creative = lineItemTotals('creative')
   const access = lineItemTotals('access')
   const misc = lineItemTotals('misc')
 
-  const rows = [
-    { section: 'Labor', ...labor },
-    { section: 'Per Diem', ...perDiem },
+  const expenseRows: Row[] = [
     { section: 'Production', ...production },
     { section: 'Travel/Logistics', ...travel },
     { section: 'Creative', ...creative },
@@ -924,7 +959,11 @@ function SummaryTab({
     { section: 'Misc', ...misc },
   ].filter((r) => r.revenue > 0 || r.cost > 0)
 
-  const totals = rows.reduce((acc, r) => ({ revenue: acc.revenue + r.revenue, cost: acc.cost + r.cost }), { revenue: 0, cost: 0 })
+  const allRows = [...laborRows, ...(laborSubtotalRow ? [laborSubtotalRow] : []), ...expenseRows]
+  // For the grand total, use subtotal if present, otherwise sum labor rows directly
+  const laborForTotal = laborSubtotalRow ?? { revenue: laborSubRevenue + perDiemSubRevenue, cost: laborSubCost + perDiemSubCost }
+  const expenseTotal = expenseRows.reduce((acc, r) => ({ revenue: acc.revenue + r.revenue, cost: acc.cost + r.cost }), { revenue: 0, cost: 0 })
+  const totals = { revenue: laborForTotal.revenue + expenseTotal.revenue, cost: laborForTotal.cost + expenseTotal.cost }
   const totalGP = totals.revenue - totals.cost
 
   return (
@@ -933,7 +972,7 @@ function SummaryTab({
         <CardTitle className="text-base">Consolidated P&L Summary</CardTitle>
       </CardHeader>
       <CardContent>
-        {rows.length === 0 ? (
+        {allRows.length === 0 ? (
           <p className="text-sm text-muted-foreground text-center py-8">No data yet. Add labor roles and line items to see the summary.</p>
         ) : (
           <>
@@ -948,15 +987,15 @@ function SummaryTab({
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {rows.map((row) => {
+                {allRows.map((row) => {
                   const gp = row.revenue - row.cost
                   return (
-                    <TableRow key={row.section}>
-                      <TableCell className="font-medium">{row.section}</TableCell>
-                      <TableCell className="text-right">{fmt(row.revenue)}</TableCell>
-                      <TableCell className="text-right">{fmt(row.cost)}</TableCell>
-                      <TableCell className="text-right text-green-400">{fmt(gp)}</TableCell>
-                      <TableCell className="text-right text-muted-foreground">{pct(gp, row.revenue)}</TableCell>
+                    <TableRow key={row.section} className={row.isSubtotal ? 'border-t-2 border-border' : ''}>
+                      <TableCell className={row.isSubtotal ? 'font-semibold italic' : 'font-medium'}>{row.section}</TableCell>
+                      <TableCell className={`text-right ${row.isSubtotal ? 'font-semibold' : ''}`}>{fmt(row.revenue)}</TableCell>
+                      <TableCell className={`text-right ${row.isSubtotal ? 'font-semibold' : ''}`}>{fmt(row.cost)}</TableCell>
+                      <TableCell className={`text-right text-green-400 ${row.isSubtotal ? 'font-semibold' : ''}`}>{fmt(gp)}</TableCell>
+                      <TableCell className={`text-right text-muted-foreground ${row.isSubtotal ? 'font-semibold' : ''}`}>{pct(gp, row.revenue)}</TableCell>
                     </TableRow>
                   )
                 })}
@@ -1253,7 +1292,7 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
             ))}
 
             <TabsContent value="summary">
-              <SummaryTab allEntriesMap={laborEntriesMap} lineItems={lineItems} />
+              <SummaryTab laborLogs={laborLogs} allEntriesMap={laborEntriesMap} lineItems={lineItems} />
             </TabsContent>
           </Tabs>
         </div>
