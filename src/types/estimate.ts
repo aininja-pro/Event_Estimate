@@ -73,6 +73,7 @@ export type LaborEntryUpdate = Partial<Omit<LaborEntry, 'id' | 'labor_log_id' | 
 export interface EstimateLineItem {
   id: string
   estimate_id: string
+  labor_log_id: string
   section: string
   rate_card_item_id: string | null
   item_name: string
@@ -89,4 +90,4 @@ export interface EstimateLineItem {
 
 export type EstimateLineItemInsert = Omit<EstimateLineItem, 'id' | 'created_at' | 'updated_at'>
 
-export type EstimateLineItemUpdate = Partial<Omit<EstimateLineItem, 'id' | 'estimate_id' | 'created_at' | 'updated_at'>>
+export type EstimateLineItemUpdate = Partial<Omit<EstimateLineItem, 'id' | 'estimate_id' | 'labor_log_id' | 'created_at' | 'updated_at'>>

@@ -45,7 +45,7 @@ import {
   createLaborEntry,
   updateLaborEntry,
   deleteLaborEntry,
-  getLineItems,
+  getLineItemsByLocation,
   createLineItem,
   updateLineItem,
   deleteLineItem,
@@ -333,16 +333,89 @@ function AddRoleModal({
   )
 }
 
+// ── Location Selector (shared across Labor Log + Line Item tabs) ─────────────
+
+function LocationSelector({
+  laborLogs,
+  activeLocationId,
+  onSelectLocation,
+  onAddLocation,
+  onDeleteLocation,
+}: {
+  laborLogs: LaborLog[]
+  activeLocationId: string | null
+  onSelectLocation: (id: string) => void
+  onAddLocation: (name: string) => void
+  onDeleteLocation: (id: string) => void
+}) {
+  const [showAddLocation, setShowAddLocation] = useState(false)
+  const [newLocationName, setNewLocationName] = useState('')
+
+  return (
+    <>
+      <div className="flex items-center gap-2 flex-wrap">
+        {laborLogs.map((log) => (
+          <Button
+            key={log.id}
+            variant={log.id === activeLocationId ? 'default' : 'outline'}
+            size="sm"
+            className="gap-1.5"
+            onClick={() => onSelectLocation(log.id)}
+          >
+            <MapPin className="h-3.5 w-3.5" />
+            {log.location_name}{log.is_primary ? ' (Primary)' : ''}
+          </Button>
+        ))}
+        <Button variant="ghost" size="sm" className="gap-1 text-muted-foreground" onClick={() => setShowAddLocation(true)}>
+          <Plus className="h-3.5 w-3.5" />
+          Add Location
+        </Button>
+        {activeLocationId && laborLogs.length > 1 && !laborLogs.find((l) => l.id === activeLocationId)?.is_primary && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="gap-1 text-destructive/70 hover:text-destructive"
+            onClick={() => {
+              if (confirm('Delete this location and all its data?')) {
+                onDeleteLocation(activeLocationId)
+              }
+            }}
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </Button>
+        )}
+      </div>
+
+      <Dialog open={showAddLocation} onOpenChange={setShowAddLocation}>
+        <DialogContent className="sm:max-w-[400px]">
+          <DialogHeader>
+            <DialogTitle>Add Location</DialogTitle>
+            <DialogDescription>Add a new location for this estimate</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label>Location Name</Label>
+            <Input placeholder="e.g., San Diego" value={newLocationName} onChange={(e) => setNewLocationName(e.target.value)} autoFocus />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setShowAddLocation(false); setNewLocationName('') }}>Cancel</Button>
+            <Button disabled={!newLocationName.trim()} onClick={() => { onAddLocation(newLocationName.trim()); setNewLocationName(''); setShowAddLocation(false) }}>Add Location</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  )
+}
+
 // ── Labor Log Tab ────────────────────────────────────────────────────────────
 
 function LaborLogTab({
   estimate,
   laborLogs,
-  activeLaborLogId,
+  activeLocationId,
   entries,
   rateCardData,
   allEntriesMap,
-  onSelectLog,
+  onSelectLocation,
   onAddLocation,
   onDeleteLocation,
   onAddEntry,
@@ -351,11 +424,11 @@ function LaborLogTab({
 }: {
   estimate: EstimateWithClient
   laborLogs: LaborLog[]
-  activeLaborLogId: string | null
+  activeLocationId: string | null
   entries: LaborEntry[]
   rateCardData: RateCardItemsBySection[]
   allEntriesMap: Record<string, LaborEntry[]>
-  onSelectLog: (id: string) => void
+  onSelectLocation: (id: string) => void
   onAddLocation: (name: string) => void
   onDeleteLocation: (id: string) => void
   onAddEntry: (entry: { role_name: string; unit_rate: number; cost_rate: number | null; gl_code: string | null; rate_card_item_id: string | null }) => void
@@ -363,8 +436,6 @@ function LaborLogTab({
   onDeleteEntry: (id: string) => void
 }) {
   const [showAddRole, setShowAddRole] = useState(false)
-  const [showAddLocation, setShowAddLocation] = useState(false)
-  const [newLocationName, setNewLocationName] = useState('')
 
   // Compute labor summary across ALL locations
   const allEntries = Object.values(allEntriesMap).flat()
@@ -385,39 +456,13 @@ function LaborLogTab({
 
   return (
     <div className="space-y-4">
-      {/* Location Selector */}
-      <div className="flex items-center gap-2 flex-wrap">
-        {laborLogs.map((log) => (
-          <Button
-            key={log.id}
-            variant={log.id === activeLaborLogId ? 'default' : 'outline'}
-            size="sm"
-            className="gap-1.5"
-            onClick={() => onSelectLog(log.id)}
-          >
-            <MapPin className="h-3.5 w-3.5" />
-            {log.location_name}{log.is_primary ? ' (Primary)' : ''}
-          </Button>
-        ))}
-        <Button variant="ghost" size="sm" className="gap-1 text-muted-foreground" onClick={() => setShowAddLocation(true)}>
-          <Plus className="h-3.5 w-3.5" />
-          Add Location
-        </Button>
-        {activeLaborLogId && laborLogs.length > 1 && !laborLogs.find((l) => l.id === activeLaborLogId)?.is_primary && (
-          <Button
-            variant="ghost"
-            size="sm"
-            className="gap-1 text-destructive/70 hover:text-destructive"
-            onClick={() => {
-              if (confirm('Delete this location and all its staffing?')) {
-                onDeleteLocation(activeLaborLogId)
-              }
-            }}
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-          </Button>
-        )}
-      </div>
+      <LocationSelector
+        laborLogs={laborLogs}
+        activeLocationId={activeLocationId}
+        onSelectLocation={onSelectLocation}
+        onAddLocation={onAddLocation}
+        onDeleteLocation={onDeleteLocation}
+      />
 
       {/* Labor Table */}
       <Card>
@@ -507,23 +552,6 @@ function LaborLogTab({
         estimate={estimate}
         onAdd={onAddEntry}
       />
-
-      <Dialog open={showAddLocation} onOpenChange={setShowAddLocation}>
-        <DialogContent className="sm:max-w-[400px]">
-          <DialogHeader>
-            <DialogTitle>Add Location</DialogTitle>
-            <DialogDescription>Add a new location for this estimate's labor plan</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-2">
-            <Label>Location Name</Label>
-            <Input placeholder="e.g., San Diego" value={newLocationName} onChange={(e) => setNewLocationName(e.target.value)} autoFocus />
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => { setShowAddLocation(false); setNewLocationName('') }}>Cancel</Button>
-            <Button disabled={!newLocationName.trim()} onClick={() => { onAddLocation(newLocationName.trim()); setNewLocationName(''); setShowAddLocation(false) }}>Add Location</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   )
 }
@@ -642,6 +670,11 @@ function LineItemTab({
   defaultMarkup,
   rateCardData,
   clientName,
+  laborLogs,
+  activeLocationId,
+  onSelectLocation,
+  onAddLocation,
+  onDeleteLocation,
   onAdd,
   onUpdate,
   onDelete,
@@ -652,6 +685,11 @@ function LineItemTab({
   defaultMarkup: number
   rateCardData: RateCardItemsBySection[]
   clientName: string
+  laborLogs: LaborLog[]
+  activeLocationId: string | null
+  onSelectLocation: (id: string) => void
+  onAddLocation: (name: string) => void
+  onDeleteLocation: (id: string) => void
   onAdd: (item: { item_name: string; description: string; quantity: number; unit_cost: number; markup_pct: number; gl_code: string | null; rate_card_item_id: string | null }) => void
   onUpdate: (id: string, updates: Partial<EstimateLineItem>) => void
   onDelete: (id: string) => void
@@ -659,7 +697,15 @@ function LineItemTab({
   const [showModal, setShowModal] = useState(false)
 
   return (
-    <>
+    <div className="space-y-4">
+      <LocationSelector
+        laborLogs={laborLogs}
+        activeLocationId={activeLocationId}
+        onSelectLocation={onSelectLocation}
+        onAddLocation={onAddLocation}
+        onDeleteLocation={onDeleteLocation}
+      />
+
       <Card>
         <CardContent className="pt-4">
           {isPassThrough && (
@@ -708,7 +754,7 @@ function LineItemTab({
         clientName={clientName}
         onAdd={onAdd}
       />
-    </>
+    </div>
   )
 }
 
@@ -885,11 +931,11 @@ function AddLineItemModal({
 function SummaryTab({
   laborLogs,
   allEntriesMap,
-  lineItems,
+  lineItemsMap,
 }: {
   laborLogs: LaborLog[]
   allEntriesMap: Record<string, LaborEntry[]>
-  lineItems: EstimateLineItem[]
+  lineItemsMap: Record<string, EstimateLineItem[]>
 }) {
   function laborTotals(entries: LaborEntry[]) {
     const revenue = entries.reduce((s, e) => s + e.quantity * e.days * (e.override_rate ?? e.unit_rate), 0)
@@ -897,16 +943,16 @@ function SummaryTab({
     return { revenue, cost }
   }
 
-  function lineItemTotals(section: string) {
-    const items = lineItems.filter((i) => i.section === section)
+  function lineItemTotalsBySection(items: EstimateLineItem[]) {
     const cost = items.reduce((s, i) => s + i.quantity * i.unit_cost, 0)
     const revenue = items.reduce((s, i) => s + i.quantity * i.unit_cost * (1 + i.markup_pct / 100), 0)
     return { revenue, cost }
   }
 
-  // Build per-location labor and per diem rows
   const hasMultipleLocations = laborLogs.length > 1
   type Row = { section: string; revenue: number; cost: number; isSubtotal?: boolean }
+
+  // Build per-location labor and per diem rows
   const laborRows: Row[] = []
   let laborSubRevenue = 0
   let laborSubCost = 0
@@ -939,30 +985,50 @@ function SummaryTab({
     }
   }
 
-  // Add labor subtotal row when multiple locations exist and there's data
   const laborSubtotalRow: Row | null =
     hasMultipleLocations && laborRows.length > 1
       ? { section: 'Labor Subtotal', revenue: laborSubRevenue + perDiemSubRevenue, cost: laborSubCost + perDiemSubCost, isSubtotal: true }
       : null
 
-  const production = lineItemTotals('production')
-  const travel = lineItemTotals('travel')
-  const creative = lineItemTotals('creative')
-  const access = lineItemTotals('access')
-  const misc = lineItemTotals('misc')
+  // Build per-location expense rows for each section
+  const expenseSections = [
+    { key: 'production', label: 'Production' },
+    { key: 'travel', label: 'Travel/Logistics' },
+    { key: 'creative', label: 'Creative' },
+    { key: 'access', label: 'Access/Insurance' },
+    { key: 'misc', label: 'Misc' },
+  ]
 
-  const expenseRows: Row[] = [
-    { section: 'Production', ...production },
-    { section: 'Travel/Logistics', ...travel },
-    { section: 'Creative', ...creative },
-    { section: 'Access/Insurance', ...access },
-    { section: 'Misc', ...misc },
-  ].filter((r) => r.revenue > 0 || r.cost > 0)
+  const expenseRows: Row[] = []
+  for (const sec of expenseSections) {
+    const perLocationRows: Row[] = []
+    let secRevenue = 0
+    let secCost = 0
+
+    for (const log of laborLogs) {
+      const items = (lineItemsMap[log.id] ?? []).filter((i) => i.section === sec.key)
+      if (items.length === 0) continue
+      const t = lineItemTotalsBySection(items)
+      perLocationRows.push({
+        section: hasMultipleLocations ? `${sec.label} — ${log.location_name}` : sec.label,
+        ...t,
+      })
+      secRevenue += t.revenue
+      secCost += t.cost
+    }
+
+    if (perLocationRows.length > 0) {
+      expenseRows.push(...perLocationRows)
+      if (hasMultipleLocations && perLocationRows.length > 1) {
+        expenseRows.push({ section: `${sec.label} Subtotal`, revenue: secRevenue, cost: secCost, isSubtotal: true })
+      }
+    }
+  }
 
   const allRows = [...laborRows, ...(laborSubtotalRow ? [laborSubtotalRow] : []), ...expenseRows]
-  // For the grand total, use subtotal if present, otherwise sum labor rows directly
   const laborForTotal = laborSubtotalRow ?? { revenue: laborSubRevenue + perDiemSubRevenue, cost: laborSubCost + perDiemSubCost }
-  const expenseTotal = expenseRows.reduce((acc, r) => ({ revenue: acc.revenue + r.revenue, cost: acc.cost + r.cost }), { revenue: 0, cost: 0 })
+  // Sum only non-subtotal expense rows to avoid double counting
+  const expenseTotal = expenseRows.filter((r) => !r.isSubtotal).reduce((acc, r) => ({ revenue: acc.revenue + r.revenue, cost: acc.cost + r.cost }), { revenue: 0, cost: 0 })
   const totals = { revenue: laborForTotal.revenue + expenseTotal.revenue, cost: laborForTotal.cost + expenseTotal.cost }
   const totalGP = totals.revenue - totals.cost
 
@@ -1024,9 +1090,9 @@ function SummaryTab({
 function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
   const [estimate, setEstimate] = useState<EstimateWithClient | null>(null)
   const [laborLogs, setLaborLogs] = useState<LaborLog[]>([])
-  const [activeLaborLogId, setActiveLaborLogId] = useState<string | null>(null)
+  const [activeLocationId, setActiveLocationId] = useState<string | null>(null)
   const [laborEntriesMap, setLaborEntriesMap] = useState<Record<string, LaborEntry[]>>({})
-  const [lineItems, setLineItems] = useState<EstimateLineItem[]>([])
+  const [lineItemsMap, setLineItemsMap] = useState<Record<string, EstimateLineItem[]>>({})
   const [rateCardData, setRateCardData] = useState<RateCardItemsBySection[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -1035,27 +1101,32 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
       const est = await getEstimate(estimateId)
       setEstimate(est)
 
-      const [logs, items, rcData] = await Promise.all([
+      const [logs, rcData] = await Promise.all([
         getLaborLogs(estimateId),
-        getLineItems(estimateId),
         getRateCardItemsBySection(est.client_id),
       ])
 
       setLaborLogs(logs)
-      setLineItems(items)
       setRateCardData(rcData)
 
-      // Load entries for all logs
+      // Load entries and line items for all logs in parallel
       const entriesMap: Record<string, LaborEntry[]> = {}
+      const itemsMap: Record<string, EstimateLineItem[]> = {}
       await Promise.all(logs.map(async (log) => {
-        entriesMap[log.id] = await getLaborEntries(log.id)
+        const [entries, items] = await Promise.all([
+          getLaborEntries(log.id),
+          getLineItemsByLocation(log.id),
+        ])
+        entriesMap[log.id] = entries
+        itemsMap[log.id] = items
       }))
       setLaborEntriesMap(entriesMap)
+      setLineItemsMap(itemsMap)
 
-      // Set active log
+      // Set active location
       if (logs.length > 0) {
         const primary = logs.find((l) => l.is_primary)
-        setActiveLaborLogId(primary?.id ?? logs[0].id)
+        setActiveLocationId(primary?.id ?? logs[0].id)
       }
     } catch (err) {
       console.error('Failed to load estimate:', err)
@@ -1083,7 +1154,8 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
       const log = await createLaborLog({ estimate_id: estimateId, location_name: name, is_primary: false })
       setLaborLogs((prev) => [...prev, log])
       setLaborEntriesMap((prev) => ({ ...prev, [log.id]: [] }))
-      setActiveLaborLogId(log.id)
+      setLineItemsMap((prev) => ({ ...prev, [log.id]: [] }))
+      setActiveLocationId(log.id)
     } catch (err) {
       console.error('Failed to add location:', err)
     }
@@ -1098,8 +1170,13 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
         delete next[logId]
         return next
       })
+      setLineItemsMap((prev) => {
+        const next = { ...prev }
+        delete next[logId]
+        return next
+      })
       // Switch to first remaining log
-      setActiveLaborLogId((prev) => {
+      setActiveLocationId((prev) => {
         if (prev === logId) {
           const remaining = laborLogs.filter((l) => l.id !== logId)
           return remaining[0]?.id ?? null
@@ -1112,10 +1189,10 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
   }
 
   async function handleAddEntry(data: { role_name: string; unit_rate: number; cost_rate: number | null; gl_code: string | null; rate_card_item_id: string | null }) {
-    if (!activeLaborLogId) return
+    if (!activeLocationId) return
     try {
       const entry = await createLaborEntry({
-        labor_log_id: activeLaborLogId,
+        labor_log_id: activeLocationId,
         role_name: data.role_name,
         unit_rate: data.unit_rate,
         cost_rate: data.cost_rate,
@@ -1129,11 +1206,11 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
         overtime_rate: null,
         overtime_hours: null,
         notes: null,
-        display_order: (laborEntriesMap[activeLaborLogId]?.length ?? 0),
+        display_order: (laborEntriesMap[activeLocationId]?.length ?? 0),
       })
       setLaborEntriesMap((prev) => ({
         ...prev,
-        [activeLaborLogId]: [...(prev[activeLaborLogId] ?? []), entry],
+        [activeLocationId]: [...(prev[activeLocationId] ?? []), entry],
       }))
     } catch (err) {
       console.error('Failed to add entry:', err)
@@ -1141,12 +1218,12 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
   }
 
   async function handleUpdateEntry(id: string, updates: Partial<LaborEntry>) {
-    if (!activeLaborLogId) return
+    if (!activeLocationId) return
     try {
       const updated = await updateLaborEntry(id, updates)
       setLaborEntriesMap((prev) => ({
         ...prev,
-        [activeLaborLogId]: (prev[activeLaborLogId] ?? []).map((e) => e.id === id ? updated : e),
+        [activeLocationId]: (prev[activeLocationId] ?? []).map((e) => e.id === id ? updated : e),
       }))
     } catch (err) {
       console.error('Failed to update entry:', err)
@@ -1154,12 +1231,12 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
   }
 
   async function handleDeleteEntry(id: string) {
-    if (!activeLaborLogId) return
+    if (!activeLocationId) return
     try {
       await deleteLaborEntry(id)
       setLaborEntriesMap((prev) => ({
         ...prev,
-        [activeLaborLogId]: (prev[activeLaborLogId] ?? []).filter((e) => e.id !== id),
+        [activeLocationId]: (prev[activeLocationId] ?? []).filter((e) => e.id !== id),
       }))
     } catch (err) {
       console.error('Failed to delete entry:', err)
@@ -1167,9 +1244,12 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
   }
 
   async function handleAddLineItem(section: string, data: { item_name: string; description: string; quantity: number; unit_cost: number; markup_pct: number; gl_code: string | null; rate_card_item_id: string | null }) {
+    if (!activeLocationId) return
     try {
+      const activeItems = lineItemsMap[activeLocationId] ?? []
       const item = await createLineItem({
         estimate_id: estimateId,
+        labor_log_id: activeLocationId,
         section,
         item_name: data.item_name,
         description: data.description || null,
@@ -1179,27 +1259,38 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
         gl_code: data.gl_code,
         rate_card_item_id: data.rate_card_item_id,
         notes: null,
-        display_order: lineItems.filter((i) => i.section === section).length,
+        display_order: activeItems.filter((i) => i.section === section).length,
       })
-      setLineItems((prev) => [...prev, item])
+      setLineItemsMap((prev) => ({
+        ...prev,
+        [activeLocationId]: [...(prev[activeLocationId] ?? []), item],
+      }))
     } catch (err) {
       console.error('Failed to add line item:', err)
     }
   }
 
   async function handleUpdateLineItem(id: string, updates: Partial<EstimateLineItem>) {
+    if (!activeLocationId) return
     try {
       const updated = await updateLineItem(id, updates)
-      setLineItems((prev) => prev.map((i) => i.id === id ? updated : i))
+      setLineItemsMap((prev) => ({
+        ...prev,
+        [activeLocationId]: (prev[activeLocationId] ?? []).map((i) => i.id === id ? updated : i),
+      }))
     } catch (err) {
       console.error('Failed to update line item:', err)
     }
   }
 
   async function handleDeleteLineItem(id: string) {
+    if (!activeLocationId) return
     try {
       await deleteLineItem(id)
-      setLineItems((prev) => prev.filter((i) => i.id !== id))
+      setLineItemsMap((prev) => ({
+        ...prev,
+        [activeLocationId]: (prev[activeLocationId] ?? []).filter((i) => i.id !== id),
+      }))
     } catch (err) {
       console.error('Failed to delete line item:', err)
     }
@@ -1224,7 +1315,8 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
   }
 
   const defaultMarkup = estimate.clients.third_party_markup * 100
-  const activeEntries = activeLaborLogId ? (laborEntriesMap[activeLaborLogId] ?? []) : []
+  const activeEntries = activeLocationId ? (laborEntriesMap[activeLocationId] ?? []) : []
+  const activeLineItems = activeLocationId ? (lineItemsMap[activeLocationId] ?? []) : []
 
   const lineItemTabs = [
     { key: 'production', label: 'Production', pt: true },
@@ -1262,11 +1354,11 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
               <LaborLogTab
                 estimate={estimate}
                 laborLogs={laborLogs}
-                activeLaborLogId={activeLaborLogId}
+                activeLocationId={activeLocationId}
                 entries={activeEntries}
                 rateCardData={rateCardData}
                 allEntriesMap={laborEntriesMap}
-                onSelectLog={setActiveLaborLogId}
+                onSelectLocation={setActiveLocationId}
                 onAddLocation={handleAddLocation}
                 onDeleteLocation={handleDeleteLocation}
                 onAddEntry={handleAddEntry}
@@ -1278,12 +1370,17 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
             {lineItemTabs.map((tab) => (
               <TabsContent key={tab.key} value={tab.key}>
                 <LineItemTab
-                  items={lineItems.filter((i) => i.section === tab.key)}
+                  items={activeLineItems.filter((i) => i.section === tab.key)}
                   section={tab.key}
                   isPassThrough={tab.pt}
                   defaultMarkup={tab.pt ? defaultMarkup : 0}
                   rateCardData={rateCardData}
                   clientName={estimate.clients.name}
+                  laborLogs={laborLogs}
+                  activeLocationId={activeLocationId}
+                  onSelectLocation={setActiveLocationId}
+                  onAddLocation={handleAddLocation}
+                  onDeleteLocation={handleDeleteLocation}
                   onAdd={(data) => handleAddLineItem(tab.key, data)}
                   onUpdate={handleUpdateLineItem}
                   onDelete={handleDeleteLineItem}
@@ -1292,7 +1389,7 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
             ))}
 
             <TabsContent value="summary">
-              <SummaryTab laborLogs={laborLogs} allEntriesMap={laborEntriesMap} lineItems={lineItems} />
+              <SummaryTab laborLogs={laborLogs} allEntriesMap={laborEntriesMap} lineItemsMap={lineItemsMap} />
             </TabsContent>
           </Tabs>
         </div>

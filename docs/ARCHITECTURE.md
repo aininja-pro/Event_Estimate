@@ -90,6 +90,22 @@ The Supabase client (`src/lib/supabase.ts`) gracefully returns `null` if `VITE_S
 - 377 items seeded from `DriveShop Event Estimate Template_12.01.25.xlsx`
 - Soft delete via `is_active` flag
 
+**`estimates`** — Top-level estimate records (Phase 2)
+- Columns: `id`, `client_id` (FK → clients), `event_name`, `event_type`, `location`, `start_date`, `end_date`, `duration_days`, `expected_attendance`, `po_number`, `project_id`, `cost_structure`, `project_notes`, `status`, `created_by`, `created_at`, `updated_at`
+
+**`labor_logs`** — Per-location containers within an estimate (Phase 2)
+- Columns: `id`, `estimate_id` (FK → estimates), `location_name`, `is_primary`, `location_order`, `start_date`, `end_date`, `notes`, `created_at`, `updated_at`
+- Each estimate has one primary labor_log and zero or more additional locations
+
+**`labor_entries`** — Individual staff roles per location (Phase 2)
+- Columns: `id`, `labor_log_id` (FK → labor_logs), `rate_card_item_id`, `role_name`, `quantity`, `days`, `unit_rate`, `cost_rate`, `override_rate`, `override_reason`, `has_overtime`, `overtime_rate`, `overtime_hours`, `gl_code`, `notes`, `display_order`, `created_at`, `updated_at`
+
+**`estimate_line_items`** — Non-labor line items per location (Phase 2)
+- Columns: `id`, `estimate_id` (FK → estimates), `labor_log_id` (FK → labor_logs ON DELETE CASCADE), `section`, `rate_card_item_id`, `item_name`, `description`, `quantity`, `unit_cost`, `markup_pct`, `gl_code`, `notes`, `display_order`, `created_at`, `updated_at`
+- `labor_log_id` ties each line item to a specific location — all tabs (Production, Travel, Creative, Access/Insurance, Misc) are per-location
+- `estimate_id` is denormalized for fast cross-location Summary queries without joining through labor_logs
+- Deleting a labor_log cascades to delete its line items
+
 ### Data Service (`src/lib/rate-card-service.ts`)
 
 8 async functions wrapping Supabase queries:
@@ -101,6 +117,16 @@ The Supabase client (`src/lib/supabase.ts`) gracefully returns `null` if `VITE_S
 - `createRateCardItem(item)` — Insert new item (auto-sets `is_from_msa: false`)
 - `updateRateCardItem(id, updates)` — Partial update
 - `deleteRateCardItem(id)` — Soft delete (`is_active = false`)
+
+### Data Service (`src/lib/estimate-service.ts`)
+
+CRUD operations for estimates, labor logs, labor entries, and line items:
+- `getEstimates()` / `getEstimate(id)` / `createEstimate()` / `updateEstimate()` / `deleteEstimate()`
+- `getLaborLogs(estimateId)` / `createLaborLog()` / `updateLaborLog()` / `deleteLaborLog()`
+- `getLaborEntries(laborLogId)` / `createLaborEntry()` / `updateLaborEntry()` / `deleteLaborEntry()`
+- `getLineItemsByLocation(laborLogId)` — Line items for a specific location
+- `getLineItems(estimateId)` — All line items for an estimate (used for cross-location queries)
+- `createLineItem()` / `updateLineItem()` / `deleteLineItem()`
 
 ### Seed Data Pipeline
 

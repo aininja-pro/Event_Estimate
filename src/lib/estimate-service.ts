@@ -186,6 +186,17 @@ export async function getLineItems(estimateId: string, section?: string): Promis
   return data
 }
 
+export async function getLineItemsByLocation(laborLogId: string): Promise<EstimateLineItem[]> {
+  const db = requireSupabase()
+  const { data, error } = await db
+    .from('estimate_line_items')
+    .select('*')
+    .eq('labor_log_id', laborLogId)
+    .order('display_order')
+  if (error) throw error
+  return data
+}
+
 export async function createLineItem(item: EstimateLineItemInsert): Promise<EstimateLineItem> {
   const db = requireSupabase()
   const { data, error } = await db
