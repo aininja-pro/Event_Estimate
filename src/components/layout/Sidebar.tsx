@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom'
-import { BarChart3, ClipboardList, Bot, Layers, Database, GitBranch, Map, FileSpreadsheet, DollarSign, MessageSquare } from 'lucide-react'
+import { BarChart3, ClipboardList, Bot, Layers, Database, GitBranch, Map, FileSpreadsheet, DollarSign, MessageSquare, Briefcase } from 'lucide-react'
 import { Separator } from '@/components/ui/separator'
 
 const discoveryItems = [
@@ -15,9 +15,13 @@ const deliverableItems = [
   { to: '/phase2-roadmap', label: 'Phase 2 Roadmap', icon: Map },
 ]
 
+const productionItems = [
+  { to: '/estimates', label: 'Estimates', icon: Briefcase },
+  { to: '/rate-card-management', label: 'Rate Cards', icon: DollarSign },
+]
+
 const uiConceptItems = [
   { to: '/estimate-builder', label: 'Estimate Builder', icon: FileSpreadsheet },
-  { to: '/rate-card-management', label: 'Rate Card Management', icon: DollarSign },
 ]
 
 const adminItems = [
@@ -65,6 +69,15 @@ export function Sidebar() {
           Phase 1 Deliverables
         </p>
         {deliverableItems.map((item) => (
+          <NavItem key={item.to} {...item} />
+        ))}
+
+        <div className="my-3" />
+
+        <p className="mb-2 px-3 text-xs font-semibold uppercase tracking-wider text-zinc-500">
+          Production
+        </p>
+        {productionItems.map((item) => (
           <NavItem key={item.to} {...item} />
         ))}
 

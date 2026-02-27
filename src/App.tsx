@@ -8,6 +8,7 @@ import { SystemArchitecturePage } from '@/pages/SystemArchitecturePage'
 import { DatabaseSchemaPage } from '@/pages/DatabaseSchemaPage'
 import { EstimateLifecyclePage } from '@/pages/EstimateLifecyclePage'
 import { Phase2RoadmapPage } from '@/pages/Phase2RoadmapPage'
+import { EstimatesListPage } from '@/pages/EstimatesListPage'
 import { EstimateBuilderPage } from '@/pages/EstimateBuilderPage'
 import { RateCardManagementPage } from '@/pages/RateCardManagementPage'
 import { FeedbackPage } from '@/pages/FeedbackPage'
@@ -26,6 +27,8 @@ function App() {
           <Route path="/database-schema" element={<DatabaseSchemaPage />} />
           <Route path="/estimate-lifecycle" element={<EstimateLifecyclePage />} />
           <Route path="/phase2-roadmap" element={<Phase2RoadmapPage />} />
+          <Route path="/estimates" element={<EstimatesListPage />} />
+          <Route path="/estimates/:id" element={<EstimateBuilderPage />} />
           <Route path="/estimate-builder" element={<EstimateBuilderPage />} />
           <Route path="/rate-card-management" element={<RateCardManagementPage />} />
           <Route path="/admin/feedback" element={<AdminFeedbackPage />} />

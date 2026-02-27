@@ -9,6 +9,7 @@ const pageTitles: Record<string, string> = {
   '/database-schema': 'Database Schema',
   '/estimate-lifecycle': 'Estimate Lifecycle',
   '/phase2-roadmap': 'Phase 2 Roadmap',
+  '/estimates': 'Estimates',
   '/estimate-builder': 'Estimate Builder',
   '/rate-card-management': 'Rate Card Management',
   '/admin/feedback': 'Feedback Management',
@@ -16,10 +17,11 @@ const pageTitles: Record<string, string> = {
 
 export function Header() {
   const location = useLocation()
-  const title = pageTitles[location.pathname] ?? 'Event Estimate Engine'
+  const title = pageTitles[location.pathname]
+    ?? (location.pathname.startsWith('/estimates/') ? 'Estimate Builder' : 'Event Estimate Engine')
 
-  const productionPages = ['/rate-card-management']
-  const isProduction = productionPages.includes(location.pathname)
+  const productionPages = ['/rate-card-management', '/estimates']
+  const isProduction = productionPages.includes(location.pathname) || location.pathname.startsWith('/estimates/')
 
   return (
     <header className="flex items-center justify-between border-b border-border bg-background px-6 py-4 shadow-sm">
