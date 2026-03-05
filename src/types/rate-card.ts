@@ -37,6 +37,7 @@ export interface RateCardItem {
   overtime_rate: number | null
   overtime_unit_label: string | null
   overtime_gl_code: string | null
+  fee_type_id: string | null
   notes: string | null
   display_order: number
   is_active: boolean

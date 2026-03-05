@@ -57,12 +57,20 @@ export async function getRateCardItems(clientId: string): Promise<RateCardItem[]
   const db = requireSupabase()
   const { data, error } = await db
     .from('rate_card_items')
-    .select('*')
+    .select('*, fee_types(gl_code)')
     .eq('client_id', clientId)
     .eq('is_active', true)
     .order('display_order')
   if (error) throw error
-  return data
+
+  // Use canonical GL code from fee_types when available
+  return data.map((row: any) => {
+    const { fee_types, ...item } = row
+    return {
+      ...item,
+      gl_code: fee_types?.gl_code ?? item.gl_code,
+    }
+  })
 }
 
 export async function getRateCardItemsBySection(clientId: string): Promise<RateCardItemsBySection[]> {
