@@ -332,13 +332,14 @@ export function EstimatesListPage() {
           </div>
 
           <DialogFooter>
-            <Button variant="outline" size="sm" onClick={() => { setShowModal(false); resetForm() }}>
+            <Button variant="outline" size="sm" onClick={() => { setShowModal(false); resetForm() }} className="text-[13px]">
               Cancel
             </Button>
             <Button
               size="sm"
               onClick={handleCreate}
               disabled={!formClientId || !formEventName || saving}
+              className="text-[13px] bg-white hover:bg-green-800/10 text-foreground border border-border/50 hover:border-green-800/30 hover:text-green-800/80 shadow-sm"
             >
               {saving ? 'Creating...' : 'Create Estimate'}
             </Button>

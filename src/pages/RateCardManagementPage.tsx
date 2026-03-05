@@ -130,44 +130,44 @@ function RateFormDialog({ open, onClose, onSave, onDelete, title, description, i
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="sm:max-w-[480px]">
+      <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
           <DialogTitle className="text-sm font-semibold">{title}</DialogTitle>
-          <DialogDescription className="text-xs">{description}</DialogDescription>
+          <DialogDescription className="text-[13px] text-muted-foreground">{description}</DialogDescription>
         </DialogHeader>
-        <div className="grid gap-3 py-1">
+        <div className="space-y-3 py-1">
           <div className="space-y-1">
             <Label className="text-xs">Item Name</Label>
-            <Input id="rate-name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="e.g., Event Director Day (10 hr)" className="h-8 text-sm border-border/30" />
+            <Input id="rate-name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="e.g., Event Director Day (10 hr)" className="h-8 text-sm border-border/50" />
           </div>
           {!isPassThrough && (
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
                 <Label className="text-xs">Unit Rate ($)</Label>
-                <Input id="rate-amount" type="number" step="0.01" value={form.unit_rate} onChange={(e) => setForm({ ...form, unit_rate: e.target.value })} placeholder="0.00" className="h-8 text-sm border-border/30" />
+                <Input id="rate-amount" type="number" step="0.01" value={form.unit_rate} onChange={(e) => setForm({ ...form, unit_rate: e.target.value })} placeholder="0.00" className="h-8 text-sm border-border/50" />
               </div>
               <div className="space-y-1">
                 <Label className="text-xs">Unit Label</Label>
-                <Input id="rate-unit" value={form.unit_label} onChange={(e) => setForm({ ...form, unit_label: e.target.value })} placeholder="e.g., /10 hr day" className="h-8 text-sm border-border/30" />
+                <Input id="rate-unit" value={form.unit_label} onChange={(e) => setForm({ ...form, unit_label: e.target.value })} placeholder="e.g., /10 hr day" className="h-8 text-sm border-border/50" />
               </div>
             </div>
           )}
           {isPassThrough && (
-            <p className="text-xs text-muted-foreground">Pass-through items are estimated per project. No fixed rate is set here.</p>
+            <p className="text-[13px] text-muted-foreground">Pass-through items are estimated per project. No fixed rate is set here.</p>
           )}
           <div className="space-y-1">
             <Label className="text-xs">GL Code</Label>
-            <Input id="rate-gl" value={form.gl_code} onChange={(e) => setForm({ ...form, gl_code: e.target.value })} placeholder="e.g., 4000.26" className="h-8 text-sm border-border/30" />
+            <Input id="rate-gl" value={form.gl_code} onChange={(e) => setForm({ ...form, gl_code: e.target.value })} placeholder="e.g., 4000.26" className="h-8 text-sm border-border/50" />
           </div>
         </div>
         <DialogFooter>
           {onDelete && (
-            <Button variant="destructive" size="sm" onClick={handleDelete} disabled={saving} className="mr-auto">
+            <Button variant="outline" size="sm" onClick={handleDelete} disabled={saving} className="mr-auto text-[13px] text-red-800/60 border-red-800/20 hover:bg-red-800/10 hover:text-red-800/80 hover:border-red-800/30">
               Remove
             </Button>
           )}
-          <Button variant="outline" size="sm" onClick={onClose} disabled={saving}>Cancel</Button>
-          <Button size="sm" onClick={handleSave} disabled={saving || !form.name.trim()}>
+          <Button variant="outline" size="sm" onClick={onClose} disabled={saving} className="text-[13px]">Cancel</Button>
+          <Button size="sm" onClick={handleSave} disabled={saving || !form.name.trim()} className="text-[13px] bg-white hover:bg-green-800/10 text-foreground border border-border/50 hover:border-green-800/30 hover:text-green-800/80 shadow-sm">
             {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Save
           </Button>
@@ -340,6 +340,10 @@ export function RateCardManagementPage() {
     try {
       const data = await getRateCardItemsBySection(clientId)
       setSectionsWithItems(data)
+      // Default all sections to collapsed
+      const collapsed: Record<string, boolean> = {}
+      data.forEach((s) => { collapsed[s.section.id] = true })
+      setCollapsedSections(collapsed)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load rate card')
     } finally {
