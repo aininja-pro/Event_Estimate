@@ -333,7 +333,7 @@ function AddRoleModal({
   )
 }
 
-// ── Location Selector (shared across Labor Log + Line Item tabs) ─────────────
+// ── Segment Selector (shared across Labor Log + Line Item tabs) ──────────────
 
 function LocationSelector({
   laborLogs,
@@ -368,7 +368,7 @@ function LocationSelector({
         ))}
         <Button variant="ghost" size="sm" className="gap-1 text-muted-foreground" onClick={() => setShowAddLocation(true)}>
           <Plus className="h-3.5 w-3.5" />
-          Add Location
+          Add Segment
         </Button>
         {activeLocationId && laborLogs.length > 1 && !laborLogs.find((l) => l.id === activeLocationId)?.is_primary && (
           <Button
@@ -376,7 +376,7 @@ function LocationSelector({
             size="sm"
             className="gap-1 text-destructive/70 hover:text-destructive"
             onClick={() => {
-              if (confirm('Delete this location and all its data?')) {
+              if (confirm('Delete this segment and all its data?')) {
                 onDeleteLocation(activeLocationId)
               }
             }}
@@ -389,16 +389,16 @@ function LocationSelector({
       <Dialog open={showAddLocation} onOpenChange={setShowAddLocation}>
         <DialogContent className="sm:max-w-[400px]">
           <DialogHeader>
-            <DialogTitle>Add Location</DialogTitle>
-            <DialogDescription>Add a new location for this estimate</DialogDescription>
+            <DialogTitle>Add Segment</DialogTitle>
+            <DialogDescription>Add a geographic location or time period for this estimate</DialogDescription>
           </DialogHeader>
           <div className="space-y-2">
-            <Label>Location Name</Label>
-            <Input placeholder="e.g., San Diego" value={newLocationName} onChange={(e) => setNewLocationName(e.target.value)} autoFocus />
+            <Label>Segment Name</Label>
+            <Input placeholder="e.g., San Diego or January 2026" value={newLocationName} onChange={(e) => setNewLocationName(e.target.value)} autoFocus />
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => { setShowAddLocation(false); setNewLocationName('') }}>Cancel</Button>
-            <Button disabled={!newLocationName.trim()} onClick={() => { onAddLocation(newLocationName.trim()); setNewLocationName(''); setShowAddLocation(false) }}>Add Location</Button>
+            <Button disabled={!newLocationName.trim()} onClick={() => { onAddLocation(newLocationName.trim()); setNewLocationName(''); setShowAddLocation(false) }}>Add Segment</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
