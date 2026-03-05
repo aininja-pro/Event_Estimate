@@ -328,40 +328,34 @@ function LocationSelector({
 
   return (
     <>
-      <div className="flex items-center gap-0 flex-wrap py-0.5">
-        {laborLogs.map((log, i) => (
-          <React.Fragment key={log.id}>
-            {i > 0 && <span className="mx-1.5 text-border/40 text-[10px]">|</span>}
-            <button
-              onClick={() => onSelectLocation(log.id)}
-              className={`text-[11px] transition-colors ${
-                log.id === activeLocationId
-                  ? 'font-semibold text-foreground'
-                  : 'text-muted-foreground/70 hover:text-foreground/90'
-              }`}
-            >
-              {log.location_name}{log.is_primary ? ' (Primary)' : ''}
-            </button>
-          </React.Fragment>
+      <div className="flex items-center gap-1 flex-wrap py-0.5">
+        {laborLogs.map((log) => (
+          <button
+            key={log.id}
+            onClick={() => onSelectLocation(log.id)}
+            className={`text-[11px] px-2 py-0.5 rounded transition-colors ${
+              log.id === activeLocationId
+                ? 'font-medium text-foreground bg-slate-100 dark:bg-slate-800/50'
+                : 'text-muted-foreground/70 hover:text-foreground/80 hover:bg-slate-50 dark:hover:bg-slate-800/30'
+            }`}
+          >
+            {log.location_name}{log.is_primary ? ' (Primary)' : ''}
+          </button>
         ))}
-        <span className="mx-1.5 text-border/40 text-[10px]">|</span>
-        <button onClick={() => setShowAddLocation(true)} className="text-[11px] text-muted-foreground/60 hover:text-foreground/60 transition-colors">
+        <button onClick={() => setShowAddLocation(true)} className="text-[11px] px-2 py-0.5 rounded text-muted-foreground/50 hover:text-foreground/60 hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
           + Add
         </button>
         {activeLocationId && laborLogs.length > 1 && !laborLogs.find((l) => l.id === activeLocationId)?.is_primary && (
-          <>
-            <span className="mx-1.5 text-border/40 text-[10px]">|</span>
-            <button
-              className="text-[11px] text-muted-foreground/20 hover:text-red-500/70 transition-colors"
-              onClick={() => {
-                if (confirm('Delete this segment and all its data?')) {
-                  onDeleteLocation(activeLocationId)
-                }
-              }}
-            >
-              Remove
-            </button>
-          </>
+          <button
+            className="text-[11px] px-2 py-0.5 rounded text-muted-foreground/30 hover:text-red-800/60 hover:bg-red-800/5 transition-colors"
+            onClick={() => {
+              if (confirm('Delete this segment and all its data?')) {
+                onDeleteLocation(activeLocationId)
+              }
+            }}
+          >
+            Remove
+          </button>
         )}
       </div>
 
@@ -373,11 +367,11 @@ function LocationSelector({
           </DialogHeader>
           <div className="space-y-1.5">
             <Label className="text-xs">Segment Name</Label>
-            <Input placeholder="e.g., San Diego or January 2026" value={newLocationName} onChange={(e) => setNewLocationName(e.target.value)} className="h-8 text-sm border-border/30" autoFocus />
+            <Input placeholder="e.g., San Diego or January 2026" value={newLocationName} onChange={(e) => setNewLocationName(e.target.value)} className="h-8 text-sm border-border/50" autoFocus />
           </div>
           <DialogFooter>
-            <Button variant="outline" size="sm" onClick={() => { setShowAddLocation(false); setNewLocationName('') }}>Cancel</Button>
-            <Button size="sm" disabled={!newLocationName.trim()} onClick={() => { onAddLocation(newLocationName.trim()); setNewLocationName(''); setShowAddLocation(false) }}>Add Segment</Button>
+            <Button variant="outline" size="sm" onClick={() => { setShowAddLocation(false); setNewLocationName('') }} className="text-[13px]">Cancel</Button>
+            <Button size="sm" disabled={!newLocationName.trim()} onClick={() => { onAddLocation(newLocationName.trim()); setNewLocationName(''); setShowAddLocation(false) }} className="text-[13px] bg-white hover:bg-green-800/10 text-foreground border border-border/50 hover:border-green-800/30 hover:text-green-800/80 shadow-sm">Add Segment</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
