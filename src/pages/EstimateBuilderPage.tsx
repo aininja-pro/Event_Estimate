@@ -33,6 +33,7 @@ import {
   getLaborLogs,
   createLaborLog,
   deleteLaborLog,
+  updateLaborLog,
   getLaborEntries,
   createLaborEntry,
   updateLaborEntry,
@@ -316,31 +317,61 @@ function LocationSelector({
   onSelectLocation,
   onAddLocation,
   onDeleteLocation,
+  onRenameLocation,
 }: {
   laborLogs: LaborLog[]
   activeLocationId: string | null
   onSelectLocation: (id: string) => void
   onAddLocation: (name: string) => void
   onDeleteLocation: (id: string) => void
+  onRenameLocation: (id: string, name: string) => void
 }) {
   const [showAddLocation, setShowAddLocation] = useState(false)
   const [newLocationName, setNewLocationName] = useState('')
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editingName, setEditingName] = useState('')
+
+  function startEditing(log: LaborLog) {
+    setEditingId(log.id)
+    setEditingName(log.location_name)
+  }
+
+  function commitEdit() {
+    if (editingId && editingName.trim() && editingName.trim() !== laborLogs.find((l) => l.id === editingId)?.location_name) {
+      onRenameLocation(editingId, editingName.trim())
+    }
+    setEditingId(null)
+    setEditingName('')
+  }
 
   return (
     <>
       <div className="flex items-center gap-1 flex-wrap py-0.5">
         {laborLogs.map((log) => (
-          <button
-            key={log.id}
-            onClick={() => onSelectLocation(log.id)}
-            className={`text-[11px] px-2 py-0.5 rounded transition-colors ${
-              log.id === activeLocationId
-                ? 'font-medium text-foreground bg-slate-100 dark:bg-slate-800/50'
-                : 'text-muted-foreground/70 hover:text-foreground/80 hover:bg-slate-50 dark:hover:bg-slate-800/30'
-            }`}
-          >
-            {log.location_name}{log.is_primary ? ' (Primary)' : ''}
-          </button>
+          editingId === log.id ? (
+            <input
+              key={log.id}
+              value={editingName}
+              onChange={(e) => setEditingName(e.target.value)}
+              onBlur={commitEdit}
+              onKeyDown={(e) => { if (e.key === 'Enter') commitEdit(); if (e.key === 'Escape') { setEditingId(null); setEditingName('') } }}
+              autoFocus
+              className="text-[11px] px-2 py-0.5 rounded font-medium bg-white dark:bg-slate-900 border border-border/50 outline-none w-[120px]"
+            />
+          ) : (
+            <button
+              key={log.id}
+              onClick={() => onSelectLocation(log.id)}
+              onDoubleClick={() => startEditing(log)}
+              className={`text-[11px] px-2 py-0.5 rounded transition-colors ${
+                log.id === activeLocationId
+                  ? 'font-medium text-foreground bg-slate-100 dark:bg-slate-800/50'
+                  : 'text-muted-foreground/70 hover:text-foreground/80 hover:bg-slate-50 dark:hover:bg-slate-800/30'
+              }`}
+            >
+              {log.location_name}{log.is_primary ? ' (Primary)' : ''}
+            </button>
+          )
         ))}
         <button onClick={() => setShowAddLocation(true)} className="text-[11px] px-2 py-0.5 rounded text-muted-foreground/50 hover:text-foreground/60 hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
           + Add
@@ -391,6 +422,7 @@ function LaborLogTab({
   onSelectLocation,
   onAddLocation,
   onDeleteLocation,
+  onRenameLocation,
   onAddEntry,
   onUpdateEntry,
   onDeleteEntry,
@@ -404,6 +436,7 @@ function LaborLogTab({
   onSelectLocation: (id: string) => void
   onAddLocation: (name: string) => void
   onDeleteLocation: (id: string) => void
+  onRenameLocation: (id: string, name: string) => void
   onAddEntry: (entry: { role_name: string; unit_rate: number; cost_rate: number | null; gl_code: string | null; rate_card_item_id: string | null }) => void
   onUpdateEntry: (id: string, updates: Partial<LaborEntry>) => void
   onDeleteEntry: (id: string) => void
@@ -436,6 +469,7 @@ function LaborLogTab({
         onSelectLocation={onSelectLocation}
         onAddLocation={onAddLocation}
         onDeleteLocation={onDeleteLocation}
+        onRenameLocation={onRenameLocation}
       />
 
       {/* Labor Table */}
@@ -648,6 +682,7 @@ function LineItemTab({
   onSelectLocation,
   onAddLocation,
   onDeleteLocation,
+  onRenameLocation,
   onAdd,
   onUpdate,
   onDelete,
@@ -663,6 +698,7 @@ function LineItemTab({
   onSelectLocation: (id: string) => void
   onAddLocation: (name: string) => void
   onDeleteLocation: (id: string) => void
+  onRenameLocation: (id: string, name: string) => void
   onAdd: (item: { item_name: string; description: string; quantity: number; unit_cost: number; markup_pct: number; gl_code: string | null; rate_card_item_id: string | null }) => void
   onUpdate: (id: string, updates: Partial<EstimateLineItem>) => void
   onDelete: (id: string) => void
@@ -677,6 +713,7 @@ function LineItemTab({
         onSelectLocation={onSelectLocation}
         onAddLocation={onAddLocation}
         onDeleteLocation={onDeleteLocation}
+        onRenameLocation={onRenameLocation}
       />
 
       <div>
@@ -1211,6 +1248,15 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
     }
   }
 
+  async function handleRenameLocation(logId: string, name: string) {
+    try {
+      await updateLaborLog(logId, { location_name: name })
+      setLaborLogs((prev) => prev.map((l) => l.id === logId ? { ...l, location_name: name } : l))
+    } catch (err) {
+      console.error('Failed to rename location:', err)
+    }
+  }
+
   async function handleAddEntry(data: { role_name: string; unit_rate: number; cost_rate: number | null; gl_code: string | null; rate_card_item_id: string | null }) {
     if (!activeLocationId) return
     try {
@@ -1382,6 +1428,7 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
                 onSelectLocation={setActiveLocationId}
                 onAddLocation={handleAddLocation}
                 onDeleteLocation={handleDeleteLocation}
+                onRenameLocation={handleRenameLocation}
                 onAddEntry={handleAddEntry}
                 onUpdateEntry={handleUpdateEntry}
                 onDeleteEntry={handleDeleteEntry}
@@ -1402,6 +1449,7 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
                   onSelectLocation={setActiveLocationId}
                   onAddLocation={handleAddLocation}
                   onDeleteLocation={handleDeleteLocation}
+                  onRenameLocation={handleRenameLocation}
                   onAdd={(data) => handleAddLineItem(tab.key, data)}
                   onUpdate={handleUpdateLineItem}
                   onDelete={handleDeleteLineItem}
