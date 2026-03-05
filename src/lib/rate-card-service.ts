@@ -1,6 +1,7 @@
 import { supabase } from './supabase'
 import type {
   Client,
+  ClientUpdate,
   RateCardSection,
   RateCardItem,
   RateCardItemInsert,
@@ -37,6 +38,18 @@ export async function getClient(id: string): Promise<Client> {
     .from('clients')
     .select('*')
     .eq('id', id)
+    .single()
+  if (error) throw error
+  return data
+}
+
+export async function updateClient(id: string, updates: ClientUpdate): Promise<Client> {
+  const db = requireSupabase()
+  const { data, error } = await db
+    .from('clients')
+    .update(updates)
+    .eq('id', id)
+    .select()
     .single()
   if (error) throw error
   return data

@@ -11,9 +11,15 @@ export interface Client {
   office_payout_pct: number
   is_active: boolean
   notes: string | null
+  billing_contact_name: string | null
+  billing_contact_email: string | null
+  billing_address: string | null
+  billing_phone: string | null
   created_at: string
   updated_at: string
 }
+
+export type ClientUpdate = Partial<Pick<Client, 'billing_contact_name' | 'billing_contact_email' | 'billing_address' | 'billing_phone'>>
 
 export interface RateCardSection {
   id: string

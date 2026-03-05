@@ -42,6 +42,7 @@ import type {
 } from '@/types/rate-card'
 import {
   getClients,
+  updateClient,
   getRateCardItemsBySection,
   createRateCardItem,
   updateRateCardItem,
@@ -51,6 +52,7 @@ import {
   updateFeeType,
   deleteFeeType,
 } from '@/lib/rate-card-service'
+import type { ClientUpdate } from '@/types/rate-card'
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -296,6 +298,58 @@ function RateFormDialog({ open, onClose, onSave, onDelete, title, description, i
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  )
+}
+
+// ── Inline Editable Field ────────────────────────────────────────────────────
+
+interface EditableFieldProps {
+  value: string | null
+  placeholder: string
+  label: string
+  onSave: (value: string) => void
+}
+
+function EditableField({ value, placeholder, label, onSave }: EditableFieldProps) {
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState(value ?? '')
+
+  function startEdit() {
+    setDraft(value ?? '')
+    setEditing(true)
+  }
+
+  function commit() {
+    setEditing(false)
+    const trimmed = draft.trim()
+    if (trimmed !== (value ?? '')) {
+      onSave(trimmed)
+    }
+  }
+
+  if (editing) {
+    return (
+      <div className="space-y-0.5">
+        <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">{label}</span>
+        <Input
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={commit}
+          onKeyDown={(e) => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') setEditing(false) }}
+          autoFocus
+          className="h-7 text-[13px] border-border/50 w-full min-w-0 px-1.5"
+        />
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-0.5 cursor-pointer group/field" onClick={startEdit}>
+      <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">{label}</span>
+      <p className="text-[13px] text-foreground/80 group-hover/field:text-foreground transition-colors leading-tight truncate min-h-[1.25rem]">
+        {value || <span className="text-muted-foreground/50 italic">{placeholder}</span>}
+      </p>
+    </div>
   )
 }
 
@@ -868,6 +922,16 @@ export function RateCardManagementPage() {
 
   const selectedClient = clients.find((c) => c.id === selectedClientId) ?? null
 
+  async function handleUpdateClientField(field: keyof ClientUpdate, value: string) {
+    if (!selectedClientId) return
+    try {
+      const updated = await updateClient(selectedClientId, { [field]: value || null })
+      setClients((prev) => prev.map((c) => c.id === updated.id ? updated : c))
+    } catch {
+      // silently fail — field will revert on next load
+    }
+  }
+
   // Load clients on mount
   useEffect(() => {
     let cancelled = false
@@ -1040,12 +1104,12 @@ export function RateCardManagementPage() {
         <FeeTypesTab />
       ) : (
         <>
-          {/* Client selector + search row */}
+          {/* Client selector + contact info + search row */}
           <div className="flex items-end gap-3">
-            <div className="space-y-1">
-              <Label className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Client Rate Card</Label>
+            <div className="space-y-1 shrink-0">
+              <Label className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Client</Label>
               <Select value={selectedClientId ?? undefined} onValueChange={setSelectedClientId}>
-                <SelectTrigger className="h-9 w-[220px] text-sm font-medium border-border/60 bg-white dark:bg-slate-900 shadow-sm">
+                <SelectTrigger className="h-9 w-[200px] text-sm font-medium border-border/60 bg-white dark:bg-slate-900 shadow-sm">
                   <SelectValue placeholder="Select client..." />
                 </SelectTrigger>
                 <SelectContent>
@@ -1058,7 +1122,44 @@ export function RateCardManagementPage() {
               </Select>
             </div>
 
-            <div className="relative flex-1">
+            {selectedClient && (
+              <div className="flex items-end gap-4 flex-1 min-w-0">
+                <div className="min-w-[140px] max-w-[180px]">
+                  <EditableField
+                    value={selectedClient.billing_contact_name}
+                    placeholder="Contact name"
+                    label="Contact"
+                    onSave={(v) => handleUpdateClientField('billing_contact_name', v)}
+                  />
+                </div>
+                <div className="min-w-[120px] max-w-[140px]">
+                  <EditableField
+                    value={selectedClient.billing_phone}
+                    placeholder="Phone"
+                    label="Phone"
+                    onSave={(v) => handleUpdateClientField('billing_phone', v)}
+                  />
+                </div>
+                <div className="min-w-[160px] max-w-[200px]">
+                  <EditableField
+                    value={selectedClient.billing_contact_email}
+                    placeholder="Email"
+                    label="Email"
+                    onSave={(v) => handleUpdateClientField('billing_contact_email', v)}
+                  />
+                </div>
+                <div className="min-w-[160px] max-w-[220px]">
+                  <EditableField
+                    value={selectedClient.billing_address}
+                    placeholder="Address"
+                    label="Address"
+                    onSave={(v) => handleUpdateClientField('billing_address', v)}
+                  />
+                </div>
+              </div>
+            )}
+
+            <div className="relative shrink-0 w-[220px] ml-auto">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground/60" />
               <Input
                 placeholder="Search rates..."
@@ -1088,8 +1189,6 @@ export function RateCardManagementPage() {
               <span className="text-muted-foreground mx-1">({msaItems} MSA</span>
               <span className="text-muted-foreground">·</span>
               <span className="text-muted-foreground mx-1">{customItems} custom)</span>
-              <span className="text-muted-foreground/60 mx-1.5">·</span>
-              <span className="text-muted-foreground/70">Updated {new Date(selectedClient.updated_at).toLocaleDateString()}</span>
             </p>
           )}
 
