@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Table,
@@ -25,8 +25,8 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { FileSpreadsheet } from 'lucide-react'
-import { getEstimates, createEstimate, createLaborLog } from '@/lib/estimate-service'
+import { FileSpreadsheet, MoreVertical } from 'lucide-react'
+import { getEstimates, createEstimate, createLaborLog, updateEstimate, deleteEstimate } from '@/lib/estimate-service'
 import { getClients } from '@/lib/rate-card-service'
 import type { EstimateWithClient } from '@/types/estimate'
 import type { Client } from '@/types/rate-card'
@@ -50,6 +50,7 @@ const STATUS_DOT: Record<string, string> = {
   active: 'bg-emerald-400',
   recap: 'bg-violet-400',
   complete: 'bg-zinc-400',
+  archived: 'bg-slate-300',
 }
 
 function formatDate(dateStr: string | null): string {
@@ -70,6 +71,12 @@ export function EstimatesListPage() {
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [showArchived, setShowArchived] = useState(false)
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null)
+  const [menuPos, setMenuPos] = useState<{ top: number; right: number }>({ top: 0, right: 0 })
+  const [deleteTarget, setDeleteTarget] = useState<EstimateWithClient | null>(null)
+  const [deleting, setDeleting] = useState(false)
+  const menuRef = useRef<HTMLDivElement>(null)
 
   // New estimate form state
   const [formClientId, setFormClientId] = useState('')
@@ -83,6 +90,19 @@ export function EstimatesListPage() {
   useEffect(() => {
     loadData()
   }, [])
+
+  // Close menu on outside click
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setOpenMenuId(null)
+      }
+    }
+    if (openMenuId) {
+      document.addEventListener('mousedown', handleClickOutside)
+      return () => document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [openMenuId])
 
   async function loadData() {
     try {
@@ -158,6 +178,46 @@ export function EstimatesListPage() {
     }
   }
 
+  async function handleArchive(est: EstimateWithClient) {
+    try {
+      await updateEstimate(est.id, { status: 'archived' })
+      setEstimates(prev => prev.map(e => e.id === est.id ? { ...e, status: 'archived' as const } : e))
+    } catch (err) {
+      console.error('Failed to archive estimate:', err)
+    }
+    setOpenMenuId(null)
+  }
+
+  async function handleUnarchive(est: EstimateWithClient) {
+    try {
+      await updateEstimate(est.id, { status: 'draft' })
+      setEstimates(prev => prev.map(e => e.id === est.id ? { ...e, status: 'draft' as const } : e))
+    } catch (err) {
+      console.error('Failed to unarchive estimate:', err)
+    }
+    setOpenMenuId(null)
+  }
+
+  async function handleDelete() {
+    if (!deleteTarget) return
+    setDeleting(true)
+    try {
+      await deleteEstimate(deleteTarget.id)
+      setEstimates(prev => prev.filter(e => e.id !== deleteTarget.id))
+      setDeleteTarget(null)
+    } catch (err) {
+      console.error('Failed to delete estimate:', err)
+    } finally {
+      setDeleting(false)
+    }
+  }
+
+  const visibleEstimates = showArchived
+    ? estimates
+    : estimates.filter(e => e.status !== 'archived')
+
+  const archivedCount = estimates.filter(e => e.status === 'archived').length
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
@@ -174,13 +234,23 @@ export function EstimatesListPage() {
           <h1 className="text-lg font-semibold tracking-tight">Estimates</h1>
           <p className="text-sm text-muted-foreground">Create and manage event estimates</p>
         </div>
-        <Button size="sm" onClick={() => setShowModal(true)} className="text-[13px] bg-white hover:bg-green-800/10 text-foreground border border-border/50 hover:border-green-800/30 hover:text-green-800/80 shadow-sm">
-          + New Estimate
-        </Button>
+        <div className="flex items-center gap-3">
+          {archivedCount > 0 && (
+            <button
+              onClick={() => setShowArchived(!showArchived)}
+              className="text-[12px] text-muted-foreground hover:text-foreground transition-colors"
+            >
+              {showArchived ? 'Hide archived' : `Show archived (${archivedCount})`}
+            </button>
+          )}
+          <Button size="sm" onClick={() => setShowModal(true)} className="text-[13px] bg-white hover:bg-green-800/10 text-foreground border border-border/50 hover:border-green-800/30 hover:text-green-800/80 shadow-sm">
+            + New Estimate
+          </Button>
+        </div>
       </div>
 
       {/* Estimates Table */}
-      {estimates.length === 0 ? (
+      {visibleEstimates.length === 0 ? (
         <div className="border border-border/40 rounded-md flex flex-col items-center justify-center py-16">
           <FileSpreadsheet className="h-10 w-10 text-muted-foreground/60 mb-3" />
           <p className="text-sm font-medium text-muted-foreground">No estimates yet</p>
@@ -200,32 +270,109 @@ export function EstimatesListPage() {
                 <TableHead className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium py-2">Location</TableHead>
                 <TableHead className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium py-2">Dates</TableHead>
                 <TableHead className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium py-2 text-right">Last Updated</TableHead>
+                <TableHead className="w-10 py-2" />
               </TableRow>
             </TableHeader>
             <TableBody>
-              {estimates.map((est) => (
-                <TableRow
-                  key={est.id}
-                  className="cursor-pointer border-b border-border/30 hover:bg-muted/30 transition-colors"
-                  onClick={() => navigate(`/estimates/${est.id}`)}
-                >
-                  <TableCell className="text-[13px] font-medium py-2.5">{est.event_name}</TableCell>
-                  <TableCell className="text-[13px] py-2.5">{est.clients.name}</TableCell>
-                  <TableCell className="py-2.5">
-                    <span className="inline-flex items-center gap-1.5">
-                      <span className={`inline-block h-1.5 w-1.5 rounded-full ${STATUS_DOT[est.status] ?? 'bg-zinc-400'}`} />
-                      <span className="text-[13px]">{est.status.charAt(0).toUpperCase() + est.status.slice(1)}</span>
-                    </span>
-                  </TableCell>
-                  <TableCell className="text-[13px] text-muted-foreground py-2.5">{est.location || '—'}</TableCell>
-                  <TableCell className="text-[13px] text-muted-foreground tabular-nums py-2.5">{formatDateRange(est.start_date, est.end_date)}</TableCell>
-                  <TableCell className="text-[13px] text-muted-foreground tabular-nums py-2.5 text-right">{formatDate(est.updated_at)}</TableCell>
-                </TableRow>
-              ))}
+              {visibleEstimates.map((est) => {
+                const isArchived = est.status === 'archived'
+                return (
+                  <TableRow
+                    key={est.id}
+                    className={`cursor-pointer border-b border-border/30 hover:bg-muted/30 transition-colors ${isArchived ? 'opacity-50' : ''}`}
+                    onClick={() => navigate(`/estimates/${est.id}`)}
+                  >
+                    <TableCell className="text-[13px] font-medium py-2.5">{est.event_name}</TableCell>
+                    <TableCell className="text-[13px] py-2.5">{est.clients.name}</TableCell>
+                    <TableCell className="py-2.5">
+                      <span className="inline-flex items-center gap-1.5">
+                        <span className={`inline-block h-1.5 w-1.5 rounded-full ${STATUS_DOT[est.status] ?? 'bg-zinc-400'}`} />
+                        <span className="text-[13px]">{est.status.charAt(0).toUpperCase() + est.status.slice(1)}</span>
+                      </span>
+                    </TableCell>
+                    <TableCell className="text-[13px] text-muted-foreground py-2.5">{est.location || '—'}</TableCell>
+                    <TableCell className="text-[13px] text-muted-foreground tabular-nums py-2.5">{formatDateRange(est.start_date, est.end_date)}</TableCell>
+                    <TableCell className="text-[13px] text-muted-foreground tabular-nums py-2.5 text-right">{formatDate(est.updated_at)}</TableCell>
+                    <TableCell className="py-2.5 px-2">
+                      <div className="relative" ref={openMenuId === est.id ? menuRef : undefined}>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            if (openMenuId === est.id) {
+                              setOpenMenuId(null)
+                            } else {
+                              const rect = e.currentTarget.getBoundingClientRect()
+                              setMenuPos({ top: rect.bottom + 4, right: window.innerWidth - rect.right })
+                              setOpenMenuId(est.id)
+                            }
+                          }}
+                          className="p-1 rounded hover:bg-muted/60 text-muted-foreground hover:text-foreground transition-colors"
+                        >
+                          <MoreVertical className="h-4 w-4" />
+                        </button>
+                        {openMenuId === est.id && (
+                          <div
+                            ref={menuRef}
+                            className="fixed z-[9999] bg-white dark:bg-zinc-900 border border-border/50 rounded-md shadow-lg py-1 w-[120px]"
+                            style={{ top: menuPos.top, right: menuPos.right }}
+                          >
+                            {isArchived ? (
+                              <button
+                                onClick={(e) => { e.stopPropagation(); handleUnarchive(est) }}
+                                className="block w-full text-left px-3 py-1.5 text-[13px] hover:bg-muted/50 transition-colors"
+                              >
+                                Unarchive
+                              </button>
+                            ) : (
+                              <button
+                                onClick={(e) => { e.stopPropagation(); handleArchive(est) }}
+                                className="block w-full text-left px-3 py-1.5 text-[13px] hover:bg-muted/50 transition-colors"
+                              >
+                                Archive
+                              </button>
+                            )}
+                            <button
+                              onClick={(e) => { e.stopPropagation(); setDeleteTarget(est); setOpenMenuId(null) }}
+                              className="block w-full text-left px-3 py-1.5 text-[13px] text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors"
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                )
+              })}
             </TableBody>
           </Table>
         </div>
       )}
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={!!deleteTarget} onOpenChange={(open) => { if (!open) setDeleteTarget(null) }}>
+        <DialogContent className="sm:max-w-[400px]">
+          <DialogHeader>
+            <DialogTitle className="text-sm font-semibold">Delete Estimate</DialogTitle>
+          </DialogHeader>
+          <p className="text-[13px] text-muted-foreground py-2">
+            Are you sure you want to delete <span className="font-medium text-foreground">{deleteTarget?.event_name}</span>? This will permanently remove the estimate and all associated labor logs, entries, and line items. This action cannot be undone.
+          </p>
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={() => setDeleteTarget(null)} className="text-[13px]">
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              onClick={handleDelete}
+              disabled={deleting}
+              className="text-[13px] bg-red-600 hover:bg-red-700 text-white"
+            >
+              {deleting ? 'Deleting...' : 'Delete Estimate'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* New Estimate Modal */}
       <Dialog open={showModal} onOpenChange={setShowModal}>

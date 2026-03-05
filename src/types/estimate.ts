@@ -14,7 +14,7 @@ export interface Estimate {
   project_id: string | null
   cost_structure: 'corporate' | 'office'
   project_notes: string | null
-  status: 'pipeline' | 'draft' | 'review' | 'approved' | 'active' | 'recap' | 'complete'
+  status: 'pipeline' | 'draft' | 'review' | 'approved' | 'active' | 'recap' | 'complete' | 'archived'
   created_by: string | null
   created_at: string
   updated_at: string
