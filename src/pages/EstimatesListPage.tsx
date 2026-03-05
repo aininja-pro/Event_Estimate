@@ -95,12 +95,15 @@ export function EstimatesListPage() {
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        e.stopPropagation()
+        e.preventDefault()
         setOpenMenuId(null)
       }
     }
     if (openMenuId) {
-      document.addEventListener('mousedown', handleClickOutside)
-      return () => document.removeEventListener('mousedown', handleClickOutside)
+      // Use click (not mousedown) with capture to prevent row navigation
+      document.addEventListener('click', handleClickOutside, true)
+      return () => document.removeEventListener('click', handleClickOutside, true)
     }
   }, [openMenuId])
 
@@ -179,23 +182,28 @@ export function EstimatesListPage() {
   }
 
   async function handleArchive(est: EstimateWithClient) {
+    setOpenMenuId(null)
     try {
       await updateEstimate(est.id, { status: 'archived' })
-      setEstimates(prev => prev.map(e => e.id === est.id ? { ...e, status: 'archived' as const } : e))
+      const fresh = await getEstimates()
+      setEstimates(fresh)
     } catch (err) {
       console.error('Failed to archive estimate:', err)
     }
-    setOpenMenuId(null)
   }
 
   async function handleUnarchive(est: EstimateWithClient) {
+    setOpenMenuId(null)
     try {
       await updateEstimate(est.id, { status: 'draft' })
-      setEstimates(prev => prev.map(e => e.id === est.id ? { ...e, status: 'draft' as const } : e))
+      // Reload full list to ensure consistency
+      const fresh = await getEstimates()
+      setEstimates(fresh)
+      // If no more archived estimates, switch back to default view
+      if (!fresh.some(e => e.status === 'archived')) setShowArchived(false)
     } catch (err) {
       console.error('Failed to unarchive estimate:', err)
     }
-    setOpenMenuId(null)
   }
 
   async function handleDelete() {
