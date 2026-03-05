@@ -9,7 +9,7 @@ export interface Estimate {
   start_date: string | null
   end_date: string | null
   duration_days: number | null
-  expected_attendance: number | null
+  expected_attendance: string | null
   po_number: string | null
   project_id: string | null
   cost_structure: 'corporate' | 'office'

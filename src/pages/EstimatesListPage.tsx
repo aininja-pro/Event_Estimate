@@ -287,7 +287,7 @@ export function EstimatesListPage() {
                 return (
                   <TableRow
                     key={est.id}
-                    className={`cursor-pointer border-b border-border/30 hover:bg-muted/30 transition-colors ${isArchived ? 'opacity-50' : ''}`}
+                    className={`cursor-pointer border-b border-border/30 hover:bg-muted/30 transition-colors ${isArchived ? 'text-muted-foreground/40' : ''}`}
                     onClick={() => navigate(`/estimates/${est.id}`)}
                   >
                     <TableCell className="text-[13px] font-medium py-2.5">{est.event_name}</TableCell>

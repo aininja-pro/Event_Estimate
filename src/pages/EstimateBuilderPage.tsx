@@ -59,6 +59,17 @@ const TAB_TO_RC_SECTION: Record<string, string> = {
   access: 'Logistics Expenses',
 }
 
+const EVENT_TYPES = [
+  'Ride & Drive',
+  'Static Display',
+  'Press Event',
+  'Chauffeur',
+  'Auto Show',
+  'Tour',
+  'Fleet',
+  'Other',
+]
+
 const STATUS_DOT: Record<string, string> = {
   pipeline: 'bg-zinc-400',
   draft: 'bg-amber-400/80',
@@ -129,6 +140,81 @@ function AINudgePanel() {
   )
 }
 
+// ── Combo Input (dropdown with options + custom text) ────────────────────────
+
+const ATTENDANCE_RANGES = [
+  '1–25',
+  '25–50',
+  '50–100',
+  '100–250',
+  '250–500',
+  '500–1,000',
+  '1,000–2,500',
+  '2,500–5,000',
+  '5,000+',
+]
+
+function ComboInput({
+  value,
+  options,
+  onChange,
+  onSave,
+  className,
+}: {
+  value: string
+  options: string[]
+  onChange: (v: string) => void
+  onSave: (v: string) => void
+  className?: string
+}) {
+  const [open, setOpen] = useState(false)
+  const wrapperRef = React.useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) {
+        setOpen(false)
+      }
+    }
+    if (open) {
+      document.addEventListener('click', handleClick, true)
+      return () => document.removeEventListener('click', handleClick, true)
+    }
+  }, [open])
+
+  function selectOption(opt: string) {
+    onChange(opt)
+    onSave(opt)
+    setOpen(false)
+  }
+
+  return (
+    <div className="relative" ref={wrapperRef}>
+      <Input
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        onFocus={() => setOpen(true)}
+        onBlur={() => onSave(value)}
+        placeholder=""
+        className={className}
+      />
+      {open && (
+        <div className="absolute top-full left-0 right-0 mt-1 z-50 bg-white dark:bg-zinc-900 border border-border/50 rounded-md shadow-lg py-1 max-h-[200px] overflow-y-auto">
+          {options.map((opt) => (
+            <button
+              key={opt}
+              onMouseDown={(e) => { e.preventDefault(); selectOption(opt) }}
+              className="block w-full text-left px-3 py-1 text-[13px] hover:bg-muted/50 transition-colors"
+            >
+              {opt}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Event Header ─────────────────────────────────────────────────────────────
 
 function EventHeader({
@@ -176,7 +262,7 @@ function EventHeader({
         </div>
         <div>
           <p className={fieldLabel}>Event Type</p>
-          <Input value={eventType} onChange={(e) => setEventType(e.target.value)} onBlur={() => saveField('event_type', eventType)} className={fieldInput} />
+          <ComboInput value={eventType} options={EVENT_TYPES} onChange={setEventType} onSave={(v) => saveField('event_type', v || null)} className={fieldInput} />
         </div>
         <div className="col-span-2">
           <p className={fieldLabel}>Event Name</p>
@@ -196,7 +282,7 @@ function EventHeader({
         </div>
         <div>
           <p className={fieldLabel}>Attendance</p>
-          <Input type="number" value={attendance} onChange={(e) => setAttendance(e.target.value)} onBlur={() => saveField('expected_attendance', attendance ? parseInt(attendance) : null)} className={fieldInput} />
+          <ComboInput value={attendance} options={ATTENDANCE_RANGES} onChange={setAttendance} onSave={(v) => saveField('expected_attendance', v || null)} className={fieldInput} />
         </div>
         <div>
           <p className={fieldLabel}>PO Number</p>
