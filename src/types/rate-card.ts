@@ -55,6 +55,24 @@ export interface RateCardItemsBySection {
   items: RateCardItem[]
 }
 
+// ---- Fee Types ----
+
+export interface FeeType {
+  id: string
+  name: string
+  gl_code: string
+  cost_type: 'labor' | 'flat_fee' | 'pass_through'
+  unit_label: string | null
+  section: string
+  display_order: number
+  created_at: string
+  updated_at: string
+}
+
+export type FeeTypeInsert = Omit<FeeType, 'id' | 'created_at' | 'updated_at'>
+
+export type FeeTypeUpdate = Partial<Omit<FeeType, 'id' | 'created_at' | 'updated_at'>>
+
 // ---- Phase 1: Analysis types (legacy) ----
 
 export interface RateRange {

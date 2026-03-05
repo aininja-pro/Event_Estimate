@@ -6,6 +6,9 @@ import type {
   RateCardItemInsert,
   RateCardItemUpdate,
   RateCardItemsBySection,
+  FeeType,
+  FeeTypeInsert,
+  FeeTypeUpdate,
 } from '../types/rate-card'
 
 function requireSupabase() {
@@ -113,6 +116,51 @@ export async function deleteRateCardItem(id: string): Promise<void> {
   const { error } = await db
     .from('rate_card_items')
     .update({ is_active: false })
+    .eq('id', id)
+  if (error) throw error
+}
+
+// ---- Fee Types ----
+
+export async function getFeeTypes(): Promise<FeeType[]> {
+  const db = requireSupabase()
+  const { data, error } = await db
+    .from('fee_types')
+    .select('*')
+    .order('section')
+    .order('display_order')
+  if (error) throw error
+  return data
+}
+
+export async function createFeeType(feeType: FeeTypeInsert): Promise<FeeType> {
+  const db = requireSupabase()
+  const { data, error } = await db
+    .from('fee_types')
+    .insert(feeType)
+    .select()
+    .single()
+  if (error) throw error
+  return data
+}
+
+export async function updateFeeType(id: string, updates: FeeTypeUpdate): Promise<FeeType> {
+  const db = requireSupabase()
+  const { data, error } = await db
+    .from('fee_types')
+    .update(updates)
+    .eq('id', id)
+    .select()
+    .single()
+  if (error) throw error
+  return data
+}
+
+export async function deleteFeeType(id: string): Promise<void> {
+  const db = requireSupabase()
+  const { error } = await db
+    .from('fee_types')
+    .delete()
     .eq('id', id)
   if (error) throw error
 }
