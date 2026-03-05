@@ -26,6 +26,9 @@ import {
   Send,
   Search,
   Check,
+  Plus,
+  ChevronUp,
+  ChevronDown,
 } from 'lucide-react'
 import {
   getEstimate,
@@ -247,12 +250,21 @@ function AddRoleModal({
 }) {
   const [search, setSearch] = useState('')
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [showCustom, setShowCustom] = useState(false)
+  const [customName, setCustomName] = useState('')
+  const [customRate, setCustomRate] = useState('')
+  type CustomRole = { id: string; role_name: string; unit_rate: number }
+  const [customRoles, setCustomRoles] = useState<CustomRole[]>([])
 
   // Clear selections when modal opens/closes
   useEffect(() => {
     if (!open) {
       setSelectedIds(new Set())
       setSearch('')
+      setShowCustom(false)
+      setCustomName('')
+      setCustomRate('')
+      setCustomRoles([])
     }
   }, [open])
 
@@ -274,9 +286,19 @@ function AddRoleModal({
     })
   }
 
+  function handleAddCustom() {
+    if (!customName.trim()) return
+    const id = `custom-${Date.now()}`
+    setCustomRoles((prev) => [...prev, { id, role_name: customName.trim(), unit_rate: parseFloat(customRate) || 0 }])
+    setSelectedIds((prev) => new Set(prev).add(id))
+    setCustomName('')
+    setCustomRate('')
+    setShowCustom(false)
+  }
+
   function handleAddSelected() {
     const isOffice = estimate.cost_structure === 'office'
-    const entries = allRoles
+    const rcEntries = allRoles
       .filter((r) => selectedIds.has(r.id))
       .map((role) => ({
         role_name: role.name,
@@ -287,9 +309,22 @@ function AddRoleModal({
         gl_code: role.gl_code,
         rate_card_item_id: role.id,
       }))
-    onAdd(entries)
+    const customEntries = customRoles
+      .filter((r) => selectedIds.has(r.id))
+      .map((role) => ({
+        role_name: role.role_name,
+        unit_rate: role.unit_rate,
+        cost_rate: isOffice && role.unit_rate
+          ? role.unit_rate * (1 - estimate.clients.office_payout_pct)
+          : null,
+        gl_code: null as string | null,
+        rate_card_item_id: null as string | null,
+      }))
+    onAdd([...rcEntries, ...customEntries])
     onOpenChange(false)
   }
+
+  const totalSelected = selectedIds.size
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -303,7 +338,7 @@ function AddRoleModal({
           <Input placeholder="Search roles..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9 h-8 text-sm border-border/30" autoFocus />
         </div>
         <div className="max-h-[300px] overflow-y-auto space-y-0.5">
-          {filtered.length === 0 && (
+          {filtered.length === 0 && customRoles.length === 0 && (
             <p className="text-xs text-muted-foreground/50 text-center py-4">No matching roles found</p>
           )}
           {filtered.map((role) => {
@@ -330,17 +365,76 @@ function AddRoleModal({
               </button>
             )
           })}
+          {/* Custom roles already added */}
+          {customRoles.map((role) => {
+            const selected = selectedIds.has(role.id)
+            return (
+              <button
+                key={role.id}
+                onClick={() => toggleRole(role.id)}
+                className={`w-full text-left px-3 py-1.5 rounded-sm transition-colors flex items-start gap-2.5 ${selected ? 'bg-muted/60' : 'hover:bg-muted/40'}`}
+              >
+                <div className={`mt-0.5 flex-shrink-0 w-4 h-4 rounded border ${selected ? 'bg-green-800/15 border-green-800/40' : 'border-border/50'} flex items-center justify-center`}>
+                  {selected && <Check className="h-3 w-3 text-green-800/70" />}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[13px] font-medium text-foreground/90">{role.role_name}</span>
+                    <span className="text-[13px] text-muted-foreground/60 tabular-nums">
+                      {role.unit_rate ? `$${role.unit_rate.toLocaleString()}` : '$0'}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground/70">Custom role</p>
+                </div>
+              </button>
+            )
+          })}
         </div>
+
+        {/* Custom role inline form */}
+        {showCustom ? (
+          <div className="border border-border/40 rounded-md p-2.5 space-y-2 bg-muted/20">
+            <p className="text-[11px] font-medium text-muted-foreground/70 uppercase tracking-wider">Custom Role</p>
+            <div className="flex gap-2">
+              <Input
+                placeholder="Role name"
+                value={customName}
+                onChange={(e) => setCustomName(e.target.value)}
+                className="h-7 text-[13px] border-border/40 flex-1"
+                autoFocus
+                onKeyDown={(e) => e.key === 'Enter' && handleAddCustom()}
+              />
+              <Input
+                type="number"
+                placeholder="Rate"
+                value={customRate}
+                onChange={(e) => setCustomRate(e.target.value)}
+                className="h-7 text-[13px] border-border/40 w-24"
+                onKeyDown={(e) => e.key === 'Enter' && handleAddCustom()}
+              />
+              <Button size="sm" variant="outline" className="h-7 text-[11px] px-2.5" onClick={handleAddCustom} disabled={!customName.trim()}>Add</Button>
+            </div>
+          </div>
+        ) : (
+          <button
+            onClick={() => setShowCustom(true)}
+            className="flex items-center gap-1.5 text-[11px] text-muted-foreground/60 hover:text-foreground/80 transition-colors"
+          >
+            <Plus className="h-3 w-3" />
+            Add custom role
+          </button>
+        )}
+
         <DialogFooter>
           <Button
             onClick={handleAddSelected}
-            disabled={selectedIds.size === 0}
+            disabled={totalSelected === 0}
             size="sm"
             className="text-xs bg-white hover:bg-green-800/10 text-foreground border border-border/50 hover:border-green-800/30 hover:text-green-800/80 shadow-sm"
           >
-            {selectedIds.size === 0
+            {totalSelected === 0
               ? 'Select roles to add'
-              : `Add ${selectedIds.size} Role${selectedIds.size > 1 ? 's' : ''}`}
+              : `Add ${totalSelected} Role${totalSelected > 1 ? 's' : ''}`}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -413,7 +507,7 @@ function LocationSelector({
           )
         ))}
         <button onClick={() => setShowAddLocation(true)} className="text-[11px] px-2 py-0.5 rounded text-muted-foreground/50 hover:text-foreground/60 hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
-          + Add
+          + Add Segment
         </button>
         {activeLocationId && laborLogs.length > 1 && !laborLogs.find((l) => l.id === activeLocationId)?.is_primary && (
           <button
@@ -594,6 +688,44 @@ function LaborLogTab({
   )
 }
 
+// ── Stepper Input (up/down arrows for integer fields) ────────────────────────
+
+function StepperInput({
+  value,
+  onChange,
+  onBlur,
+  onStep,
+  min = 0,
+  className = '',
+}: {
+  value: string
+  onChange: (v: string) => void
+  onBlur: () => void
+  onStep: (newValue: number) => void
+  min?: number
+  className?: string
+}) {
+  function step(delta: number) {
+    const next = Math.max(min, (parseInt(value) || 0) + delta)
+    onChange(next.toString())
+    onStep(next)
+  }
+
+  return (
+    <div className="flex items-center justify-center gap-0.5 mx-auto group/stepper">
+      <div className="flex flex-col opacity-0 group-hover/stepper:opacity-100 transition-opacity">
+        <button onClick={() => step(1)} className="h-3 w-3.5 flex items-center justify-center rounded-sm hover:bg-muted/60 text-muted-foreground/50 hover:text-foreground/70" tabIndex={-1}>
+          <ChevronUp className="h-3 w-3" />
+        </button>
+        <button onClick={() => step(-1)} className="h-3 w-3.5 flex items-center justify-center rounded-sm hover:bg-muted/60 text-muted-foreground/50 hover:text-foreground/70" tabIndex={-1}>
+          <ChevronDown className="h-3 w-3" />
+        </button>
+      </div>
+      <Input value={value} onChange={(e) => onChange(e.target.value)} onBlur={onBlur} className={`${className} w-10 text-center`} />
+    </div>
+  )
+}
+
 // ── Labor Entry Row ──────────────────────────────────────────────────────────
 
 function LaborEntryRow({
@@ -659,10 +791,10 @@ function LaborEntryRow({
         {isOverridden && <span className="ml-1 text-[9px] text-amber-600 font-medium">*</span>}
       </TableCell>
       <TableCell className="text-center py-1">
-        <Input value={qty} onChange={(e) => setQty(e.target.value)} onBlur={saveQty} className={`${cellInput} w-10 text-center mx-auto`} />
+        <StepperInput value={qty} onChange={setQty} onBlur={saveQty} onStep={(v) => onUpdate(entry.id, { quantity: v })} min={0} className={cellInput} />
       </TableCell>
       <TableCell className="text-center py-1">
-        <Input value={days} onChange={(e) => setDays(e.target.value)} onBlur={saveDays} className={`${cellInput} w-10 text-center mx-auto`} />
+        <StepperInput value={days} onChange={setDays} onBlur={saveDays} onStep={(v) => onUpdate(entry.id, { days: v })} min={0} className={cellInput} />
       </TableCell>
       <TableCell className="text-right py-1">
         <div className="relative w-[72px] ml-auto">
@@ -738,7 +870,7 @@ function LineItemTab({
   onAddLocation: (name: string) => void
   onDeleteLocation: (id: string) => void
   onRenameLocation: (id: string, name: string) => void
-  onAdd: (item: { item_name: string; description: string; quantity: number; unit_cost: number; markup_pct: number; gl_code: string | null; rate_card_item_id: string | null }) => void
+  onAdd: (items: { item_name: string; description: string; quantity: number; unit_cost: number; markup_pct: number; gl_code: string | null; rate_card_item_id: string | null }[]) => void
   onUpdate: (id: string, updates: Partial<EstimateLineItem>) => void
   onDelete: (id: string) => void
 }) {
@@ -830,7 +962,7 @@ function LineItemRow({
       <TableCell className="text-[13px] text-foreground py-1">{item.item_name}</TableCell>
       <TableCell className="text-[13px] text-muted-foreground/50 py-1">{item.description || '—'}</TableCell>
       <TableCell className="text-center py-1">
-        <Input value={qty} onChange={(e) => setQty(e.target.value)} onBlur={() => onUpdate(item.id, { quantity: parseFloat(qty) || 1 })} className={`${cellInput} w-10 text-center mx-auto`} />
+        <StepperInput value={qty} onChange={setQty} onBlur={() => onUpdate(item.id, { quantity: parseFloat(qty) || 1 })} onStep={(v) => onUpdate(item.id, { quantity: v })} min={0} className={cellInput} />
       </TableCell>
       <TableCell className="text-right py-1">
         <div className="relative w-[72px] ml-auto">
@@ -854,7 +986,7 @@ function LineItemRow({
   )
 }
 
-// ── Add Line Item Modal ──────────────────────────────────────────────────────
+// ── Add Line Item Modal (Multi-Select from Rate Card) ────────────────────────
 
 function AddLineItemModal({
   open,
@@ -871,6 +1003,219 @@ function AddLineItemModal({
   defaultMarkup: number
   rateCardData: RateCardItemsBySection[]
   clientName: string
+  onAdd: (items: { item_name: string; description: string; quantity: number; unit_cost: number; markup_pct: number; gl_code: string | null; rate_card_item_id: string | null }[]) => void
+}) {
+  const [search, setSearch] = useState('')
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [showCustom, setShowCustom] = useState(false)
+  const [customName, setCustomName] = useState('')
+  const [customCost, setCustomCost] = useState('')
+  type CustomItem = { id: string; item_name: string; unit_cost: number }
+  const [customItems, setCustomItems] = useState<CustomItem[]>([])
+
+  // Clear selections when modal opens/closes
+  useEffect(() => {
+    if (!open) {
+      setSelectedIds(new Set())
+      setSearch('')
+      setShowCustom(false)
+      setCustomName('')
+      setCustomCost('')
+      setCustomItems([])
+    }
+  }, [open])
+
+  // Find matching rate card section
+  const rcSectionName = TAB_TO_RC_SECTION[section]
+  const rcSection = rateCardData.find((s) => s.section.name === rcSectionName)
+  const rcItems = (rcSection?.items ?? []).map((item) => ({ ...item, sectionName: rcSection?.section.name ?? '' }))
+  const filtered = search
+    ? rcItems.filter((r) => r.name.toLowerCase().includes(search.toLowerCase()))
+    : rcItems
+
+  function toggleItem(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  function handleAddCustom() {
+    if (!customName.trim()) return
+    const id = `custom-${Date.now()}`
+    setCustomItems((prev) => [...prev, { id, item_name: customName.trim(), unit_cost: parseFloat(customCost) || 0 }])
+    setSelectedIds((prev) => new Set(prev).add(id))
+    setCustomName('')
+    setCustomCost('')
+    setShowCustom(false)
+  }
+
+  function handleAddSelected() {
+    const rcSelected = rcItems
+      .filter((r) => selectedIds.has(r.id))
+      .map((item) => ({
+        item_name: item.name,
+        description: '',
+        quantity: 1,
+        unit_cost: item.unit_rate ?? 0,
+        markup_pct: defaultMarkup,
+        gl_code: item.gl_code,
+        rate_card_item_id: item.id,
+      }))
+    const customSelected = customItems
+      .filter((r) => selectedIds.has(r.id))
+      .map((item) => ({
+        item_name: item.item_name,
+        description: '',
+        quantity: 1,
+        unit_cost: item.unit_cost,
+        markup_pct: defaultMarkup,
+        gl_code: null as string | null,
+        rate_card_item_id: null as string | null,
+      }))
+    onAdd([...rcSelected, ...customSelected])
+    onOpenChange(false)
+  }
+
+  // Fallback: if no rate card section mapped (e.g., misc), show a simple free-text form
+  if (!rcSectionName || rcItems.length === 0) {
+    return <AddLineItemManualModal open={open} onOpenChange={onOpenChange} section={section} defaultMarkup={defaultMarkup} onAdd={(item) => onAdd([item])} />
+  }
+
+  const sectionLabel = rcSectionName.replace(' Expenses', '').replace(' Costs', '')
+  const totalSelected = selectedIds.size
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[480px]">
+        <DialogHeader>
+          <DialogTitle className="text-sm font-semibold">Add Items from Rate Card</DialogTitle>
+          <DialogDescription className="text-xs">Select {sectionLabel.toLowerCase()} items from {clientName}'s rate card</DialogDescription>
+        </DialogHeader>
+        <div className="relative">
+          <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-muted-foreground/50" />
+          <Input placeholder="Search items..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9 h-8 text-sm border-border/30" autoFocus />
+        </div>
+        <div className="max-h-[300px] overflow-y-auto space-y-0.5">
+          {filtered.length === 0 && customItems.length === 0 && (
+            <p className="text-xs text-muted-foreground/50 text-center py-4">No matching items found</p>
+          )}
+          {filtered.map((item) => {
+            const selected = selectedIds.has(item.id)
+            return (
+              <button
+                key={item.id}
+                onClick={() => toggleItem(item.id)}
+                className={`w-full text-left px-3 py-1.5 rounded-sm transition-colors flex items-start gap-2.5 ${selected ? 'bg-muted/60' : 'hover:bg-muted/40'}`}
+              >
+                <div className={`mt-0.5 flex-shrink-0 w-4 h-4 rounded border ${selected ? 'bg-green-800/15 border-green-800/40' : 'border-border/50'} flex items-center justify-center`}>
+                  {selected && <Check className="h-3 w-3 text-green-800/70" />}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[13px] font-medium text-foreground/90">{item.name}</span>
+                    <span className="text-[13px] text-muted-foreground/60 tabular-nums">
+                      {item.unit_rate ? `$${item.unit_rate.toLocaleString()}` : 'Pass-through'}
+                      {item.unit_label ? ` ${item.unit_label}` : ''}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground/70">{item.sectionName}{item.gl_code ? ` · GL ${item.gl_code}` : ''}</p>
+                </div>
+              </button>
+            )
+          })}
+          {/* Custom items already added */}
+          {customItems.map((item) => {
+            const selected = selectedIds.has(item.id)
+            return (
+              <button
+                key={item.id}
+                onClick={() => toggleItem(item.id)}
+                className={`w-full text-left px-3 py-1.5 rounded-sm transition-colors flex items-start gap-2.5 ${selected ? 'bg-muted/60' : 'hover:bg-muted/40'}`}
+              >
+                <div className={`mt-0.5 flex-shrink-0 w-4 h-4 rounded border ${selected ? 'bg-green-800/15 border-green-800/40' : 'border-border/50'} flex items-center justify-center`}>
+                  {selected && <Check className="h-3 w-3 text-green-800/70" />}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[13px] font-medium text-foreground/90">{item.item_name}</span>
+                    <span className="text-[13px] text-muted-foreground/60 tabular-nums">
+                      {item.unit_cost ? `$${item.unit_cost.toLocaleString()}` : '$0'}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground/70">Custom item</p>
+                </div>
+              </button>
+            )
+          })}
+        </div>
+
+        {/* Custom item inline form */}
+        {showCustom ? (
+          <div className="border border-border/40 rounded-md p-2.5 space-y-2 bg-muted/20">
+            <p className="text-[11px] font-medium text-muted-foreground/70 uppercase tracking-wider">Custom Item</p>
+            <div className="flex gap-2">
+              <Input
+                placeholder="Item name"
+                value={customName}
+                onChange={(e) => setCustomName(e.target.value)}
+                className="h-7 text-[13px] border-border/40 flex-1"
+                autoFocus
+                onKeyDown={(e) => e.key === 'Enter' && handleAddCustom()}
+              />
+              <Input
+                type="number"
+                placeholder="Unit cost"
+                value={customCost}
+                onChange={(e) => setCustomCost(e.target.value)}
+                className="h-7 text-[13px] border-border/40 w-24"
+                onKeyDown={(e) => e.key === 'Enter' && handleAddCustom()}
+              />
+              <Button size="sm" variant="outline" className="h-7 text-[11px] px-2.5" onClick={handleAddCustom} disabled={!customName.trim()}>Add</Button>
+            </div>
+          </div>
+        ) : (
+          <button
+            onClick={() => setShowCustom(true)}
+            className="flex items-center gap-1.5 text-[11px] text-muted-foreground/60 hover:text-foreground/80 transition-colors"
+          >
+            <Plus className="h-3 w-3" />
+            Add custom item
+          </button>
+        )}
+
+        <DialogFooter>
+          <Button
+            onClick={handleAddSelected}
+            disabled={totalSelected === 0}
+            size="sm"
+            className="text-xs bg-white hover:bg-green-800/10 text-foreground border border-border/50 hover:border-green-800/30 hover:text-green-800/80 shadow-sm"
+          >
+            {totalSelected === 0
+              ? 'Select items to add'
+              : `Add ${totalSelected} Item${totalSelected > 1 ? 's' : ''}`}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+// ── Manual Add Line Item Modal (fallback for Misc tab) ───────────────────────
+
+function AddLineItemManualModal({
+  open,
+  onOpenChange,
+  section,
+  defaultMarkup,
+  onAdd,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  section: string
+  defaultMarkup: number
   onAdd: (item: { item_name: string; description: string; quantity: number; unit_cost: number; markup_pct: number; gl_code: string | null; rate_card_item_id: string | null }) => void
 }) {
   const [itemName, setItemName] = useState('')
@@ -878,19 +1223,6 @@ function AddLineItemModal({
   const [quantity, setQuantity] = useState('1')
   const [unitCost, setUnitCost] = useState('')
   const [markupPct, setMarkupPct] = useState(defaultMarkup.toString())
-  const [search, setSearch] = useState('')
-
-  // Find matching rate card section
-  const rcSectionName = TAB_TO_RC_SECTION[section]
-  const rcSection = rateCardData.find((s) => s.section.name === rcSectionName)
-  const rcItems = rcSection?.items ?? []
-  const filtered = search ? rcItems.filter((r) => r.name.toLowerCase().includes(search.toLowerCase())) : rcItems
-
-  function handleSelectRC(item: typeof rcItems[number]) {
-    setItemName(item.name)
-    setUnitCost(item.unit_rate?.toString() ?? '')
-    setSearch('')
-  }
 
   function handleSave() {
     if (!itemName.trim()) return
@@ -903,13 +1235,11 @@ function AddLineItemModal({
       gl_code: null,
       rate_card_item_id: null,
     })
-    // Reset
     setItemName('')
     setDescription('')
     setQuantity('1')
     setUnitCost('')
     setMarkupPct(defaultMarkup.toString())
-    setSearch('')
     onOpenChange(false)
   }
 
@@ -920,27 +1250,6 @@ function AddLineItemModal({
           <DialogTitle className="text-sm font-semibold">Add Line Item</DialogTitle>
           <DialogDescription className="text-xs">Add to {section} section</DialogDescription>
         </DialogHeader>
-
-        {/* Rate card suggestions */}
-        {rcItems.length > 0 && (
-          <div className="space-y-1.5">
-            <Label className="text-[11px] text-muted-foreground/50">Pick from {clientName}'s rate card</Label>
-            <div className="relative">
-              <Search className="absolute left-3 top-2 h-3.5 w-3.5 text-muted-foreground/70" />
-              <Input placeholder="Search rate card..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9 h-7 text-[13px] border-border/40" />
-            </div>
-            {search && filtered.length > 0 && (
-              <div className="max-h-[100px] overflow-y-auto border border-border/40 rounded-sm">
-                {filtered.map((item) => (
-                  <button key={item.id} onClick={() => handleSelectRC(item)} className="w-full text-left px-3 py-1 text-[13px] hover:bg-muted/30 text-foreground/90">
-                    {item.name}{item.unit_rate ? ` — $${item.unit_rate}` : ''}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
         <div className="space-y-2.5">
           <div className="space-y-1">
             <Label className="text-xs">Item Name *</Label>
@@ -965,7 +1274,6 @@ function AddLineItemModal({
             </div>
           </div>
         </div>
-
         <DialogFooter>
           <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>Cancel</Button>
           <Button size="sm" disabled={!itemName.trim()} onClick={handleSave}>Add Item</Button>
@@ -1346,30 +1654,35 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
     }
   }
 
-  async function handleAddLineItem(section: string, data: { item_name: string; description: string; quantity: number; unit_cost: number; markup_pct: number; gl_code: string | null; rate_card_item_id: string | null }) {
+  async function handleAddLineItems(section: string, items: { item_name: string; description: string; quantity: number; unit_cost: number; markup_pct: number; gl_code: string | null; rate_card_item_id: string | null }[]) {
     if (!activeLocationId) return
     try {
       const activeItems = lineItemsMap[activeLocationId] ?? []
-      const item = await createLineItem({
-        estimate_id: estimateId,
-        labor_log_id: activeLocationId,
-        section,
-        item_name: data.item_name,
-        description: data.description || null,
-        quantity: data.quantity,
-        unit_cost: data.unit_cost,
-        markup_pct: data.markup_pct,
-        gl_code: data.gl_code,
-        rate_card_item_id: data.rate_card_item_id,
-        notes: null,
-        display_order: activeItems.filter((i) => i.section === section).length,
-      })
+      const baseOrder = activeItems.filter((i) => i.section === section).length
+      const created = await Promise.all(
+        items.map((data, idx) =>
+          createLineItem({
+            estimate_id: estimateId,
+            labor_log_id: activeLocationId,
+            section,
+            item_name: data.item_name,
+            description: data.description || null,
+            quantity: data.quantity,
+            unit_cost: data.unit_cost,
+            markup_pct: data.markup_pct,
+            gl_code: data.gl_code,
+            rate_card_item_id: data.rate_card_item_id,
+            notes: null,
+            display_order: baseOrder + idx,
+          })
+        )
+      )
       setLineItemsMap((prev) => ({
         ...prev,
-        [activeLocationId]: [...(prev[activeLocationId] ?? []), item],
+        [activeLocationId]: [...(prev[activeLocationId] ?? []), ...created],
       }))
     } catch (err) {
-      console.error('Failed to add line item:', err)
+      console.error('Failed to add line items:', err)
     }
   }
 
@@ -1484,7 +1797,7 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
                   onAddLocation={handleAddLocation}
                   onDeleteLocation={handleDeleteLocation}
                   onRenameLocation={handleRenameLocation}
-                  onAdd={(data) => handleAddLineItem(tab.key, data)}
+                  onAdd={(items) => handleAddLineItems(tab.key, items)}
                   onUpdate={handleUpdateLineItem}
                   onDelete={handleDeleteLineItem}
                 />
