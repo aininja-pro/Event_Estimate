@@ -395,6 +395,7 @@ export function RateCardManagementPage() {
       display_order: 0,
       is_active: true,
       created_by: null,
+      fee_type_id: null,
     })
     await loadItems(selectedClientId)
   }

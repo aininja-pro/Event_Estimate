@@ -22,7 +22,6 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import {
-  Plus,
   Trash2,
   Send,
   Search,
@@ -968,17 +967,7 @@ function SummaryTab({
     }
   }
 
-  function sumLabor(entries: LaborEntry[]) {
-    const revenue = entries.reduce((s, e) => s + e.quantity * e.days * (e.override_rate ?? e.unit_rate), 0)
-    const cost = entries.reduce((s, e) => s + e.quantity * e.days * (e.cost_rate ?? 0), 0)
-    return { revenue, cost }
-  }
 
-  function sumLineItems(items: EstimateLineItem[]) {
-    const cost = items.reduce((s, i) => s + i.quantity * i.unit_cost, 0)
-    const revenue = items.reduce((s, i) => s + i.quantity * i.unit_cost * (1 + i.markup_pct / 100), 0)
-    return { revenue, cost }
-  }
 
   const hasMultipleSegments = laborLogs.length > 1
 
