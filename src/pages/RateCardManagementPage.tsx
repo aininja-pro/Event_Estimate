@@ -32,7 +32,12 @@ import {
   Loader2,
   ChevronDown,
   Plus,
+  Upload,
+  Download,
+  CheckCircle2,
+  AlertCircle,
 } from 'lucide-react'
+import * as XLSX from 'xlsx'
 import type {
   Client,
   RateCardItem,
@@ -43,6 +48,7 @@ import type {
 import {
   getClients,
   updateClient,
+  getRateCardSections,
   getRateCardItemsBySection,
   createRateCardItem,
   updateRateCardItem,
@@ -78,6 +84,15 @@ const SECTION_TO_FEE_TYPE_KEY: Record<string, string> = {
   'Travel Expenses': 'travel',
   'Production Expenses': 'production',
   'Logistics Expenses': 'logistics',
+}
+
+/** Map fee_types.section key → human label */
+const FEE_TYPE_KEY_LABELS: Record<string, string> = {
+  planning_admin: 'Planning & Admin',
+  onsite_labor: 'Onsite Labor',
+  travel: 'Travel',
+  production: 'Production',
+  logistics: 'Logistics',
 }
 
 const COST_TYPE_ACCENT: Record<string, string> = {
@@ -897,6 +912,296 @@ function FeeTypesTab() {
   )
 }
 
+// ── Bulk Import Dialog ──────────────────────────────────────────────────────
+
+interface ImportRow {
+  fee_type_name: string
+  unit_rate: number | null
+  overtime_rate: number | null
+  matchedFeeType: FeeType | null
+  skip: boolean
+}
+
+function downloadTemplate() {
+  const csv = 'fee_type_name,unit_rate,overtime_rate\nEvent Director Day (10 hr),700,\nProduct Specialist Day (10 hr),800,\n'
+  const blob = new Blob([csv], { type: 'text/csv' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = 'rate_card_import_template.csv'
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
+interface BulkImportDialogProps {
+  open: boolean
+  onClose: () => void
+  clientId: string
+  clientName: string
+  onImportComplete: () => void
+}
+
+function BulkImportDialog({ open, onClose, clientId, clientName, onImportComplete }: BulkImportDialogProps) {
+  const [step, setStep] = useState<'upload' | 'preview'>('upload')
+  const [rows, setRows] = useState<ImportRow[]>([])
+  const [importing, setImporting] = useState(false)
+  const [allFeeTypes, setAllFeeTypes] = useState<FeeType[]>([])
+  const [sections, setSections] = useState<RateCardSection[]>([])
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (open) {
+      setStep('upload')
+      setRows([])
+      setError(null)
+      setImporting(false)
+      Promise.all([getFeeTypes(), getRateCardSections()]).then(([ft, sec]) => {
+        setAllFeeTypes(ft)
+        setSections(sec)
+      })
+    }
+  }, [open])
+
+  function matchFeeType(name: string): FeeType | null {
+    const lower = name.toLowerCase().trim()
+    return allFeeTypes.find((ft) => ft.name.toLowerCase() === lower) ?? null
+  }
+
+  function handleFile(file: File) {
+    setError(null)
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      try {
+        const data = e.target?.result
+        const workbook = XLSX.read(data, { type: 'array' })
+        const sheet = workbook.Sheets[workbook.SheetNames[0]]
+        const json = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet)
+
+        if (json.length === 0) {
+          setError('File is empty or has no data rows.')
+          return
+        }
+
+        // Normalize column names (case-insensitive, trim)
+        const parsed: ImportRow[] = json.map((row) => {
+          const normalized: Record<string, unknown> = {}
+          for (const [k, v] of Object.entries(row)) {
+            normalized[k.toLowerCase().trim().replace(/\s+/g, '_')] = v
+          }
+          const name = String(normalized['fee_type_name'] ?? normalized['name'] ?? '').trim()
+          const rate = normalized['unit_rate']
+          const ot = normalized['overtime_rate']
+          return {
+            fee_type_name: name,
+            unit_rate: rate != null && rate !== '' ? Number(rate) : null,
+            overtime_rate: ot != null && ot !== '' ? Number(ot) : null,
+            matchedFeeType: matchFeeType(name),
+            skip: false,
+          }
+        }).filter((r) => r.fee_type_name)
+
+        if (parsed.length === 0) {
+          setError('No valid rows found. Ensure the file has a "fee_type_name" column.')
+          return
+        }
+
+        setRows(parsed)
+        setStep('preview')
+      } catch {
+        setError('Could not parse file. Please use CSV or Excel format.')
+      }
+    }
+    reader.readAsArrayBuffer(file)
+  }
+
+  function toggleSkip(index: number) {
+    setRows((prev) => prev.map((r, i) => i === index ? { ...r, skip: !r.skip } : r))
+  }
+
+  const matchedRows = rows.filter((r) => r.matchedFeeType && !r.skip)
+  const unmatchedRows = rows.filter((r) => !r.matchedFeeType && !r.skip)
+
+  function getSectionForFeeType(ft: FeeType): RateCardSection | null {
+    const sectionName = Object.entries(SECTION_TO_FEE_TYPE_KEY).find(([, key]) => key === ft.section)?.[0]
+    return sections.find((s) => s.name === sectionName) ?? null
+  }
+
+  async function handleImport() {
+    setImporting(true)
+    try {
+      for (const row of matchedRows) {
+        const ft = row.matchedFeeType!
+        const section = getSectionForFeeType(ft)
+        if (!section) continue
+        await createRateCardItem({
+          client_id: clientId,
+          section_id: section.id,
+          name: ft.name,
+          unit_rate: row.unit_rate,
+          unit_label: ft.unit_label ?? null,
+          gl_code: ft.gl_code,
+          is_from_msa: false,
+          is_pass_through: section.cost_type === 'pass_through',
+          has_overtime_rate: row.overtime_rate != null,
+          overtime_rate: row.overtime_rate,
+          overtime_unit_label: row.overtime_rate != null ? (ft.unit_label ?? null) : null,
+          overtime_gl_code: null,
+          notes: null,
+          display_order: 0,
+          is_active: true,
+          created_by: null,
+          fee_type_id: ft.id,
+        })
+      }
+      onImportComplete()
+      onClose()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Import failed')
+    } finally {
+      setImporting(false)
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="sm:max-w-[700px] max-h-[80vh] flex flex-col">
+        <DialogHeader>
+          <DialogTitle className="text-sm font-semibold">Bulk Import Rates</DialogTitle>
+          <DialogDescription className="text-[13px] text-muted-foreground">
+            Import rates for {clientName} from a CSV or Excel file
+          </DialogDescription>
+        </DialogHeader>
+
+        {step === 'upload' && (
+          <div className="space-y-4 py-2">
+            <div
+              className="border-2 border-dashed border-border/50 rounded-lg p-8 text-center cursor-pointer hover:border-border transition-colors"
+              onClick={() => document.getElementById('bulk-import-file')?.click()}
+              onDragOver={(e) => { e.preventDefault(); e.stopPropagation() }}
+              onDrop={(e) => { e.preventDefault(); e.stopPropagation(); const f = e.dataTransfer.files[0]; if (f) handleFile(f) }}
+            >
+              <Upload className="h-8 w-8 text-muted-foreground/40 mx-auto mb-3" />
+              <p className="text-[13px] text-foreground/80 font-medium">Drop a file here or click to browse</p>
+              <p className="text-[11px] text-muted-foreground mt-1">CSV or Excel (.xlsx) with columns: fee_type_name, unit_rate, overtime_rate (optional)</p>
+              <input
+                id="bulk-import-file"
+                type="file"
+                accept=".csv,.xlsx,.xls"
+                className="hidden"
+                onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f) }}
+              />
+            </div>
+            <button
+              className="flex items-center gap-1.5 text-[12px] text-muted-foreground hover:text-foreground transition-colors"
+              onClick={downloadTemplate}
+            >
+              <Download className="h-3 w-3" />
+              Download CSV template
+            </button>
+            {error && <p className="text-[13px] text-destructive">{error}</p>}
+          </div>
+        )}
+
+        {step === 'preview' && (
+          <div className="flex-1 overflow-hidden flex flex-col gap-3">
+            <div className="flex items-center gap-3 text-[13px]">
+              <span className="flex items-center gap-1 text-green-700">
+                <CheckCircle2 className="h-3.5 w-3.5" />
+                {matchedRows.length} matched
+              </span>
+              {unmatchedRows.length > 0 && (
+                <span className="flex items-center gap-1 text-red-600">
+                  <AlertCircle className="h-3.5 w-3.5" />
+                  {unmatchedRows.length} unmatched
+                </span>
+              )}
+              <span className="text-muted-foreground">
+                {rows.filter((r) => r.skip).length} skipped
+              </span>
+            </div>
+
+            <div className="overflow-y-auto flex-1 border border-border/40 rounded-md">
+              <Table>
+                <TableHeader>
+                  <TableRow className="border-b border-border/40 hover:bg-transparent">
+                    <TableHead className="w-[30%] text-[10px] uppercase tracking-wider text-muted-foreground font-medium py-2">Fee Type Name</TableHead>
+                    <TableHead className="w-[25%] text-[10px] uppercase tracking-wider text-muted-foreground font-medium py-2">Match</TableHead>
+                    <TableHead className="w-[12%] text-right text-[10px] uppercase tracking-wider text-muted-foreground font-medium py-2">Unit Rate</TableHead>
+                    <TableHead className="w-[15%] text-[10px] uppercase tracking-wider text-muted-foreground font-medium py-2">Section</TableHead>
+                    <TableHead className="w-[8%] text-[10px] uppercase tracking-wider text-muted-foreground font-medium py-2">Skip</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {rows.map((row, i) => (
+                    <TableRow key={i} className={`border-b border-border/40 ${row.skip ? 'opacity-40' : ''}`}>
+                      <TableCell className="py-1.5">
+                        <span className="text-[13px] text-foreground">{row.fee_type_name}</span>
+                      </TableCell>
+                      <TableCell className="py-1.5">
+                        {row.matchedFeeType ? (
+                          <span className="text-[13px] text-green-700 flex items-center gap-1">
+                            <CheckCircle2 className="h-3 w-3" />
+                            {row.matchedFeeType.name}
+                          </span>
+                        ) : (
+                          <span className="text-[13px] text-red-600 flex items-center gap-1">
+                            <AlertCircle className="h-3 w-3" />
+                            No Match
+                          </span>
+                        )}
+                      </TableCell>
+                      <TableCell className="py-1.5 text-right">
+                        <span className="text-[13px] tabular-nums font-medium">
+                          {row.unit_rate != null ? fmt(row.unit_rate) : '—'}
+                        </span>
+                      </TableCell>
+                      <TableCell className="py-1.5">
+                        <span className="text-[13px] text-muted-foreground">
+                          {row.matchedFeeType ? (FEE_TYPE_KEY_LABELS[row.matchedFeeType.section] ?? row.matchedFeeType.section) : '—'}
+                        </span>
+                      </TableCell>
+                      <TableCell className="py-1.5">
+                        <input
+                          type="checkbox"
+                          checked={row.skip}
+                          onChange={() => toggleSkip(i)}
+                          className="h-3.5 w-3.5 rounded border-border/50 accent-foreground"
+                        />
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+
+            {error && <p className="text-[13px] text-destructive">{error}</p>}
+          </div>
+        )}
+
+        <DialogFooter>
+          {step === 'preview' && (
+            <Button variant="outline" size="sm" onClick={() => setStep('upload')} disabled={importing} className="mr-auto text-[13px]">
+              Back
+            </Button>
+          )}
+          <Button variant="outline" size="sm" onClick={onClose} disabled={importing} className="text-[13px]">Cancel</Button>
+          {step === 'preview' && (
+            <Button
+              size="sm"
+              onClick={handleImport}
+              disabled={importing || matchedRows.length === 0}
+              className="text-[13px] bg-white hover:bg-green-800/10 text-foreground border border-border/50 hover:border-green-800/30 hover:text-green-800/80 shadow-sm"
+            >
+              {importing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Import {matchedRows.length} Rate{matchedRows.length !== 1 ? 's' : ''}
+            </Button>
+          )}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 // ── Main Page ────────────────────────────────────────────────────────────────
 
 export function RateCardManagementPage() {
@@ -919,6 +1224,7 @@ export function RateCardManagementPage() {
   const [dialogMode, setDialogMode] = useState<'add' | 'edit'>('add')
   const [dialogSection, setDialogSection] = useState<RateCardSection | null>(null)
   const [dialogItem, setDialogItem] = useState<RateCardItem | null>(null)
+  const [bulkImportOpen, setBulkImportOpen] = useState(false)
 
   const selectedClient = clients.find((c) => c.id === selectedClientId) ?? null
 
@@ -1172,24 +1478,34 @@ export function RateCardManagementPage() {
 
           {/* Client summary bar */}
           {selectedClient && (
-            <p className="text-[13px] tabular-nums">
-              <span className="font-medium text-foreground">{selectedClient.name}</span>
-              <span className="text-muted-foreground/60 mx-1.5">·</span>
-              <span className="text-foreground/80">{pct(selectedClient.third_party_markup)} markup</span>
-              {selectedClient.agency_fee > 0 && (<>
+            <div className="flex items-center justify-between">
+              <p className="text-[13px] tabular-nums">
+                <span className="font-medium text-foreground">{selectedClient.name}</span>
                 <span className="text-muted-foreground/60 mx-1.5">·</span>
-                <span className="text-foreground/80">{pct(selectedClient.agency_fee)} agency fee</span>
-              </>)}
-              {selectedClient.trucking_markup > 0 && (<>
+                <span className="text-foreground/80">{pct(selectedClient.third_party_markup)} markup</span>
+                {selectedClient.agency_fee > 0 && (<>
+                  <span className="text-muted-foreground/60 mx-1.5">·</span>
+                  <span className="text-foreground/80">{pct(selectedClient.agency_fee)} agency fee</span>
+                </>)}
+                {selectedClient.trucking_markup > 0 && (<>
+                  <span className="text-muted-foreground/60 mx-1.5">·</span>
+                  <span className="text-foreground/80">{pct(selectedClient.trucking_markup)} trucking</span>
+                </>)}
                 <span className="text-muted-foreground/60 mx-1.5">·</span>
-                <span className="text-foreground/80">{pct(selectedClient.trucking_markup)} trucking</span>
-              </>)}
-              <span className="text-muted-foreground/60 mx-1.5">·</span>
-              <span className="text-foreground/80">{totalItems} rates</span>
-              <span className="text-muted-foreground mx-1">({msaItems} MSA</span>
-              <span className="text-muted-foreground">·</span>
-              <span className="text-muted-foreground mx-1">{customItems} custom)</span>
-            </p>
+                <span className="text-foreground/80">{totalItems} rates</span>
+                <span className="text-muted-foreground mx-1">({msaItems} MSA</span>
+                <span className="text-muted-foreground">·</span>
+                <span className="text-muted-foreground mx-1">{customItems} custom)</span>
+              </p>
+              <Button
+                size="sm"
+                onClick={() => setBulkImportOpen(true)}
+                className="h-7 text-[12px] bg-white hover:bg-green-800/10 text-foreground border border-border/50 hover:border-green-800/30 hover:text-green-800/80 shadow-sm"
+              >
+                <Upload className="h-3 w-3 mr-1.5" />
+                Bulk Import
+              </Button>
+            </div>
           )}
 
           {/* Section-grouped rate tables */}
@@ -1234,6 +1550,17 @@ export function RateCardManagementPage() {
             sectionKey={dialogSection ? SECTION_TO_FEE_TYPE_KEY[dialogSection.name] : undefined}
             onSwitchToFeeTypes={() => setActiveTab('fee-types')}
           />
+
+          {/* Bulk Import dialog */}
+          {selectedClient && (
+            <BulkImportDialog
+              open={bulkImportOpen}
+              onClose={() => setBulkImportOpen(false)}
+              clientId={selectedClient.id}
+              clientName={selectedClient.name}
+              onImportComplete={() => { if (selectedClientId) loadItems(selectedClientId) }}
+            />
+          )}
         </>
       )}
     </div>
