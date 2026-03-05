@@ -1,10 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  Card,
-  CardContent,
-} from '@/components/ui/card'
-import {
   Table,
   TableHeader,
   TableBody,
@@ -26,11 +22,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Plus, FileSpreadsheet } from 'lucide-react'
+import { FileSpreadsheet } from 'lucide-react'
 import { getEstimates, createEstimate, createLaborLog } from '@/lib/estimate-service'
 import { getClients } from '@/lib/rate-card-service'
 import type { EstimateWithClient } from '@/types/estimate'
@@ -47,14 +42,14 @@ const EVENT_TYPES = [
   'Other',
 ]
 
-const STATUS_COLORS: Record<string, string> = {
-  pipeline: 'bg-slate-500/20 text-slate-400 border-slate-500/30',
-  draft: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30',
-  review: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
-  approved: 'bg-green-500/20 text-green-400 border-green-500/30',
-  active: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30',
-  recap: 'bg-purple-500/20 text-purple-400 border-purple-500/30',
-  complete: 'bg-zinc-500/20 text-zinc-400 border-zinc-500/30',
+const STATUS_DOT: Record<string, string> = {
+  pipeline: 'bg-zinc-400',
+  draft: 'bg-amber-400',
+  review: 'bg-sky-400',
+  approved: 'bg-emerald-400',
+  active: 'bg-emerald-400',
+  recap: 'bg-violet-400',
+  complete: 'bg-zinc-400',
 }
 
 function formatDate(dateStr: string | null): string {
@@ -166,183 +161,182 @@ export function EstimatesListPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
-        <p className="text-muted-foreground">Loading estimates...</p>
+        <p className="text-sm text-muted-foreground">Loading estimates...</p>
       </div>
     )
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Page Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Estimates</h1>
-          <p className="text-muted-foreground">Create and manage event estimates</p>
+          <h1 className="text-lg font-semibold tracking-tight">Estimates</h1>
+          <p className="text-sm text-muted-foreground">Create and manage event estimates</p>
         </div>
-        <Button onClick={() => setShowModal(true)} className="gap-2">
-          <Plus className="h-4 w-4" />
-          New Estimate
+        <Button size="sm" onClick={() => setShowModal(true)} className="text-[13px] bg-white hover:bg-green-800/10 text-foreground border border-border/50 hover:border-green-800/30 hover:text-green-800/80 shadow-sm">
+          + New Estimate
         </Button>
       </div>
 
       {/* Estimates Table */}
       {estimates.length === 0 ? (
-        <Card>
-          <CardContent className="flex flex-col items-center justify-center py-16">
-            <FileSpreadsheet className="h-12 w-12 text-muted-foreground/30 mb-4" />
-            <p className="text-lg font-medium text-muted-foreground">No estimates yet</p>
-            <p className="text-sm text-muted-foreground/70 mt-1">Create your first estimate to get started.</p>
-            <Button onClick={() => setShowModal(true)} className="mt-4 gap-2">
-              <Plus className="h-4 w-4" />
-              New Estimate
-            </Button>
-          </CardContent>
-        </Card>
+        <div className="border border-border/40 rounded-md flex flex-col items-center justify-center py-16">
+          <FileSpreadsheet className="h-10 w-10 text-muted-foreground/60 mb-3" />
+          <p className="text-sm font-medium text-muted-foreground">No estimates yet</p>
+          <p className="text-[13px] text-muted-foreground/70 mt-1">Create your first estimate to get started.</p>
+          <Button size="sm" onClick={() => setShowModal(true)} className="mt-4">
+            + New Estimate
+          </Button>
+        </div>
       ) : (
-        <Card>
-          <CardContent className="p-0">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Event Name</TableHead>
-                  <TableHead>Client</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Location</TableHead>
-                  <TableHead>Dates</TableHead>
-                  <TableHead>Last Updated</TableHead>
+        <div className="border border-border/40 rounded-md overflow-hidden">
+          <Table>
+            <TableHeader>
+              <TableRow className="border-b border-border/40 bg-slate-50 dark:bg-slate-800/30 hover:bg-slate-50 dark:hover:bg-slate-800/30">
+                <TableHead className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium py-2">Event Name</TableHead>
+                <TableHead className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium py-2">Client</TableHead>
+                <TableHead className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium py-2">Status</TableHead>
+                <TableHead className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium py-2">Location</TableHead>
+                <TableHead className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium py-2">Dates</TableHead>
+                <TableHead className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium py-2 text-right">Last Updated</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {estimates.map((est) => (
+                <TableRow
+                  key={est.id}
+                  className="cursor-pointer border-b border-border/30 hover:bg-muted/30 transition-colors"
+                  onClick={() => navigate(`/estimates/${est.id}`)}
+                >
+                  <TableCell className="text-[13px] font-medium py-2.5">{est.event_name}</TableCell>
+                  <TableCell className="text-[13px] py-2.5">{est.clients.name}</TableCell>
+                  <TableCell className="py-2.5">
+                    <span className="inline-flex items-center gap-1.5">
+                      <span className={`inline-block h-1.5 w-1.5 rounded-full ${STATUS_DOT[est.status] ?? 'bg-zinc-400'}`} />
+                      <span className="text-[13px]">{est.status.charAt(0).toUpperCase() + est.status.slice(1)}</span>
+                    </span>
+                  </TableCell>
+                  <TableCell className="text-[13px] text-muted-foreground py-2.5">{est.location || '—'}</TableCell>
+                  <TableCell className="text-[13px] text-muted-foreground tabular-nums py-2.5">{formatDateRange(est.start_date, est.end_date)}</TableCell>
+                  <TableCell className="text-[13px] text-muted-foreground tabular-nums py-2.5 text-right">{formatDate(est.updated_at)}</TableCell>
                 </TableRow>
-              </TableHeader>
-              <TableBody>
-                {estimates.map((est) => (
-                  <TableRow
-                    key={est.id}
-                    className="cursor-pointer hover:bg-muted/50"
-                    onClick={() => navigate(`/estimates/${est.id}`)}
-                  >
-                    <TableCell className="font-medium">{est.event_name}</TableCell>
-                    <TableCell>{est.clients.name}</TableCell>
-                    <TableCell>
-                      <Badge className={STATUS_COLORS[est.status] ?? ''}>
-                        {est.status.charAt(0).toUpperCase() + est.status.slice(1)}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">{est.location || '—'}</TableCell>
-                    <TableCell className="text-muted-foreground">{formatDateRange(est.start_date, est.end_date)}</TableCell>
-                    <TableCell className="text-muted-foreground">{formatDate(est.updated_at)}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
       )}
 
       {/* New Estimate Modal */}
       <Dialog open={showModal} onOpenChange={setShowModal}>
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
-            <DialogTitle>New Estimate</DialogTitle>
+            <DialogTitle className="text-sm font-semibold">New Estimate</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4 py-2">
+          <div className="space-y-3 py-1">
             {/* Client */}
-            <div className="space-y-2">
-              <Label>Client *</Label>
+            <div className="space-y-1">
+              <Label className="text-xs">Client *</Label>
               <Select value={formClientId} onValueChange={setFormClientId}>
-                <SelectTrigger>
+                <SelectTrigger className="h-8 text-sm border-border/50">
                   <SelectValue placeholder="Select a client" />
                 </SelectTrigger>
                 <SelectContent>
                   {clients.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                    <SelectItem key={c.id} value={c.id} className="text-[13px]">{c.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
 
             {/* Event Name */}
-            <div className="space-y-2">
-              <Label>Event Name *</Label>
+            <div className="space-y-1">
+              <Label className="text-xs">Event Name *</Label>
               <Input
                 placeholder="e.g., Mazda CX-70 Launch Experience"
                 value={formEventName}
                 onChange={(e) => setFormEventName(e.target.value)}
+                className="h-8 text-sm border-border/50"
               />
             </div>
 
             {/* Event Type */}
-            <div className="space-y-2">
-              <Label>Event Type</Label>
+            <div className="space-y-1">
+              <Label className="text-xs">Event Type</Label>
               <Select value={formEventType} onValueChange={setFormEventType}>
-                <SelectTrigger>
+                <SelectTrigger className="h-8 text-sm border-border/50">
                   <SelectValue placeholder="Select event type" />
                 </SelectTrigger>
                 <SelectContent>
                   {EVENT_TYPES.map((t) => (
-                    <SelectItem key={t} value={t}>{t}</SelectItem>
+                    <SelectItem key={t} value={t} className="text-[13px]">{t}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
 
             {/* Location */}
-            <div className="space-y-2">
-              <Label>Location</Label>
+            <div className="space-y-1">
+              <Label className="text-xs">Location</Label>
               <Input
                 placeholder="e.g., Los Angeles, CA"
                 value={formLocation}
                 onChange={(e) => setFormLocation(e.target.value)}
+                className="h-8 text-sm border-border/50"
               />
             </div>
 
             {/* Dates */}
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Start Date</Label>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs">Start Date</Label>
                 <Input
                   type="date"
                   value={formStartDate}
                   onChange={(e) => setFormStartDate(e.target.value)}
+                  className="h-8 text-sm border-border/50"
                 />
               </div>
-              <div className="space-y-2">
-                <Label>End Date</Label>
+              <div className="space-y-1">
+                <Label className="text-xs">End Date</Label>
                 <Input
                   type="date"
                   value={formEndDate}
                   onChange={(e) => setFormEndDate(e.target.value)}
+                  className="h-8 text-sm border-border/50"
                 />
               </div>
             </div>
 
             {/* Cost Structure */}
-            <div className="space-y-2">
-              <Label>Cost Structure</Label>
-              <div className="flex gap-2">
-                <Button
+            <div className="space-y-1">
+              <Label className="text-xs">Cost Structure</Label>
+              <div className="flex items-center gap-0 h-7">
+                <button
                   type="button"
-                  size="sm"
-                  variant={formCostStructure === 'corporate' ? 'default' : 'outline'}
                   onClick={() => setFormCostStructure('corporate')}
+                  className={`text-[13px] transition-colors ${formCostStructure === 'corporate' ? 'font-medium text-foreground border-b border-foreground/40' : 'text-muted-foreground hover:text-foreground/80'}`}
                 >
                   Corporate
-                </Button>
-                <Button
+                </button>
+                <span className="mx-2 text-border">/</span>
+                <button
                   type="button"
-                  size="sm"
-                  variant={formCostStructure === 'office' ? 'default' : 'outline'}
                   onClick={() => setFormCostStructure('office')}
+                  className={`text-[13px] transition-colors ${formCostStructure === 'office' ? 'font-medium text-foreground border-b border-foreground/40' : 'text-muted-foreground hover:text-foreground/80'}`}
                 >
                   Office
-                </Button>
+                </button>
               </div>
             </div>
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => { setShowModal(false); resetForm() }}>
+            <Button variant="outline" size="sm" onClick={() => { setShowModal(false); resetForm() }}>
               Cancel
             </Button>
             <Button
+              size="sm"
               onClick={handleCreate}
               disabled={!formClientId || !formEventName || saving}
             >

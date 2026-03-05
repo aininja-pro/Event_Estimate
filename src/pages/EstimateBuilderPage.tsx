@@ -1,11 +1,5 @@
-import { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { useParams, Navigate } from 'react-router-dom'
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card'
 import {
   Table,
   TableHeader,
@@ -23,7 +17,6 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -32,7 +25,6 @@ import {
   Plus,
   Trash2,
   Send,
-  MapPin,
   Search,
 } from 'lucide-react'
 import {
@@ -63,14 +55,14 @@ const TAB_TO_RC_SECTION: Record<string, string> = {
   access: 'Logistics Expenses',
 }
 
-const STATUS_COLORS: Record<string, string> = {
-  pipeline: 'bg-slate-500/20 text-slate-400 border-slate-500/30',
-  draft: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30',
-  review: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
-  approved: 'bg-green-500/20 text-green-400 border-green-500/30',
-  active: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30',
-  recap: 'bg-purple-500/20 text-purple-400 border-purple-500/30',
-  complete: 'bg-zinc-500/20 text-zinc-400 border-zinc-500/30',
+const STATUS_DOT: Record<string, string> = {
+  pipeline: 'bg-zinc-400',
+  draft: 'bg-amber-400/80',
+  review: 'bg-sky-400/70',
+  approved: 'bg-emerald-400/70',
+  active: 'bg-emerald-400/70',
+  recap: 'bg-violet-400/70',
+  complete: 'bg-zinc-400',
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -101,39 +93,32 @@ const nudges = [
 ]
 
 const nudgeColors = {
-  suggestion: { border: 'border-blue-500/30', bg: 'bg-blue-500/5', label: 'text-blue-400' },
-  warning: { border: 'border-yellow-500/30', bg: 'bg-yellow-500/5', label: 'text-yellow-400' },
-  validation: { border: 'border-green-500/30', bg: 'bg-green-500/5', label: 'text-green-400' },
-  insight: { border: 'border-purple-500/30', bg: 'bg-purple-500/5', label: 'text-purple-400' },
+  suggestion: { accent: 'border-l-zinc-400/60', label: 'text-zinc-500' },
+  warning: { accent: 'border-l-amber-400/50', label: 'text-amber-600' },
+  validation: { accent: 'border-l-green-700/30', label: 'text-green-800/50' },
+  insight: { accent: 'border-l-violet-400/50', label: 'text-violet-500/70' },
 }
 
 function AINudgePanel() {
   return (
     <div className="flex h-full flex-col">
-      <div className="flex items-center gap-2 border-b border-border pb-4 mb-4">
-        <span className="text-lg">🤖</span>
-        <h2 className="text-sm font-semibold">AI Assistant</h2>
-        <div className="ml-auto h-0.5 w-8 rounded-full bg-blue-500" />
-      </div>
-      <div className="flex-1 space-y-3 overflow-y-auto pr-1">
+      <p className="text-[10px] font-medium uppercase tracking-widest text-muted-foreground/50 mb-3">Intelligence</p>
+      <div className="flex-1 space-y-1.5 overflow-y-auto pr-1">
         {nudges.map((nudge, i) => {
           const colors = nudgeColors[nudge.type]
           return (
-            <div key={i} className={`rounded-lg border ${colors.border} ${colors.bg} p-3`}>
-              <div className="flex items-center gap-1.5 mb-1.5">
-                <span className="text-sm">{nudge.icon}</span>
-                <span className={`text-xs font-semibold tracking-wide ${colors.label}`}>{nudge.label}</span>
-              </div>
-              <p className="text-sm leading-relaxed text-foreground/90">{nudge.message}</p>
-              <p className="mt-2 text-xs text-muted-foreground">{nudge.footer}</p>
+            <div key={i} className={`rounded-sm border-l-2 ${colors.accent} bg-muted/5 px-3 py-2`}>
+              <span className={`text-[9px] font-medium tracking-widest uppercase ${colors.label}`}>{nudge.label}</span>
+              <p className="mt-0.5 text-[12px] leading-relaxed text-foreground/90">{nudge.message}</p>
+              <p className="mt-1 text-[10px] text-muted-foreground/70">{nudge.footer}</p>
             </div>
           )
         })}
       </div>
-      <div className="mt-4 border-t border-border pt-4">
-        <div className="flex gap-2">
-          <Textarea placeholder="Ask about this estimate or describe what you need..." className="min-h-[60px] resize-none text-sm" readOnly />
-          <Button size="icon" className="shrink-0 self-end"><Send className="h-4 w-4" /></Button>
+      <div className="mt-3 pt-2.5 border-t border-border/40">
+        <div className="flex gap-1.5">
+          <Textarea placeholder="Ask about this estimate..." className="min-h-[40px] resize-none text-xs border-border/40 bg-transparent focus-visible:ring-0 placeholder:text-muted-foreground/60" readOnly />
+          <button className="shrink-0 self-end p-1.5 text-muted-foreground/60 hover:text-foreground/60 transition-colors"><Send className="h-3 w-3" /></button>
         </div>
       </div>
     </div>
@@ -170,87 +155,77 @@ function EventHeader({
     onUpdate(updates)
   }
 
+  const fieldLabel = "mb-0.5 text-[10px] uppercase tracking-widest text-muted-foreground font-medium"
+  const fieldInput = "h-7 text-[13px] font-medium rounded-none border-0 border-b border-border/40 bg-transparent hover:border-border/60 focus-visible:border-foreground/40 focus-visible:ring-0 px-0 transition-colors"
+  const readOnlyField = "h-7 text-[13px] font-medium border-0 bg-transparent cursor-default px-0 text-muted-foreground"
+
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-base">Event Details</CardTitle>
-        <Badge className={STATUS_COLORS[estimate.status] ?? ''}>
-          {estimate.status.charAt(0).toUpperCase() + estimate.status.slice(1)}
-        </Badge>
-      </CardHeader>
-      <CardContent>
-        <div className="grid grid-cols-4 gap-x-6 gap-y-4">
-          {/* Client (read-only) */}
-          <div>
-            <p className="mb-1.5 text-xs font-medium text-muted-foreground">Client</p>
-            <Input readOnly value={estimate.clients.name} className="h-8 text-sm bg-muted/30 cursor-default" />
-          </div>
-          {/* Event Type */}
-          <div>
-            <p className="mb-1.5 text-xs font-medium text-muted-foreground">Event Type</p>
-            <Input value={eventType} onChange={(e) => setEventType(e.target.value)} onBlur={() => saveField('event_type', eventType)} className="h-8 text-sm" />
-          </div>
-          {/* Event Name */}
-          <div className="col-span-2">
-            <p className="mb-1.5 text-xs font-medium text-muted-foreground">Event Name</p>
-            <Input value={eventName} onChange={(e) => setEventName(e.target.value)} onBlur={() => saveField('event_name', eventName)} className="h-8 text-sm" />
-          </div>
-          {/* Location */}
-          <div>
-            <p className="mb-1.5 text-xs font-medium text-muted-foreground">Location</p>
-            <Input value={location} onChange={(e) => setLocation(e.target.value)} onBlur={() => saveField('location', location)} className="h-8 text-sm" />
-          </div>
-          {/* Dates */}
-          <div>
-            <p className="mb-1.5 text-xs font-medium text-muted-foreground">Start Date</p>
-            <Input type="date" value={startDate} onChange={(e) => { setStartDate(e.target.value); saveField('start_date', e.target.value) }} className="h-8 text-sm" />
-          </div>
-          <div>
-            <p className="mb-1.5 text-xs font-medium text-muted-foreground">End Date</p>
-            <Input type="date" value={endDate} onChange={(e) => { setEndDate(e.target.value); saveField('end_date', e.target.value) }} className="h-8 text-sm" />
-          </div>
-          {/* Attendance */}
-          <div>
-            <p className="mb-1.5 text-xs font-medium text-muted-foreground">Expected Attendance</p>
-            <Input type="number" value={attendance} onChange={(e) => setAttendance(e.target.value)} onBlur={() => saveField('expected_attendance', attendance ? parseInt(attendance) : null)} className="h-8 text-sm" />
-          </div>
-          {/* PO Number */}
-          <div>
-            <p className="mb-1.5 text-xs font-medium text-muted-foreground">PO Number</p>
-            <Input value={poNumber} onChange={(e) => setPoNumber(e.target.value)} onBlur={() => saveField('po_number', poNumber)} className="h-8 text-sm" />
-          </div>
-          {/* Project ID */}
-          <div>
-            <p className="mb-1.5 text-xs font-medium text-muted-foreground">Project ID</p>
-            <Input value={projectId} onChange={(e) => setProjectId(e.target.value)} onBlur={() => saveField('project_id', projectId)} className="h-8 text-sm" />
-          </div>
-          {/* Cost Structure */}
-          <div>
-            <p className="mb-1.5 text-xs font-medium text-muted-foreground">Cost Structure</p>
-            <div className="flex gap-2">
-              <Button type="button" size="sm" variant={estimate.cost_structure === 'corporate' ? 'default' : 'outline'} onClick={() => onUpdate({ cost_structure: 'corporate' })}>Corporate</Button>
-              <Button type="button" size="sm" variant={estimate.cost_structure === 'office' ? 'default' : 'outline'} onClick={() => onUpdate({ cost_structure: 'office' })}>Office</Button>
-            </div>
-          </div>
-          {/* Duration (read-only, computed) */}
-          <div>
-            <p className="mb-1.5 text-xs font-medium text-muted-foreground">Duration</p>
-            <Input readOnly value={estimate.duration_days ? `${estimate.duration_days} days` : '—'} className="h-8 text-sm bg-muted/30 cursor-default" />
+    <div className="border border-border/50 bg-slate-50 dark:bg-slate-800/50 rounded-md px-4 py-3">
+      <div className="flex items-center gap-2 mb-2.5">
+        <span className={`inline-block h-1.5 w-1.5 rounded-full ${STATUS_DOT[estimate.status] ?? 'bg-zinc-400'}`} />
+        <span className="text-[11px] text-muted-foreground/50 font-medium">{estimate.status.charAt(0).toUpperCase() + estimate.status.slice(1)}</span>
+      </div>
+      <div className="grid grid-cols-4 gap-x-5 gap-y-2">
+        <div>
+          <p className={fieldLabel}>Client</p>
+          <Input readOnly value={estimate.clients.name} className={readOnlyField} />
+        </div>
+        <div>
+          <p className={fieldLabel}>Event Type</p>
+          <Input value={eventType} onChange={(e) => setEventType(e.target.value)} onBlur={() => saveField('event_type', eventType)} className={fieldInput} />
+        </div>
+        <div className="col-span-2">
+          <p className={fieldLabel}>Event Name</p>
+          <Input value={eventName} onChange={(e) => setEventName(e.target.value)} onBlur={() => saveField('event_name', eventName)} className={fieldInput} />
+        </div>
+        <div>
+          <p className={fieldLabel}>Location</p>
+          <Input value={location} onChange={(e) => setLocation(e.target.value)} onBlur={() => saveField('location', location)} className={fieldInput} />
+        </div>
+        <div>
+          <p className={fieldLabel}>Start Date</p>
+          <Input type="date" value={startDate} onChange={(e) => { setStartDate(e.target.value); saveField('start_date', e.target.value) }} className={fieldInput} />
+        </div>
+        <div>
+          <p className={fieldLabel}>End Date</p>
+          <Input type="date" value={endDate} onChange={(e) => { setEndDate(e.target.value); saveField('end_date', e.target.value) }} className={fieldInput} />
+        </div>
+        <div>
+          <p className={fieldLabel}>Attendance</p>
+          <Input type="number" value={attendance} onChange={(e) => setAttendance(e.target.value)} onBlur={() => saveField('expected_attendance', attendance ? parseInt(attendance) : null)} className={fieldInput} />
+        </div>
+        <div>
+          <p className={fieldLabel}>PO Number</p>
+          <Input value={poNumber} onChange={(e) => setPoNumber(e.target.value)} onBlur={() => saveField('po_number', poNumber)} className={fieldInput} />
+        </div>
+        <div>
+          <p className={fieldLabel}>Project ID</p>
+          <Input value={projectId} onChange={(e) => setProjectId(e.target.value)} onBlur={() => saveField('project_id', projectId)} className={fieldInput} />
+        </div>
+        <div>
+          <p className={fieldLabel}>Cost Structure</p>
+          <div className="flex items-center gap-0 h-7">
+            <button type="button" onClick={() => onUpdate({ cost_structure: 'corporate' })} className={`text-[13px] transition-colors ${estimate.cost_structure === 'corporate' ? 'font-medium text-foreground border-b border-foreground/40' : 'text-muted-foreground/70 hover:text-foreground/90'}`}>Corporate</button>
+            <span className="mx-2 text-border/40">/</span>
+            <button type="button" onClick={() => onUpdate({ cost_structure: 'office' })} className={`text-[13px] transition-colors ${estimate.cost_structure === 'office' ? 'font-medium text-foreground border-b border-foreground/40' : 'text-muted-foreground/70 hover:text-foreground/90'}`}>Office</button>
           </div>
         </div>
-        {/* Project Notes */}
-        {!showNotes ? (
-          <button onClick={() => setShowNotes(true)} className="mt-3 text-xs text-muted-foreground hover:text-foreground transition-colors">
-            + Add project notes
-          </button>
-        ) : (
-          <div className="mt-4">
-            <p className="mb-1.5 text-xs font-medium text-muted-foreground">Project Notes</p>
-            <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} onBlur={() => saveField('project_notes', notes)} className="min-h-[60px] text-sm" placeholder="Internal notes about this estimate..." />
-          </div>
-        )}
-      </CardContent>
-    </Card>
+        <div>
+          <p className={fieldLabel}>Duration</p>
+          <Input readOnly value={estimate.duration_days ? `${estimate.duration_days} days` : '—'} className={readOnlyField} />
+        </div>
+      </div>
+      {!showNotes ? (
+        <button onClick={() => setShowNotes(true)} className="mt-2.5 text-[10px] uppercase tracking-widest text-muted-foreground/60 hover:text-muted-foreground/60 transition-colors font-medium">
+          + Add notes
+        </button>
+      ) : (
+        <div className="mt-2.5">
+          <p className={fieldLabel}>Notes</p>
+          <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} onBlur={() => saveField('project_notes', notes)} className="min-h-[40px] text-[13px] border-border/40 bg-transparent resize-none focus-visible:ring-0 focus-visible:border-border/40" placeholder="Internal notes..." />
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -300,31 +275,31 @@ function AddRoleModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[480px]">
         <DialogHeader>
-          <DialogTitle>Add Role from Rate Card</DialogTitle>
-          <DialogDescription>Select a role from {estimate.clients.name}'s rate card</DialogDescription>
+          <DialogTitle className="text-sm font-semibold">Add Role from Rate Card</DialogTitle>
+          <DialogDescription className="text-xs">Select a role from {estimate.clients.name}'s rate card</DialogDescription>
         </DialogHeader>
         <div className="relative">
-          <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input placeholder="Search roles..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" autoFocus />
+          <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-muted-foreground/50" />
+          <Input placeholder="Search roles..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9 h-8 text-sm border-border/30" autoFocus />
         </div>
-        <div className="max-h-[300px] overflow-y-auto space-y-1">
+        <div className="max-h-[300px] overflow-y-auto space-y-0.5">
           {filtered.length === 0 && (
-            <p className="text-sm text-muted-foreground text-center py-4">No matching roles found</p>
+            <p className="text-xs text-muted-foreground/50 text-center py-4">No matching roles found</p>
           )}
           {filtered.map((role) => (
             <button
               key={role.id}
               onClick={() => handleSelect(role)}
-              className="w-full text-left px-3 py-2 rounded-md hover:bg-muted/50 transition-colors"
+              className="w-full text-left px-3 py-1.5 rounded-sm hover:bg-muted/40 transition-colors"
             >
               <div className="flex items-center justify-between">
-                <span className="text-sm font-medium">{role.name}</span>
-                <span className="text-sm text-muted-foreground">
+                <span className="text-[13px] font-medium text-foreground/90">{role.name}</span>
+                <span className="text-[13px] text-muted-foreground/60 tabular-nums">
                   {role.unit_rate ? `$${role.unit_rate.toLocaleString()}` : 'Pass-through'}
                   {role.unit_label ? ` ${role.unit_label}` : ''}
                 </span>
               </div>
-              <p className="text-xs text-muted-foreground">{role.sectionName}{role.gl_code ? ` · GL ${role.gl_code}` : ''}</p>
+              <p className="text-[11px] text-muted-foreground/70">{role.sectionName}{role.gl_code ? ` · GL ${role.gl_code}` : ''}</p>
             </button>
           ))}
         </div>
@@ -353,52 +328,56 @@ function LocationSelector({
 
   return (
     <>
-      <div className="flex items-center gap-2 flex-wrap">
-        {laborLogs.map((log) => (
-          <Button
-            key={log.id}
-            variant={log.id === activeLocationId ? 'default' : 'outline'}
-            size="sm"
-            className="gap-1.5"
-            onClick={() => onSelectLocation(log.id)}
-          >
-            <MapPin className="h-3.5 w-3.5" />
-            {log.location_name}{log.is_primary ? ' (Primary)' : ''}
-          </Button>
+      <div className="flex items-center gap-0 flex-wrap py-0.5">
+        {laborLogs.map((log, i) => (
+          <React.Fragment key={log.id}>
+            {i > 0 && <span className="mx-1.5 text-border/40 text-[10px]">|</span>}
+            <button
+              onClick={() => onSelectLocation(log.id)}
+              className={`text-[11px] transition-colors ${
+                log.id === activeLocationId
+                  ? 'font-semibold text-foreground'
+                  : 'text-muted-foreground/70 hover:text-foreground/90'
+              }`}
+            >
+              {log.location_name}{log.is_primary ? ' (Primary)' : ''}
+            </button>
+          </React.Fragment>
         ))}
-        <Button variant="ghost" size="sm" className="gap-1 text-muted-foreground" onClick={() => setShowAddLocation(true)}>
-          <Plus className="h-3.5 w-3.5" />
-          Add Segment
-        </Button>
+        <span className="mx-1.5 text-border/40 text-[10px]">|</span>
+        <button onClick={() => setShowAddLocation(true)} className="text-[11px] text-muted-foreground/60 hover:text-foreground/60 transition-colors">
+          + Add
+        </button>
         {activeLocationId && laborLogs.length > 1 && !laborLogs.find((l) => l.id === activeLocationId)?.is_primary && (
-          <Button
-            variant="ghost"
-            size="sm"
-            className="gap-1 text-destructive/70 hover:text-destructive"
-            onClick={() => {
-              if (confirm('Delete this segment and all its data?')) {
-                onDeleteLocation(activeLocationId)
-              }
-            }}
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-          </Button>
+          <>
+            <span className="mx-1.5 text-border/40 text-[10px]">|</span>
+            <button
+              className="text-[11px] text-muted-foreground/20 hover:text-red-500/70 transition-colors"
+              onClick={() => {
+                if (confirm('Delete this segment and all its data?')) {
+                  onDeleteLocation(activeLocationId)
+                }
+              }}
+            >
+              Remove
+            </button>
+          </>
         )}
       </div>
 
       <Dialog open={showAddLocation} onOpenChange={setShowAddLocation}>
         <DialogContent className="sm:max-w-[400px]">
           <DialogHeader>
-            <DialogTitle>Add Segment</DialogTitle>
-            <DialogDescription>Add a geographic location or time period for this estimate</DialogDescription>
+            <DialogTitle className="text-sm font-semibold">Add Segment</DialogTitle>
+            <DialogDescription className="text-xs">Add a geographic location or time period for this estimate</DialogDescription>
           </DialogHeader>
-          <div className="space-y-2">
-            <Label>Segment Name</Label>
-            <Input placeholder="e.g., San Diego or January 2026" value={newLocationName} onChange={(e) => setNewLocationName(e.target.value)} autoFocus />
+          <div className="space-y-1.5">
+            <Label className="text-xs">Segment Name</Label>
+            <Input placeholder="e.g., San Diego or January 2026" value={newLocationName} onChange={(e) => setNewLocationName(e.target.value)} className="h-8 text-sm border-border/30" autoFocus />
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => { setShowAddLocation(false); setNewLocationName('') }}>Cancel</Button>
-            <Button disabled={!newLocationName.trim()} onClick={() => { onAddLocation(newLocationName.trim()); setNewLocationName(''); setShowAddLocation(false) }}>Add Segment</Button>
+            <Button variant="outline" size="sm" onClick={() => { setShowAddLocation(false); setNewLocationName('') }}>Cancel</Button>
+            <Button size="sm" disabled={!newLocationName.trim()} onClick={() => { onAddLocation(newLocationName.trim()); setNewLocationName(''); setShowAddLocation(false) }}>Add Segment</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -437,25 +416,26 @@ function LaborLogTab({
 }) {
   const [showAddRole, setShowAddRole] = useState(false)
 
-  // Compute labor summary across ALL locations
+  // Active segment summary
+  const segLabor = entries.filter((e) => !e.role_name.toLowerCase().includes('per diem'))
+  const segRevenue = segLabor.reduce((sum, e) => sum + e.quantity * e.days * (e.override_rate ?? e.unit_rate), 0)
+  const segCost = segLabor.reduce((sum, e) => sum + e.quantity * e.days * (e.cost_rate ?? 0), 0)
+  const segGP = segRevenue - segCost
+  const segStaff = segLabor.reduce((sum, e) => sum + e.quantity, 0)
+  const activeLog = laborLogs.find((l) => l.id === activeLocationId)
+
+  // All-segments summary
   const allEntries = Object.values(allEntriesMap).flat()
   const laborEntries = allEntries.filter((e) => !e.role_name.toLowerCase().includes('per diem'))
   const perDiemEntries = allEntries.filter((e) => e.role_name.toLowerCase().includes('per diem'))
-
-  const laborRevenue = laborEntries.reduce((sum, e) => {
-    const rate = e.override_rate ?? e.unit_rate
-    return sum + e.quantity * e.days * rate
-  }, 0)
+  const laborRevenue = laborEntries.reduce((sum, e) => sum + e.quantity * e.days * (e.override_rate ?? e.unit_rate), 0)
   const laborCost = laborEntries.reduce((sum, e) => sum + e.quantity * e.days * (e.cost_rate ?? 0), 0)
   const laborGP = laborRevenue - laborCost
   const staffCount = laborEntries.reduce((sum, e) => sum + e.quantity, 0)
-  const perDiemTotal = perDiemEntries.reduce((sum, e) => {
-    const rate = e.override_rate ?? e.unit_rate
-    return sum + e.quantity * e.days * rate
-  }, 0)
+  const perDiemTotal = perDiemEntries.reduce((sum, e) => sum + e.quantity * e.days * (e.override_rate ?? e.unit_rate), 0)
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-2">
       <LocationSelector
         laborLogs={laborLogs}
         activeLocationId={activeLocationId}
@@ -465,84 +445,75 @@ function LaborLogTab({
       />
 
       {/* Labor Table */}
-      <Card>
-        <CardContent className="pt-4">
-          {entries.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-8">No roles added yet. Click "Add Role" to start building your labor plan.</p>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-[200px]">Role</TableHead>
-                  <TableHead className="text-center w-16">Qty</TableHead>
-                  <TableHead className="text-center w-16">Days</TableHead>
-                  <TableHead className="text-right w-24">Day Rate</TableHead>
-                  <TableHead className="text-right w-24">Line Total</TableHead>
-                  <TableHead className="text-right w-24">Cost Rate</TableHead>
-                  <TableHead className="text-right w-24">Cost Total</TableHead>
-                  <TableHead className="text-right w-20">GP</TableHead>
-                  <TableHead className="text-right w-16">GP%</TableHead>
-                  <TableHead className="w-10" />
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {entries.map((entry) => (
-                  <LaborEntryRow
-                    key={entry.id}
-                    entry={entry}
-                    isOffice={estimate.cost_structure === 'office'}
-                    officePayout={estimate.clients.office_payout_pct}
-                    onUpdate={onUpdateEntry}
-                    onDelete={onDeleteEntry}
-                  />
-                ))}
-              </TableBody>
-            </Table>
-          )}
-          <div className="mt-3 border-t border-border pt-3">
-            <Button variant="ghost" size="sm" className="gap-1.5 text-muted-foreground" onClick={() => setShowAddRole(true)}>
-              <Plus className="h-3.5 w-3.5" />
-              Add Role
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+      <div>
+        {entries.length === 0 ? (
+          <p className="text-xs text-muted-foreground/70 text-center py-6">No roles added yet</p>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow className="border-b border-border/40 bg-slate-50 dark:bg-slate-800/30 hover:bg-slate-50 dark:hover:bg-slate-800/30">
+                <TableHead className="w-[200px] text-[10px] uppercase tracking-widest text-muted-foreground font-medium py-2">Role</TableHead>
+                <TableHead className="text-center w-14 text-[10px] uppercase tracking-widest text-muted-foreground font-medium py-2">Qty</TableHead>
+                <TableHead className="text-center w-14 text-[10px] uppercase tracking-widest text-muted-foreground font-medium py-2">Days</TableHead>
+                <TableHead className="text-right w-24 text-[10px] uppercase tracking-widest text-muted-foreground font-medium py-2">Day Rate</TableHead>
+                <TableHead className="text-right w-24 text-[10px] uppercase tracking-widest text-muted-foreground font-medium py-2">Line Total</TableHead>
+                <TableHead className="text-right w-24 text-[10px] uppercase tracking-widest text-muted-foreground font-medium py-2">Cost Rate</TableHead>
+                <TableHead className="text-right w-24 text-[10px] uppercase tracking-widest text-muted-foreground font-medium py-2">Cost Total</TableHead>
+                <TableHead className="text-right w-20 text-[10px] uppercase tracking-widest text-muted-foreground font-medium py-2">GP</TableHead>
+                <TableHead className="text-right w-14 text-[10px] uppercase tracking-widest text-muted-foreground font-medium py-2">GP%</TableHead>
+                <TableHead className="w-6" />
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {entries.map((entry) => (
+                <LaborEntryRow
+                  key={entry.id}
+                  entry={entry}
+                  isOffice={estimate.cost_structure === 'office'}
+                  officePayout={estimate.clients.office_payout_pct}
+                  onUpdate={onUpdateEntry}
+                  onDelete={onDeleteEntry}
+                />
+              ))}
+            </TableBody>
+          </Table>
+        )}
+        <button onClick={() => setShowAddRole(true)} className="mt-1.5 text-[11px] text-muted-foreground/60 hover:text-foreground/90 transition-colors">
+          + Add Role
+        </button>
+      </div>
 
-      {/* Labor Summary */}
-      <Card className="bg-muted/30">
-        <CardContent className="pt-4">
-          <div className="flex items-center justify-between gap-6 text-sm">
-            <div>
-              <p className="text-xs text-muted-foreground">Total Labor Revenue</p>
-              <p className="text-lg font-bold">{fmt(laborRevenue)}</p>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Total Labor Cost</p>
-              <p className="text-lg font-bold">{fmt(laborCost)}</p>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Gross Profit</p>
-              <p className="text-lg font-bold text-green-400">{fmt(laborGP)}</p>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">GP%</p>
-              <p className="text-lg font-bold">{pct(laborGP, laborRevenue)}</p>
-            </div>
-            <div className="border-l border-border pl-6">
-              <p className="text-xs text-muted-foreground">Staff Count</p>
-              <p className="text-lg font-bold">{staffCount}</p>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Per Diem Total</p>
-              <p className="text-lg font-bold">{fmt(perDiemTotal)}</p>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Total with Per Diem</p>
-              <p className="text-lg font-bold">{fmt(laborRevenue + perDiemTotal)}</p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      {/* Labor Summary — two compact lines */}
+      <div className="mt-1.5 space-y-1 border-t border-border/40 pt-2.5">
+        <p className="text-[13px] tabular-nums">
+          <span className="font-medium text-foreground">{activeLog?.location_name ?? 'Segment'}:</span>{' '}
+          <span className="text-foreground/90">{fmt(segRevenue)} rev</span>
+          <span className="text-muted-foreground/60 mx-1">·</span>
+          <span className="text-foreground/90">{fmt(segCost)} cost</span>
+          <span className="text-muted-foreground/60 mx-1">·</span>
+          <span className="text-green-800/60 font-medium">{fmt(segGP)} GP</span>
+          <span className="text-muted-foreground/60 mx-1">·</span>
+          <span className="text-foreground/80">{pct(segGP, segRevenue)}</span>
+          <span className="text-muted-foreground/60 mx-1">·</span>
+          <span className="text-foreground/80">{segStaff} staff</span>
+        </p>
+        {laborLogs.length > 1 && (
+          <p className="text-[13px] tabular-nums text-muted-foreground/60">
+            <span className="font-medium text-muted-foreground/70">All Segments:</span>{' '}
+            <span>{fmt(laborRevenue)} rev</span>
+            <span className="text-muted-foreground/60 mx-1">·</span>
+            <span>{fmt(laborCost)} cost</span>
+            <span className="text-muted-foreground/60 mx-1">·</span>
+            <span className="text-green-800/60 font-medium">{fmt(laborGP)} GP</span>
+            <span className="text-muted-foreground/60 mx-1">·</span>
+            <span>{staffCount} staff</span>
+            {perDiemTotal > 0 && (<>
+              <span className="text-muted-foreground/60 mx-1">·</span>
+              <span>{fmt(perDiemTotal)} per diem</span>
+            </>)}
+          </p>
+        )}
+      </div>
 
       {/* Modals */}
       <AddRoleModal
@@ -612,48 +583,56 @@ function LaborEntryRow({
     onUpdate(entry.id, { cost_rate: v })
   }
 
+  const cellInput = "h-6 text-[13px] bg-transparent border-0 focus-visible:ring-0 focus-visible:bg-muted/50 rounded-sm transition-colors tabular-nums"
+
   return (
-    <TableRow className="group hover:bg-muted/50">
-      <TableCell>
-        <span className="font-medium text-sm">{entry.role_name}</span>
-        {isOverridden && <Badge variant="outline" className="ml-2 text-[10px] text-orange-400 border-orange-400/30">Override</Badge>}
+    <TableRow className="group border-b border-border/30 hover:bg-muted/30">
+      <TableCell className="py-1">
+        <span className="text-[13px] text-foreground">{entry.role_name}</span>
+        {isOverridden && <span className="ml-1 text-[9px] text-amber-600 font-medium">*</span>}
       </TableCell>
-      <TableCell className="text-center">
-        <Input value={qty} onChange={(e) => setQty(e.target.value)} onBlur={saveQty} className="h-7 w-14 text-center text-sm bg-transparent mx-auto" />
+      <TableCell className="text-center py-1">
+        <Input value={qty} onChange={(e) => setQty(e.target.value)} onBlur={saveQty} className={`${cellInput} w-10 text-center mx-auto`} />
       </TableCell>
-      <TableCell className="text-center">
-        <Input value={days} onChange={(e) => setDays(e.target.value)} onBlur={saveDays} className="h-7 w-14 text-center text-sm bg-transparent mx-auto" />
+      <TableCell className="text-center py-1">
+        <Input value={days} onChange={(e) => setDays(e.target.value)} onBlur={saveDays} className={`${cellInput} w-10 text-center mx-auto`} />
       </TableCell>
-      <TableCell className="text-right">
-        <Input
-          value={rate}
-          onChange={(e) => setRate(e.target.value)}
-          onBlur={saveRate}
-          className={`h-7 w-24 text-right text-sm bg-transparent ml-auto ${isOverridden ? 'text-orange-400' : ''}`}
-        />
+      <TableCell className="text-right py-1">
+        <div className="relative w-[72px] ml-auto">
+          <span className="absolute left-1 top-1/2 -translate-y-1/2 text-[13px] text-muted-foreground/60 pointer-events-none">$</span>
+          <Input
+            value={rate}
+            onChange={(e) => setRate(e.target.value)}
+            onBlur={saveRate}
+            className={`${cellInput} w-full text-right pl-4 ${isOverridden ? 'text-amber-600' : ''}`}
+          />
+        </div>
       </TableCell>
-      <TableCell className="text-right bg-muted/20">
-        <span className="text-sm font-medium">{fmt(lineTotal)}</span>
+      <TableCell className="text-right py-1">
+        <span className="text-[13px] font-medium tabular-nums text-foreground">{fmt(lineTotal)}</span>
       </TableCell>
-      <TableCell className="text-right">
+      <TableCell className="text-right py-1">
         {isOffice ? (
-          <span className="text-sm text-muted-foreground">{fmt(effectiveCost)}</span>
+          <span className="text-[13px] text-muted-foreground/50 tabular-nums">{fmt(effectiveCost)}</span>
         ) : (
-          <Input value={costRate} onChange={(e) => setCostRate(e.target.value)} onBlur={saveCostRate} className="h-7 w-24 text-right text-sm bg-transparent ml-auto" />
+          <div className="relative w-[72px] ml-auto">
+            <span className="absolute left-1 top-1/2 -translate-y-1/2 text-[13px] text-muted-foreground/60 pointer-events-none">$</span>
+            <Input value={costRate} onChange={(e) => setCostRate(e.target.value)} onBlur={saveCostRate} className={`${cellInput} w-full text-right pl-4`} />
+          </div>
         )}
       </TableCell>
-      <TableCell className="text-right bg-muted/20">
-        <span className="text-sm">{fmt(costTotal)}</span>
+      <TableCell className="text-right py-1">
+        <span className="text-[13px] font-medium tabular-nums text-foreground">{fmt(costTotal)}</span>
       </TableCell>
-      <TableCell className="text-right bg-muted/20">
-        <span className="text-sm text-green-400">{fmt(gp)}</span>
+      <TableCell className="text-right py-1">
+        <span className="text-[13px] font-medium tabular-nums text-green-800/60">{fmt(gp)}</span>
       </TableCell>
-      <TableCell className="text-right bg-muted/20">
-        <span className="text-sm text-muted-foreground">{gpPct}%</span>
+      <TableCell className="text-right py-1">
+        <span className="text-[13px] tabular-nums text-muted-foreground/50">{gpPct}%</span>
       </TableCell>
-      <TableCell>
+      <TableCell className="py-1">
         <Trash2
-          className="h-3.5 w-3.5 text-muted-foreground/30 group-hover:text-muted-foreground/70 transition-colors cursor-pointer"
+          className="h-3 w-3 opacity-0 group-hover:opacity-50 hover:!opacity-100 transition-opacity cursor-pointer text-foreground/60"
           onClick={() => onDelete(entry.id)}
         />
       </TableCell>
@@ -697,7 +676,7 @@ function LineItemTab({
   const [showModal, setShowModal] = useState(false)
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-2">
       <LocationSelector
         laborLogs={laborLogs}
         activeLocationId={activeLocationId}
@@ -706,44 +685,39 @@ function LineItemTab({
         onDeleteLocation={onDeleteLocation}
       />
 
-      <Card>
-        <CardContent className="pt-4">
-          {isPassThrough && (
-            <p className="text-sm text-muted-foreground mb-3">
-              Pass-through costs subject to {defaultMarkup}% markup
-            </p>
-          )}
-          {items.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-8">No items added yet.</p>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-[200px]">Line Item</TableHead>
-                  <TableHead>Description</TableHead>
-                  <TableHead className="text-center w-16">Qty</TableHead>
-                  <TableHead className="text-right w-24">Unit Cost</TableHead>
-                  <TableHead className="text-right w-24">Total</TableHead>
-                  <TableHead className="text-center w-20">Markup %</TableHead>
-                  <TableHead className="text-right w-28">Client Total</TableHead>
-                  <TableHead className="w-10" />
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {items.map((item) => (
-                  <LineItemRow key={item.id} item={item} onUpdate={onUpdate} onDelete={onDelete} />
-                ))}
-              </TableBody>
-            </Table>
-          )}
-          <div className="mt-3 border-t border-border pt-3">
-            <Button variant="ghost" size="sm" className="gap-1.5 text-muted-foreground" onClick={() => setShowModal(true)}>
-              <Plus className="h-3.5 w-3.5" />
-              Add Line Item
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+      <div>
+        {isPassThrough && (
+          <p className="text-[10px] uppercase tracking-widest text-muted-foreground/70 font-medium mb-1.5">
+            Pass-through · {defaultMarkup}% markup
+          </p>
+        )}
+        {items.length === 0 ? (
+          <p className="text-xs text-muted-foreground/70 text-center py-6">No items added yet</p>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow className="border-b border-border/40 bg-slate-50 dark:bg-slate-800/30 hover:bg-slate-50 dark:hover:bg-slate-800/30">
+                <TableHead className="w-[200px] text-[10px] uppercase tracking-widest text-muted-foreground font-medium py-2">Item</TableHead>
+                <TableHead className="text-[10px] uppercase tracking-widest text-muted-foreground font-medium py-2">Description</TableHead>
+                <TableHead className="text-center w-14 text-[10px] uppercase tracking-widest text-muted-foreground font-medium py-2">Qty</TableHead>
+                <TableHead className="text-right w-24 text-[10px] uppercase tracking-widest text-muted-foreground font-medium py-2">Unit Cost</TableHead>
+                <TableHead className="text-right w-24 text-[10px] uppercase tracking-widest text-muted-foreground font-medium py-2">Total</TableHead>
+                <TableHead className="text-center w-18 text-[10px] uppercase tracking-widest text-muted-foreground font-medium py-2">Markup</TableHead>
+                <TableHead className="text-right w-28 text-[10px] uppercase tracking-widest text-muted-foreground font-medium py-2">Client Total</TableHead>
+                <TableHead className="w-6" />
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {items.map((item) => (
+                <LineItemRow key={item.id} item={item} onUpdate={onUpdate} onDelete={onDelete} />
+              ))}
+            </TableBody>
+          </Table>
+        )}
+        <button onClick={() => setShowModal(true)} className="mt-1.5 text-[11px] text-muted-foreground/60 hover:text-foreground/90 transition-colors">
+          + Add Item
+        </button>
+      </div>
 
       <AddLineItemModal
         open={showModal}
@@ -779,27 +753,32 @@ function LineItemRow({
   const total = qtyNum * costNum
   const clientTotal = total * (1 + markupNum / 100)
 
+  const cellInput = "h-6 text-[13px] bg-transparent border-0 focus-visible:ring-0 focus-visible:bg-muted/50 rounded-sm transition-colors tabular-nums"
+
   return (
-    <TableRow className="group hover:bg-muted/50">
-      <TableCell className="font-medium text-sm">{item.item_name}</TableCell>
-      <TableCell className="text-sm text-muted-foreground">{item.description || '—'}</TableCell>
-      <TableCell className="text-center">
-        <Input value={qty} onChange={(e) => setQty(e.target.value)} onBlur={() => onUpdate(item.id, { quantity: parseFloat(qty) || 1 })} className="h-7 w-14 text-center text-sm bg-transparent mx-auto" />
+    <TableRow className="group border-b border-border/30 hover:bg-muted/30">
+      <TableCell className="text-[13px] text-foreground py-1">{item.item_name}</TableCell>
+      <TableCell className="text-[13px] text-muted-foreground/50 py-1">{item.description || '—'}</TableCell>
+      <TableCell className="text-center py-1">
+        <Input value={qty} onChange={(e) => setQty(e.target.value)} onBlur={() => onUpdate(item.id, { quantity: parseFloat(qty) || 1 })} className={`${cellInput} w-10 text-center mx-auto`} />
       </TableCell>
-      <TableCell className="text-right">
-        <Input value={unitCost} onChange={(e) => setUnitCost(e.target.value)} onBlur={() => onUpdate(item.id, { unit_cost: parseFloat(unitCost) || 0 })} className="h-7 w-24 text-right text-sm bg-transparent ml-auto" />
+      <TableCell className="text-right py-1">
+        <div className="relative w-[72px] ml-auto">
+          <span className="absolute left-1 top-1/2 -translate-y-1/2 text-[13px] text-muted-foreground/60 pointer-events-none">$</span>
+          <Input value={unitCost} onChange={(e) => setUnitCost(e.target.value)} onBlur={() => onUpdate(item.id, { unit_cost: parseFloat(unitCost) || 0 })} className={`${cellInput} w-full text-right pl-4`} />
+        </div>
       </TableCell>
-      <TableCell className="text-right bg-muted/20">
-        <span className="text-sm">{fmt(total)}</span>
+      <TableCell className="text-right py-1">
+        <span className="text-[13px] font-medium tabular-nums text-foreground">{fmt(total)}</span>
       </TableCell>
-      <TableCell className="text-center">
-        <Input value={markup} onChange={(e) => setMarkup(e.target.value)} onBlur={() => onUpdate(item.id, { markup_pct: parseFloat(markup) || 0 })} className="h-7 w-16 text-center text-sm bg-transparent mx-auto" />
+      <TableCell className="text-center py-1">
+        <Input value={markup} onChange={(e) => setMarkup(e.target.value)} onBlur={() => onUpdate(item.id, { markup_pct: parseFloat(markup) || 0 })} className={`${cellInput} w-12 text-center mx-auto`} />
       </TableCell>
-      <TableCell className="text-right bg-muted/20">
-        <span className="text-sm font-medium">{fmt(clientTotal)}</span>
+      <TableCell className="text-right py-1">
+        <span className="text-[13px] font-medium tabular-nums text-foreground">{fmt(clientTotal)}</span>
       </TableCell>
-      <TableCell>
-        <Trash2 className="h-3.5 w-3.5 text-muted-foreground/30 group-hover:text-muted-foreground/70 transition-colors cursor-pointer" onClick={() => onDelete(item.id)} />
+      <TableCell className="py-1">
+        <Trash2 className="h-3 w-3 opacity-0 group-hover:opacity-50 hover:!opacity-100 transition-opacity cursor-pointer text-foreground/60" onClick={() => onDelete(item.id)} />
       </TableCell>
     </TableRow>
   )
@@ -868,22 +847,22 @@ function AddLineItemModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
-          <DialogTitle>Add Line Item</DialogTitle>
-          <DialogDescription>Add to {section} section</DialogDescription>
+          <DialogTitle className="text-sm font-semibold">Add Line Item</DialogTitle>
+          <DialogDescription className="text-xs">Add to {section} section</DialogDescription>
         </DialogHeader>
 
         {/* Rate card suggestions */}
         {rcItems.length > 0 && (
-          <div className="space-y-2">
-            <Label className="text-xs text-muted-foreground">Pick from {clientName}'s rate card</Label>
+          <div className="space-y-1.5">
+            <Label className="text-[11px] text-muted-foreground/50">Pick from {clientName}'s rate card</Label>
             <div className="relative">
-              <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input placeholder="Search rate card..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9 h-8 text-sm" />
+              <Search className="absolute left-3 top-2 h-3.5 w-3.5 text-muted-foreground/70" />
+              <Input placeholder="Search rate card..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9 h-7 text-[13px] border-border/40" />
             </div>
             {search && filtered.length > 0 && (
-              <div className="max-h-[120px] overflow-y-auto border rounded-md">
+              <div className="max-h-[100px] overflow-y-auto border border-border/40 rounded-sm">
                 {filtered.map((item) => (
-                  <button key={item.id} onClick={() => handleSelectRC(item)} className="w-full text-left px-3 py-1.5 text-sm hover:bg-muted/50">
+                  <button key={item.id} onClick={() => handleSelectRC(item)} className="w-full text-left px-3 py-1 text-[13px] hover:bg-muted/30 text-foreground/90">
                     {item.name}{item.unit_rate ? ` — $${item.unit_rate}` : ''}
                   </button>
                 ))}
@@ -892,34 +871,34 @@ function AddLineItemModal({
           </div>
         )}
 
-        <div className="space-y-3">
+        <div className="space-y-2.5">
           <div className="space-y-1">
-            <Label>Item Name *</Label>
-            <Input value={itemName} onChange={(e) => setItemName(e.target.value)} placeholder="e.g., Vehicle Transport" />
+            <Label className="text-xs">Item Name *</Label>
+            <Input value={itemName} onChange={(e) => setItemName(e.target.value)} placeholder="e.g., Vehicle Transport" className="h-8 text-sm border-border/30" />
           </div>
           <div className="space-y-1">
-            <Label>Description</Label>
-            <Input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="e.g., Carrier delivery of 12 vehicles" />
+            <Label className="text-xs">Description</Label>
+            <Input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="e.g., Carrier delivery of 12 vehicles" className="h-8 text-sm border-border/30" />
           </div>
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-3 gap-2.5">
             <div className="space-y-1">
-              <Label>Quantity</Label>
-              <Input type="number" value={quantity} onChange={(e) => setQuantity(e.target.value)} />
+              <Label className="text-xs">Quantity</Label>
+              <Input type="number" value={quantity} onChange={(e) => setQuantity(e.target.value)} className="h-8 text-sm border-border/30" />
             </div>
             <div className="space-y-1">
-              <Label>Unit Cost ($)</Label>
-              <Input type="number" value={unitCost} onChange={(e) => setUnitCost(e.target.value)} />
+              <Label className="text-xs">Unit Cost ($)</Label>
+              <Input type="number" value={unitCost} onChange={(e) => setUnitCost(e.target.value)} className="h-8 text-sm border-border/30" />
             </div>
             <div className="space-y-1">
-              <Label>Markup %</Label>
-              <Input type="number" value={markupPct} onChange={(e) => setMarkupPct(e.target.value)} />
+              <Label className="text-xs">Markup %</Label>
+              <Input type="number" value={markupPct} onChange={(e) => setMarkupPct(e.target.value)} className="h-8 text-sm border-border/30" />
             </div>
           </div>
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-          <Button disabled={!itemName.trim()} onClick={handleSave}>Add Item</Button>
+          <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>Cancel</Button>
+          <Button size="sm" disabled={!itemName.trim()} onClick={handleSave}>Add Item</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -928,160 +907,210 @@ function AddLineItemModal({
 
 // ── Summary Tab ──────────────────────────────────────────────────────────────
 
+// Rate card section display order and line-item key mapping
+const SUMMARY_SECTIONS = [
+  { name: 'Planning & Administration Labor', type: 'labor', lineItemKey: null },
+  { name: 'Onsite Event Labor', type: 'labor', lineItemKey: null },
+  { name: 'Travel Expenses', type: 'line_item', lineItemKey: 'travel' },
+  { name: 'Creative Costs', type: 'line_item', lineItemKey: 'creative' },
+  { name: 'Production Expenses', type: 'line_item', lineItemKey: 'production' },
+  { name: 'Logistics Expenses', type: 'line_item', lineItemKey: 'access' },
+  { name: 'Misc', type: 'line_item', lineItemKey: 'misc' },
+] as const
+
 function SummaryTab({
   laborLogs,
   allEntriesMap,
   lineItemsMap,
+  rateCardData,
 }: {
   laborLogs: LaborLog[]
   allEntriesMap: Record<string, LaborEntry[]>
   lineItemsMap: Record<string, EstimateLineItem[]>
+  rateCardData: RateCardItemsBySection[]
 }) {
-  function laborTotals(entries: LaborEntry[]) {
+  // Build lookup: rate_card_item_id → rate_card_section name
+  const itemSectionMap = new Map<string, string>()
+  for (const { section, items } of rateCardData) {
+    for (const item of items) {
+      itemSectionMap.set(item.id, section.name)
+    }
+  }
+
+  function sumLabor(entries: LaborEntry[]) {
     const revenue = entries.reduce((s, e) => s + e.quantity * e.days * (e.override_rate ?? e.unit_rate), 0)
     const cost = entries.reduce((s, e) => s + e.quantity * e.days * (e.cost_rate ?? 0), 0)
     return { revenue, cost }
   }
 
-  function lineItemTotalsBySection(items: EstimateLineItem[]) {
+  function sumLineItems(items: EstimateLineItem[]) {
     const cost = items.reduce((s, i) => s + i.quantity * i.unit_cost, 0)
     const revenue = items.reduce((s, i) => s + i.quantity * i.unit_cost * (1 + i.markup_pct / 100), 0)
     return { revenue, cost }
   }
 
-  const hasMultipleLocations = laborLogs.length > 1
-  type Row = { section: string; revenue: number; cost: number; isSubtotal?: boolean }
+  const hasMultipleSegments = laborLogs.length > 1
 
-  // Build per-location labor and per diem rows
-  const laborRows: Row[] = []
-  let laborSubRevenue = 0
-  let laborSubCost = 0
-  let perDiemSubRevenue = 0
-  let perDiemSubCost = 0
-
-  for (const log of laborLogs) {
-    const entries = allEntriesMap[log.id] ?? []
-    const labor = entries.filter((e) => !e.role_name.toLowerCase().includes('per diem'))
-    const perDiem = entries.filter((e) => e.role_name.toLowerCase().includes('per diem'))
-
-    const lt = laborTotals(labor)
-    if (lt.revenue > 0 || lt.cost > 0) {
-      laborRows.push({
-        section: hasMultipleLocations ? `Labor — ${log.location_name}` : 'Labor',
-        ...lt,
-      })
-      laborSubRevenue += lt.revenue
-      laborSubCost += lt.cost
+  // Categorize labor entries by rate card section
+  function laborSectionName(entry: LaborEntry): string {
+    if (entry.rate_card_item_id) {
+      const sec = itemSectionMap.get(entry.rate_card_item_id)
+      if (sec) return sec
     }
-
-    const pt = laborTotals(perDiem)
-    if (pt.revenue > 0 || pt.cost > 0) {
-      laborRows.push({
-        section: hasMultipleLocations ? `Per Diem — ${log.location_name}` : 'Per Diem',
-        ...pt,
-      })
-      perDiemSubRevenue += pt.revenue
-      perDiemSubCost += pt.cost
-    }
+    // Default: onsite for day-rate roles, planning for hourly admin
+    return 'Onsite Event Labor'
   }
 
-  const laborSubtotalRow: Row | null =
-    hasMultipleLocations && laborRows.length > 1
-      ? { section: 'Labor Subtotal', revenue: laborSubRevenue + perDiemSubRevenue, cost: laborSubCost + perDiemSubCost, isSubtotal: true }
-      : null
+  type DetailRow = {
+    label: string
+    detail: string  // e.g. "2 × 4 days × $700" or "3 × $200"
+    revenue: number
+    cost: number
+    isSegmentHeader?: boolean
+  }
 
-  // Build per-location expense rows for each section
-  const expenseSections = [
-    { key: 'production', label: 'Production' },
-    { key: 'travel', label: 'Travel/Logistics' },
-    { key: 'creative', label: 'Creative' },
-    { key: 'access', label: 'Access/Insurance' },
-    { key: 'misc', label: 'Misc' },
-  ]
+  type SectionBlock = {
+    name: string
+    details: DetailRow[]
+    total: { revenue: number; cost: number }
+  }
 
-  const expenseRows: Row[] = []
-  for (const sec of expenseSections) {
-    const perLocationRows: Row[] = []
-    let secRevenue = 0
-    let secCost = 0
+  const blocks: SectionBlock[] = []
 
-    for (const log of laborLogs) {
-      const items = (lineItemsMap[log.id] ?? []).filter((i) => i.section === sec.key)
-      if (items.length === 0) continue
-      const t = lineItemTotalsBySection(items)
-      perLocationRows.push({
-        section: hasMultipleLocations ? `${sec.label} — ${log.location_name}` : sec.label,
-        ...t,
-      })
-      secRevenue += t.revenue
-      secCost += t.cost
-    }
+  for (const sec of SUMMARY_SECTIONS) {
+    const details: DetailRow[] = []
+    let totalRevenue = 0
+    let totalCost = 0
 
-    if (perLocationRows.length > 0) {
-      expenseRows.push(...perLocationRows)
-      if (hasMultipleLocations && perLocationRows.length > 1) {
-        expenseRows.push({ section: `${sec.label} Subtotal`, revenue: secRevenue, cost: secCost, isSubtotal: true })
+    if (sec.type === 'labor') {
+      for (const log of laborLogs) {
+        const entries = (allEntriesMap[log.id] ?? []).filter(
+          (e) => laborSectionName(e) === sec.name
+        )
+        if (entries.length === 0) continue
+
+        if (hasMultipleSegments) {
+          details.push({ label: log.location_name, detail: '', revenue: 0, cost: 0, isSegmentHeader: true })
+        }
+
+        for (const e of entries) {
+          const rev = e.quantity * e.days * (e.override_rate ?? e.unit_rate)
+          const cost = e.quantity * e.days * (e.cost_rate ?? 0)
+          const rate = e.override_rate ?? e.unit_rate
+          details.push({
+            label: e.role_name,
+            detail: `${e.quantity} × ${e.days}d × ${fmt(rate)}`,
+            revenue: rev,
+            cost,
+          })
+          totalRevenue += rev
+          totalCost += cost
+        }
+      }
+    } else {
+      for (const log of laborLogs) {
+        const items = (lineItemsMap[log.id] ?? []).filter((i) => i.section === sec.lineItemKey)
+        if (items.length === 0) continue
+
+        if (hasMultipleSegments) {
+          details.push({ label: log.location_name, detail: '', revenue: 0, cost: 0, isSegmentHeader: true })
+        }
+
+        for (const i of items) {
+          const cost = i.quantity * i.unit_cost
+          const rev = cost * (1 + i.markup_pct / 100)
+          details.push({
+            label: i.item_name,
+            detail: i.quantity === 1 ? fmt(i.unit_cost) : `${i.quantity} × ${fmt(i.unit_cost)}`,
+            revenue: rev,
+            cost,
+          })
+          totalRevenue += rev
+          totalCost += cost
+        }
       }
     }
+
+    if (details.length > 0) {
+      blocks.push({ name: sec.name, details, total: { revenue: totalRevenue, cost: totalCost } })
+    }
   }
 
-  const allRows = [...laborRows, ...(laborSubtotalRow ? [laborSubtotalRow] : []), ...expenseRows]
-  const laborForTotal = laborSubtotalRow ?? { revenue: laborSubRevenue + perDiemSubRevenue, cost: laborSubCost + perDiemSubCost }
-  // Sum only non-subtotal expense rows to avoid double counting
-  const expenseTotal = expenseRows.filter((r) => !r.isSubtotal).reduce((acc, r) => ({ revenue: acc.revenue + r.revenue, cost: acc.cost + r.cost }), { revenue: 0, cost: 0 })
-  const totals = { revenue: laborForTotal.revenue + expenseTotal.revenue, cost: laborForTotal.cost + expenseTotal.cost }
-  const totalGP = totals.revenue - totals.cost
+  const grandRevenue = blocks.reduce((s, b) => s + b.total.revenue, 0)
+  const grandCost = blocks.reduce((s, b) => s + b.total.cost, 0)
+  const grandGP = grandRevenue - grandCost
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-base">Consolidated P&L Summary</CardTitle>
-      </CardHeader>
-      <CardContent>
-        {allRows.length === 0 ? (
-          <p className="text-sm text-muted-foreground text-center py-8">No data yet. Add labor roles and line items to see the summary.</p>
+    <div className="border border-border/40 rounded-md">
+      <div className="px-4 py-2.5 border-b border-border/40">
+        <p className="text-[10px] font-semibold tracking-widest uppercase text-muted-foreground/50">P&L Summary</p>
+      </div>
+      <div className="px-3 pb-3 pt-1">
+        {blocks.length === 0 ? (
+          <p className="text-[11px] text-muted-foreground/70 text-center py-6">No data yet. Add labor roles and line items to see the summary.</p>
         ) : (
-          <>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-[200px]">Section</TableHead>
-                  <TableHead className="text-right">Revenue</TableHead>
-                  <TableHead className="text-right">Cost</TableHead>
-                  <TableHead className="text-right">GP</TableHead>
-                  <TableHead className="text-right">GP%</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {allRows.map((row) => {
-                  const gp = row.revenue - row.cost
-                  return (
-                    <TableRow key={row.section} className={row.isSubtotal ? 'border-t-2 border-border' : ''}>
-                      <TableCell className={row.isSubtotal ? 'font-semibold italic' : 'font-medium'}>{row.section}</TableCell>
-                      <TableCell className={`text-right ${row.isSubtotal ? 'font-semibold' : ''}`}>{fmt(row.revenue)}</TableCell>
-                      <TableCell className={`text-right ${row.isSubtotal ? 'font-semibold' : ''}`}>{fmt(row.cost)}</TableCell>
-                      <TableCell className={`text-right text-green-400 ${row.isSubtotal ? 'font-semibold' : ''}`}>{fmt(gp)}</TableCell>
-                      <TableCell className={`text-right text-muted-foreground ${row.isSubtotal ? 'font-semibold' : ''}`}>{pct(gp, row.revenue)}</TableCell>
+          <Table className="text-[12px]">
+            <TableHeader>
+              <TableRow className="border-b border-border/40 bg-slate-50 dark:bg-slate-800/30 hover:bg-slate-50 dark:hover:bg-slate-800/30">
+                <TableHead className="w-[200px] py-2 text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Item</TableHead>
+                <TableHead className="py-2 text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Detail</TableHead>
+                <TableHead className="py-2 text-[10px] font-medium uppercase tracking-widest text-right w-[80px] text-muted-foreground">Revenue</TableHead>
+                <TableHead className="py-2 text-[10px] font-medium uppercase tracking-widest text-right w-[80px] text-muted-foreground">Cost</TableHead>
+                <TableHead className="py-2 text-[10px] font-medium uppercase tracking-widest text-right w-[80px] text-muted-foreground">GP</TableHead>
+                <TableHead className="py-2 text-[10px] font-medium uppercase tracking-widest text-right w-[52px] text-muted-foreground">GP%</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {blocks.map((block) => {
+                const blockGP = block.total.revenue - block.total.cost
+                return (
+                  <React.Fragment key={block.name}>
+                    <TableRow className="bg-slate-100 dark:bg-slate-800/50 hover:bg-slate-100 dark:hover:bg-slate-800/50 border-b border-border/40">
+                      <TableCell colSpan={6} className="font-semibold text-[11px] py-1.5 text-foreground uppercase tracking-wide">{block.name}</TableCell>
                     </TableRow>
-                  )
-                })}
-              </TableBody>
-            </Table>
-            <div className="mt-4 border-t-2 border-border pt-4">
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-base font-bold">TOTAL</span>
-                <div className="flex items-center gap-12">
-                  <span className="font-bold">{fmt(totals.revenue)}</span>
-                  <span className="font-bold">{fmt(totals.cost)}</span>
-                  <span className="font-bold text-green-400">{fmt(totalGP)}</span>
-                  <span className="font-bold">{pct(totalGP, totals.revenue)}</span>
-                </div>
-              </div>
-            </div>
-          </>
+                    {block.details.map((row, idx) => {
+                      if (row.isSegmentHeader) {
+                        return (
+                          <TableRow key={`${block.name}-seg-${idx}`} className="hover:bg-transparent">
+                            <TableCell colSpan={6} className="pl-5 text-[9px] font-medium text-muted-foreground/70 uppercase tracking-widest py-0.5">{row.label}</TableCell>
+                          </TableRow>
+                        )
+                      }
+                      const gp = row.revenue - row.cost
+                      return (
+                        <TableRow key={`${block.name}-${idx}`} className="hover:bg-muted/30 border-b border-border/5">
+                          <TableCell className="pl-5 py-0.5 text-[12px] text-foreground/90">{row.label}</TableCell>
+                          <TableCell className="py-0.5 text-[12px] text-muted-foreground/70 tabular-nums">{row.detail}</TableCell>
+                          <TableCell className="py-0.5 text-[12px] text-right tabular-nums text-foreground/60">{fmt(row.revenue)}</TableCell>
+                          <TableCell className="py-0.5 text-[12px] text-right tabular-nums text-foreground/60">{fmt(row.cost)}</TableCell>
+                          <TableCell className="py-0.5 text-[12px] text-right tabular-nums text-green-800/60">{fmt(gp)}</TableCell>
+                          <TableCell className="py-0.5 text-[12px] text-right tabular-nums text-muted-foreground/70">{pct(gp, row.revenue)}</TableCell>
+                        </TableRow>
+                      )
+                    })}
+                    <TableRow className="border-b border-border/40 hover:bg-transparent">
+                      <TableCell colSpan={2} className="py-1 pl-5 text-[11px] font-medium text-muted-foreground/50">{block.name} Subtotal</TableCell>
+                      <TableCell className="py-1 text-[12px] text-right font-medium tabular-nums text-foreground/90">{fmt(block.total.revenue)}</TableCell>
+                      <TableCell className="py-1 text-[12px] text-right font-medium tabular-nums text-foreground/90">{fmt(block.total.cost)}</TableCell>
+                      <TableCell className="py-1 text-[12px] text-right font-medium tabular-nums text-green-800/60">{fmt(blockGP)}</TableCell>
+                      <TableCell className="py-1 text-[12px] text-right font-medium tabular-nums text-muted-foreground/50">{pct(blockGP, block.total.revenue)}</TableCell>
+                    </TableRow>
+                  </React.Fragment>
+                )
+              })}
+              {/* Grand Total — same table, columns align */}
+              <TableRow className="border-t border-foreground/10 hover:bg-transparent">
+                <TableCell colSpan={2} className="py-2 text-[11px] font-bold uppercase tracking-widest text-foreground/90">Grand Total</TableCell>
+                <TableCell className="py-2 text-[12px] text-right font-bold tabular-nums text-foreground">{fmt(grandRevenue)}</TableCell>
+                <TableCell className="py-2 text-[12px] text-right font-bold tabular-nums text-foreground">{fmt(grandCost)}</TableCell>
+                <TableCell className="py-2 text-[12px] text-right font-bold tabular-nums text-green-800/60">{fmt(grandGP)}</TableCell>
+                <TableCell className="py-2 text-[12px] text-right font-bold tabular-nums text-foreground/60">{pct(grandGP, grandRevenue)}</TableCell>
+              </TableRow>
+            </TableBody>
+          </Table>
         )}
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   )
 }
 
@@ -1301,7 +1330,7 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
-        <p className="text-muted-foreground">Loading estimate...</p>
+        <p className="text-sm text-muted-foreground/50">Loading estimate...</p>
       </div>
     )
   }
@@ -1309,7 +1338,7 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
   if (!estimate) {
     return (
       <div className="flex items-center justify-center py-20">
-        <p className="text-muted-foreground">Estimate not found.</p>
+        <p className="text-sm text-muted-foreground/50">Estimate not found.</p>
       </div>
     )
   }
@@ -1327,27 +1356,25 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
   ]
 
   return (
-    <div className="space-y-4">
-      <div className="pb-2 border-b border-border">
-        <h1 className="text-2xl font-bold tracking-tight">Estimate Builder</h1>
-        <p className="text-muted-foreground">
-          {estimate.clients.name} — {estimate.event_name}
-        </p>
+    <div className="space-y-3">
+      <div>
+        <h1 className="text-lg font-semibold tracking-tight">{estimate.event_name}</h1>
+        <p className="text-sm text-muted-foreground">{estimate.clients.name} · Estimate Builder</p>
       </div>
 
       {/* 70/30 Split Layout */}
-      <div className="flex gap-6">
+      <div className="flex gap-4">
         {/* Left Panel — Estimate Working Area (70%) */}
-        <div className="flex-[7] min-w-0 space-y-4">
+        <div className="flex-[7] min-w-0 space-y-2.5">
           <EventHeader estimate={estimate} onUpdate={handleUpdateEstimate} />
 
           <Tabs defaultValue="labor">
-            <TabsList>
-              <TabsTrigger value="labor">Labor Log</TabsTrigger>
+            <TabsList variant="line" className="border-b border-border/40 w-full">
+              <TabsTrigger value="labor" className="text-[13px]">Labor Log</TabsTrigger>
               {lineItemTabs.map((tab) => (
-                <TabsTrigger key={tab.key} value={tab.key}>{tab.label}</TabsTrigger>
+                <TabsTrigger key={tab.key} value={tab.key} className="text-[13px]">{tab.label}</TabsTrigger>
               ))}
-              <TabsTrigger value="summary">Summary</TabsTrigger>
+              <TabsTrigger value="summary" className="text-[13px]">Summary</TabsTrigger>
             </TabsList>
 
             <TabsContent value="labor">
@@ -1389,13 +1416,13 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
             ))}
 
             <TabsContent value="summary">
-              <SummaryTab laborLogs={laborLogs} allEntriesMap={laborEntriesMap} lineItemsMap={lineItemsMap} />
+              <SummaryTab laborLogs={laborLogs} allEntriesMap={laborEntriesMap} lineItemsMap={lineItemsMap} rateCardData={rateCardData} />
             </TabsContent>
           </Tabs>
         </div>
 
         {/* Right Panel — AI Intelligence (30%) */}
-        <div className="flex-[3] min-w-[280px] border-l border-border pl-6">
+        <div className="flex-[3] min-w-[260px] border-l border-border/40 pl-4">
           <AINudgePanel />
         </div>
       </div>

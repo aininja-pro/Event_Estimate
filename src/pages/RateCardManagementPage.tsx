@@ -1,9 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
 import {
-  Card,
-  CardContent,
-} from '@/components/ui/card'
-import {
   Table,
   TableHeader,
   TableBody,
@@ -11,7 +7,6 @@ import {
   TableRow,
   TableCell,
 } from '@/components/ui/table'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -24,7 +19,13 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog'
 import {
-  Plus,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import {
   Search,
   Pencil,
   Loader2,
@@ -61,10 +62,10 @@ const COST_TYPE_LABELS: Record<string, string> = {
   pass_through: 'Pass-Through',
 }
 
-const COST_TYPE_BORDER: Record<string, string> = {
-  labor: 'border-l-blue-500',
-  flat_fee: 'border-l-green-500',
-  pass_through: 'border-l-amber-500',
+const COST_TYPE_ACCENT: Record<string, string> = {
+  labor: 'text-muted-foreground',
+  flat_fee: 'text-muted-foreground',
+  pass_through: 'text-muted-foreground',
 }
 
 // ── Rate Form Dialog ─────────────────────────────────────────────────────────
@@ -129,34 +130,34 @@ function RateFormDialog({ open, onClose, onSave, onDelete, title, description, i
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent>
+      <DialogContent className="sm:max-w-[480px]">
         <DialogHeader>
-          <DialogTitle>{title}</DialogTitle>
-          <DialogDescription>{description}</DialogDescription>
+          <DialogTitle className="text-sm font-semibold">{title}</DialogTitle>
+          <DialogDescription className="text-xs">{description}</DialogDescription>
         </DialogHeader>
-        <div className="grid gap-4 py-2">
-          <div className="grid gap-1.5">
-            <Label htmlFor="rate-name">Item Name</Label>
-            <Input id="rate-name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="e.g., Event Director Day (10 hr)" />
+        <div className="grid gap-3 py-1">
+          <div className="space-y-1">
+            <Label className="text-xs">Item Name</Label>
+            <Input id="rate-name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="e.g., Event Director Day (10 hr)" className="h-8 text-sm border-border/30" />
           </div>
           {!isPassThrough && (
-            <div className="grid grid-cols-2 gap-4">
-              <div className="grid gap-1.5">
-                <Label htmlFor="rate-amount">Unit Rate ($)</Label>
-                <Input id="rate-amount" type="number" step="0.01" value={form.unit_rate} onChange={(e) => setForm({ ...form, unit_rate: e.target.value })} placeholder="0.00" />
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs">Unit Rate ($)</Label>
+                <Input id="rate-amount" type="number" step="0.01" value={form.unit_rate} onChange={(e) => setForm({ ...form, unit_rate: e.target.value })} placeholder="0.00" className="h-8 text-sm border-border/30" />
               </div>
-              <div className="grid gap-1.5">
-                <Label htmlFor="rate-unit">Unit Label</Label>
-                <Input id="rate-unit" value={form.unit_label} onChange={(e) => setForm({ ...form, unit_label: e.target.value })} placeholder="e.g., /10 hr day" />
+              <div className="space-y-1">
+                <Label className="text-xs">Unit Label</Label>
+                <Input id="rate-unit" value={form.unit_label} onChange={(e) => setForm({ ...form, unit_label: e.target.value })} placeholder="e.g., /10 hr day" className="h-8 text-sm border-border/30" />
               </div>
             </div>
           )}
           {isPassThrough && (
-            <p className="text-sm text-muted-foreground">Pass-through items are estimated per project. No fixed rate is set here.</p>
+            <p className="text-xs text-muted-foreground">Pass-through items are estimated per project. No fixed rate is set here.</p>
           )}
-          <div className="grid gap-1.5">
-            <Label htmlFor="rate-gl">GL Code</Label>
-            <Input id="rate-gl" value={form.gl_code} onChange={(e) => setForm({ ...form, gl_code: e.target.value })} placeholder="e.g., 4000.26" />
+          <div className="space-y-1">
+            <Label className="text-xs">GL Code</Label>
+            <Input id="rate-gl" value={form.gl_code} onChange={(e) => setForm({ ...form, gl_code: e.target.value })} placeholder="e.g., 4000.26" className="h-8 text-sm border-border/30" />
           </div>
         </div>
         <DialogFooter>
@@ -165,8 +166,8 @@ function RateFormDialog({ open, onClose, onSave, onDelete, title, description, i
               Remove
             </Button>
           )}
-          <Button variant="outline" onClick={onClose} disabled={saving}>Cancel</Button>
-          <Button onClick={handleSave} disabled={saving || !form.name.trim()}>
+          <Button variant="outline" size="sm" onClick={onClose} disabled={saving}>Cancel</Button>
+          <Button size="sm" onClick={handleSave} disabled={saving || !form.name.trim()}>
             {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Save
           </Button>
@@ -197,92 +198,94 @@ function SectionTable({ section, items, search, thirdPartyMarkup, collapsed, onT
   if (search && filtered.length === 0) return null
 
   return (
-    <Card className={`shadow-md border-l-[3px] ${COST_TYPE_BORDER[section.cost_type]} overflow-hidden`}>
+    <div className="border border-border/40 rounded-md overflow-hidden">
       {/* Section header */}
-      <div className="bg-slate-100 border-b border-slate-200 rounded-t-lg px-4 py-2.5 flex items-center justify-between cursor-pointer select-none" onClick={onToggle}>
-        <div className="flex items-center gap-2">
-          <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform duration-200 ${collapsed ? '-rotate-90' : ''}`} />
-          <h3 className="text-sm font-semibold text-slate-800">{section.name}</h3>
-          <Badge variant="secondary" className="text-[10px]">
+      <div className="flex items-center justify-between px-4 py-2.5 bg-slate-100 dark:bg-slate-800/50 border-b border-border/50 cursor-pointer select-none" onClick={onToggle}>
+        <div className="flex items-center gap-2.5">
+          <ChevronDown className={`h-3.5 w-3.5 text-muted-foreground transition-transform duration-200 ${collapsed ? '-rotate-90' : ''}`} />
+          <span className="text-[12px] uppercase tracking-widest font-semibold text-foreground/90">{section.name}</span>
+          <span className={`text-[11px] ${COST_TYPE_ACCENT[section.cost_type]}`}>
             {COST_TYPE_LABELS[section.cost_type] ?? section.cost_type}
-          </Badge>
-          <span className="text-xs text-slate-500">{filtered.length} items</span>
+          </span>
+          <span className="text-[11px] text-muted-foreground">{filtered.length} items</span>
         </div>
-        <Button variant="ghost" size="sm" className="gap-1.5 text-slate-500 hover:bg-slate-200 hover:text-slate-700" onClick={(e) => { e.stopPropagation(); onAddRate(section) }}>
-          <Plus className="h-3.5 w-3.5" />
-          Add Rate
-        </Button>
+        <button
+          className="text-[11px] text-muted-foreground hover:text-foreground transition-colors font-medium"
+          onClick={(e) => { e.stopPropagation(); onAddRate(section) }}
+        >
+          + Add Rate
+        </button>
       </div>
       {!collapsed && (
-      <CardContent className="p-0">
-        <div className="px-6 pb-4 pt-3">
-        {isPassThrough && thirdPartyMarkup > 0 && (
-          <p className="text-xs text-muted-foreground mb-3">Pass-through costs subject to {pct(thirdPartyMarkup)} markup</p>
-        )}
+        <div>
+          {isPassThrough && thirdPartyMarkup > 0 && (
+            <p className="text-[10px] uppercase tracking-widest text-muted-foreground/70 font-medium px-4 pb-1.5">
+              Pass-through · {pct(thirdPartyMarkup)} markup
+            </p>
+          )}
 
-        {/* Rate items table */}
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="w-[40%]">Item Name</TableHead>
-              {!isPassThrough && <TableHead className="text-right w-[15%]">Unit Rate</TableHead>}
-              <TableHead className="w-[15%]">Unit Label</TableHead>
-              <TableHead className="w-[12%]">GL Code</TableHead>
-              <TableHead className="w-[10%]">Source</TableHead>
-              <TableHead className="w-[8%]"></TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {filtered.map((item) => (
-              <TableRow key={item.id} className="group even:bg-muted/20 hover:bg-muted/50">
-                <TableCell className="font-medium">
-                  <div>
-                    {item.name}
+          {/* Rate items table */}
+          <Table>
+            <TableHeader>
+              <TableRow className="border-b border-border/40 hover:bg-transparent">
+                <TableHead className="w-[40%] text-[10px] uppercase tracking-wider text-muted-foreground font-medium py-2">Item Name</TableHead>
+                {!isPassThrough && <TableHead className="text-right w-[15%] text-[10px] uppercase tracking-wider text-muted-foreground font-medium py-2">Unit Rate</TableHead>}
+                <TableHead className="w-[15%] text-[10px] uppercase tracking-wider text-muted-foreground font-medium py-2">Unit Label</TableHead>
+                <TableHead className="w-[12%] text-[10px] uppercase tracking-wider text-muted-foreground font-medium py-2">GL Code</TableHead>
+                <TableHead className="w-[10%] text-[10px] uppercase tracking-wider text-muted-foreground font-medium py-2">Source</TableHead>
+                <TableHead className="w-[8%]" />
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filtered.map((item) => (
+                <TableRow key={item.id} className="group border-b border-border/40 hover:bg-muted/30">
+                  <TableCell className="py-1.5">
+                    <span className="text-[13px] text-foreground">{item.name}</span>
                     {item.has_overtime_rate && item.overtime_rate != null && (
-                      <div className="text-xs text-muted-foreground mt-0.5">
+                      <span className="text-[10px] text-muted-foreground ml-2">
                         OT: {fmt(item.overtime_rate)} {item.overtime_unit_label}
-                        {item.overtime_gl_code && <span className="ml-2 text-muted-foreground/60 font-mono">GL {item.overtime_gl_code}</span>}
-                      </div>
+                        {item.overtime_gl_code && <span className="ml-1 font-mono">GL {item.overtime_gl_code}</span>}
+                      </span>
                     )}
-                  </div>
-                </TableCell>
-                {!isPassThrough && (
-                  <TableCell className="text-right font-medium tabular-nums">{fmt(item.unit_rate)}</TableCell>
-                )}
-                <TableCell className="text-sm text-muted-foreground">{item.unit_label ?? '—'}</TableCell>
-                <TableCell className="text-sm text-muted-foreground tabular-nums font-mono">{item.gl_code ?? '—'}</TableCell>
-                <TableCell>
-                  {item.is_from_msa ? (
-                    <Badge variant="outline" className="border-green-500/30 text-green-400 text-xs ring-1 ring-green-500/20">MSA</Badge>
-                  ) : (
-                    <Badge variant="outline" className="border-blue-500/30 text-blue-400 text-xs ring-1 ring-blue-500/20">Custom</Badge>
+                  </TableCell>
+                  {!isPassThrough && (
+                    <TableCell className="text-right py-1">
+                      <span className="text-[13px] font-medium tabular-nums text-foreground">{fmt(item.unit_rate)}</span>
+                    </TableCell>
                   )}
-                </TableCell>
-                <TableCell>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-7 w-7 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
-                    onClick={() => onEditRate(item)}
-                  >
-                    <Pencil className="h-3.5 w-3.5" />
-                  </Button>
-                </TableCell>
-              </TableRow>
-            ))}
-            {filtered.length === 0 && (
-              <TableRow>
-                <TableCell colSpan={isPassThrough ? 5 : 6} className="text-center text-muted-foreground py-6">
-                  No items in this section
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
+                  <TableCell className="py-1">
+                    <span className="text-[13px] text-muted-foreground">{item.unit_label ?? '—'}</span>
+                  </TableCell>
+                  <TableCell className="py-1">
+                    <span className="text-[13px] text-muted-foreground tabular-nums font-mono">{item.gl_code ?? '—'}</span>
+                  </TableCell>
+                  <TableCell className="py-1">
+                    {item.is_from_msa ? (
+                      <span className="text-[11px] text-green-800/60 font-medium">MSA</span>
+                    ) : (
+                      <span className="text-[11px] text-amber-600 font-medium">Custom</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="py-1">
+                    <Pencil
+                      className="h-3 w-3 opacity-0 group-hover:opacity-50 hover:!opacity-100 transition-opacity cursor-pointer text-foreground/60"
+                      onClick={() => onEditRate(item)}
+                    />
+                  </TableCell>
+                </TableRow>
+              ))}
+              {filtered.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={isPassThrough ? 5 : 6} className="text-center text-muted-foreground/70 text-xs py-6">
+                    No items in this section
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
         </div>
-      </CardContent>
       )}
-    </Card>
+    </div>
   )
 }
 
@@ -413,29 +416,29 @@ export function RateCardManagementPage() {
 
   if (error) {
     return (
-      <div className="space-y-4">
-        <div className="pb-2 border-b border-border">
-          <h1 className="text-2xl font-bold tracking-tight">Rate Card Management</h1>
+      <div className="space-y-3">
+        <div>
+          <h1 className="text-lg font-semibold tracking-tight">Rate Card Management</h1>
+          <p className="text-sm text-muted-foreground">Manage client-specific pricing from MSA rate cards</p>
         </div>
-        <Card>
-          <CardContent className="pt-6">
-            <p className="text-sm text-destructive">{error}</p>
-            <p className="text-xs text-muted-foreground mt-1">Check that VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY are set in your environment.</p>
-          </CardContent>
-        </Card>
+        <div className="border border-border/40 rounded-md px-4 py-4">
+          <p className="text-[13px] text-destructive">{error}</p>
+          <p className="text-sm text-muted-foreground mt-1">Check that VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY are set in your environment.</p>
+        </div>
       </div>
     )
   }
 
   if (loading) {
     return (
-      <div className="space-y-4">
-        <div className="pb-2 border-b border-border">
-          <h1 className="text-2xl font-bold tracking-tight">Rate Card Management</h1>
+      <div className="space-y-3">
+        <div>
+          <h1 className="text-lg font-semibold tracking-tight">Rate Card Management</h1>
+          <p className="text-sm text-muted-foreground">Manage client-specific pricing from MSA rate cards</p>
         </div>
         <div className="flex items-center gap-2 text-muted-foreground py-12 justify-center">
-          <Loader2 className="h-5 w-5 animate-spin" />
-          <span>Loading clients...</span>
+          <Loader2 className="h-4 w-4 animate-spin" />
+          <span className="text-[13px]">Loading clients...</span>
         </div>
       </div>
     )
@@ -444,106 +447,87 @@ export function RateCardManagementPage() {
   // ── Main render ──
 
   return (
-    <div className="space-y-4">
-      <div className="pb-2 border-b border-border">
-        <h1 className="text-2xl font-bold tracking-tight">Rate Card Management</h1>
-        <p className="text-muted-foreground">Manage client-specific pricing from MSA rate cards</p>
+    <div className="space-y-3">
+      <div>
+        <h1 className="text-lg font-semibold tracking-tight">Rate Card Management</h1>
+        <p className="text-sm text-muted-foreground">Manage client-specific pricing from MSA rate cards</p>
       </div>
 
-      {/* Client selector cards */}
-      <div className="flex gap-3 overflow-x-auto pb-1">
-        {clients.map((client) => {
-          const isActive = client.id === selectedClientId
-          return (
-            <button
-              key={client.id}
-              onClick={() => setSelectedClientId(client.id)}
-              className={`flex flex-col items-center gap-1 rounded-lg border px-5 py-3 min-w-[120px] shrink-0 transition-colors ${
-                isActive
-                  ? 'border-primary bg-primary/10 ring-1 ring-primary/30'
-                  : 'border-border bg-card hover:bg-muted/50'
-              }`}
-            >
-              <span className="text-sm font-semibold">{client.name}</span>
-              {isActive && <span className="text-[11px] text-muted-foreground">{totalItems} rates</span>}
-              <span className="text-[11px] text-muted-foreground">{pct(client.third_party_markup)} markup</span>
-            </button>
-          )
-        })}
+      {/* Client selector + search row */}
+      <div className="flex items-end gap-3">
+        <div className="space-y-1">
+          <Label className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Client Rate Card</Label>
+          <Select value={selectedClientId ?? undefined} onValueChange={setSelectedClientId}>
+            <SelectTrigger className="h-9 w-[220px] text-sm font-medium border-border/60 bg-white dark:bg-slate-900 shadow-sm">
+              <SelectValue placeholder="Select client..." />
+            </SelectTrigger>
+            <SelectContent>
+              {clients.map((client) => (
+                <SelectItem key={client.id} value={client.id} className="text-[13px] focus:bg-green-800/10 focus:text-green-800/80">
+                  {client.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="relative flex-1">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground/60" />
+          <Input
+            placeholder="Search rates..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="h-8 pl-8 text-[13px] border-border/50 focus-visible:ring-1 focus-visible:ring-ring/30 rounded-md transition-colors"
+          />
+        </div>
       </div>
 
-      {/* Search bar */}
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-        <Input
-          placeholder="Search rates..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="pl-9"
-        />
-      </div>
-
-      {/* Client markup summary bar */}
+      {/* Client summary bar */}
       {selectedClient && (
-        <Card className="bg-gradient-to-r from-zinc-50 to-transparent">
-          <CardContent className="pt-5 pb-4">
-            <div className="flex items-center gap-6">
-              <div>
-                <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Client</p>
-                <p className="text-lg font-bold">{selectedClient.name}</p>
-              </div>
-              <div className="h-10 w-px bg-border" />
-              <div>
-                <p className="text-xs text-muted-foreground">Third Party Markup</p>
-                <p className="text-sm font-semibold">{pct(selectedClient.third_party_markup)}</p>
-              </div>
-              {selectedClient.agency_fee > 0 && (
-                <div>
-                  <p className="text-xs text-muted-foreground">Agency Fee</p>
-                  <p className="text-sm font-semibold">{pct(selectedClient.agency_fee)}</p>
-                </div>
-              )}
-              {selectedClient.trucking_markup > 0 && (
-                <div>
-                  <p className="text-xs text-muted-foreground">Trucking Markup</p>
-                  <p className="text-sm font-semibold">{pct(selectedClient.trucking_markup)}</p>
-                </div>
-              )}
-              <div className="h-10 w-px bg-border" />
-              <div>
-                <p className="text-xs text-muted-foreground">Total Rates</p>
-                <p className="text-lg font-bold">{totalItems}</p>
-                <p className="text-[11px] text-muted-foreground">{msaItems} MSA · {customItems} custom</p>
-              </div>
-              <div className="ml-auto text-right">
-                <p className="text-xs text-muted-foreground">Last Updated</p>
-                <p className="text-sm font-medium">{new Date(selectedClient.updated_at).toLocaleDateString()}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        <p className="text-[13px] tabular-nums">
+          <span className="font-medium text-foreground">{selectedClient.name}</span>
+          <span className="text-muted-foreground/60 mx-1.5">·</span>
+          <span className="text-foreground/80">{pct(selectedClient.third_party_markup)} markup</span>
+          {selectedClient.agency_fee > 0 && (<>
+            <span className="text-muted-foreground/60 mx-1.5">·</span>
+            <span className="text-foreground/80">{pct(selectedClient.agency_fee)} agency fee</span>
+          </>)}
+          {selectedClient.trucking_markup > 0 && (<>
+            <span className="text-muted-foreground/60 mx-1.5">·</span>
+            <span className="text-foreground/80">{pct(selectedClient.trucking_markup)} trucking</span>
+          </>)}
+          <span className="text-muted-foreground/60 mx-1.5">·</span>
+          <span className="text-foreground/80">{totalItems} rates</span>
+          <span className="text-muted-foreground mx-1">({msaItems} MSA</span>
+          <span className="text-muted-foreground">·</span>
+          <span className="text-muted-foreground mx-1">{customItems} custom)</span>
+          <span className="text-muted-foreground/60 mx-1.5">·</span>
+          <span className="text-muted-foreground/70">Updated {new Date(selectedClient.updated_at).toLocaleDateString()}</span>
+        </p>
       )}
 
       {/* Section-grouped rate tables */}
       {loadingItems ? (
         <div className="flex items-center gap-2 text-muted-foreground py-8 justify-center">
-          <Loader2 className="h-5 w-5 animate-spin" />
-          <span>Loading rate card...</span>
+          <Loader2 className="h-4 w-4 animate-spin" />
+          <span className="text-[13px]">Loading rate card...</span>
         </div>
       ) : (
-        sectionsWithItems.map(({ section, items }) => (
-          <SectionTable
-            key={section.id}
-            section={section}
-            items={items}
-            search={search}
-            thirdPartyMarkup={selectedClient?.third_party_markup ?? 0}
-            collapsed={!!collapsedSections[section.id]}
-            onToggle={() => toggleSection(section.id)}
-            onAddRate={handleAddRate}
-            onEditRate={handleEditRate}
-          />
-        ))
+        <div className="space-y-2.5">
+          {sectionsWithItems.map(({ section, items }) => (
+            <SectionTable
+              key={section.id}
+              section={section}
+              items={items}
+              search={search}
+              thirdPartyMarkup={selectedClient?.third_party_markup ?? 0}
+              collapsed={!!collapsedSections[section.id]}
+              onToggle={() => toggleSection(section.id)}
+              onAddRate={handleAddRate}
+              onEditRate={handleEditRate}
+            />
+          ))}
+        </div>
       )}
 
       {/* Add/Edit dialog */}
