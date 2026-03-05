@@ -25,6 +25,7 @@ import {
   Trash2,
   Send,
   Search,
+  Check,
 } from 'lucide-react'
 import {
   getEstimate,
@@ -242,9 +243,18 @@ function AddRoleModal({
   onOpenChange: (open: boolean) => void
   rateCardData: RateCardItemsBySection[]
   estimate: EstimateWithClient
-  onAdd: (entry: { role_name: string; unit_rate: number; cost_rate: number | null; gl_code: string | null; rate_card_item_id: string | null }) => void
+  onAdd: (entries: { role_name: string; unit_rate: number; cost_rate: number | null; gl_code: string | null; rate_card_item_id: string | null }[]) => void
 }) {
   const [search, setSearch] = useState('')
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+
+  // Clear selections when modal opens/closes
+  useEffect(() => {
+    if (!open) {
+      setSelectedIds(new Set())
+      setSearch('')
+    }
+  }, [open])
 
   // Filter to labor sections only
   const laborSections = rateCardData.filter((s) => s.section.cost_type === 'labor')
@@ -255,19 +265,29 @@ function AddRoleModal({
     ? allRoles.filter((r) => r.name.toLowerCase().includes(search.toLowerCase()))
     : allRoles
 
-  function handleSelect(role: typeof allRoles[number]) {
-    const isOffice = estimate.cost_structure === 'office'
-    const costRate = isOffice && role.unit_rate
-      ? role.unit_rate * (1 - estimate.clients.office_payout_pct)
-      : null
-    onAdd({
-      role_name: role.name,
-      unit_rate: role.unit_rate ?? 0,
-      cost_rate: costRate,
-      gl_code: role.gl_code,
-      rate_card_item_id: role.id,
+  function toggleRole(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
     })
-    setSearch('')
+  }
+
+  function handleAddSelected() {
+    const isOffice = estimate.cost_structure === 'office'
+    const entries = allRoles
+      .filter((r) => selectedIds.has(r.id))
+      .map((role) => ({
+        role_name: role.name,
+        unit_rate: role.unit_rate ?? 0,
+        cost_rate: isOffice && role.unit_rate
+          ? role.unit_rate * (1 - estimate.clients.office_payout_pct)
+          : null,
+        gl_code: role.gl_code,
+        rate_card_item_id: role.id,
+      }))
+    onAdd(entries)
     onOpenChange(false)
   }
 
@@ -275,8 +295,8 @@ function AddRoleModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[480px]">
         <DialogHeader>
-          <DialogTitle className="text-sm font-semibold">Add Role from Rate Card</DialogTitle>
-          <DialogDescription className="text-xs">Select a role from {estimate.clients.name}'s rate card</DialogDescription>
+          <DialogTitle className="text-sm font-semibold">Add Roles from Rate Card</DialogTitle>
+          <DialogDescription className="text-xs">Select roles from {estimate.clients.name}'s rate card</DialogDescription>
         </DialogHeader>
         <div className="relative">
           <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-muted-foreground/50" />
@@ -286,23 +306,43 @@ function AddRoleModal({
           {filtered.length === 0 && (
             <p className="text-xs text-muted-foreground/50 text-center py-4">No matching roles found</p>
           )}
-          {filtered.map((role) => (
-            <button
-              key={role.id}
-              onClick={() => handleSelect(role)}
-              className="w-full text-left px-3 py-1.5 rounded-sm hover:bg-muted/40 transition-colors"
-            >
-              <div className="flex items-center justify-between">
-                <span className="text-[13px] font-medium text-foreground/90">{role.name}</span>
-                <span className="text-[13px] text-muted-foreground/60 tabular-nums">
-                  {role.unit_rate ? `$${role.unit_rate.toLocaleString()}` : 'Pass-through'}
-                  {role.unit_label ? ` ${role.unit_label}` : ''}
-                </span>
-              </div>
-              <p className="text-[11px] text-muted-foreground/70">{role.sectionName}{role.gl_code ? ` · GL ${role.gl_code}` : ''}</p>
-            </button>
-          ))}
+          {filtered.map((role) => {
+            const selected = selectedIds.has(role.id)
+            return (
+              <button
+                key={role.id}
+                onClick={() => toggleRole(role.id)}
+                className={`w-full text-left px-3 py-1.5 rounded-sm transition-colors flex items-start gap-2.5 ${selected ? 'bg-muted/60' : 'hover:bg-muted/40'}`}
+              >
+                <div className={`mt-0.5 flex-shrink-0 w-4 h-4 rounded border ${selected ? 'bg-green-800/15 border-green-800/40' : 'border-border/50'} flex items-center justify-center`}>
+                  {selected && <Check className="h-3 w-3 text-green-800/70" />}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[13px] font-medium text-foreground/90">{role.name}</span>
+                    <span className="text-[13px] text-muted-foreground/60 tabular-nums">
+                      {role.unit_rate ? `$${role.unit_rate.toLocaleString()}` : 'Pass-through'}
+                      {role.unit_label ? ` ${role.unit_label}` : ''}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground/70">{role.sectionName}{role.gl_code ? ` · GL ${role.gl_code}` : ''}</p>
+                </div>
+              </button>
+            )
+          })}
         </div>
+        <DialogFooter>
+          <Button
+            onClick={handleAddSelected}
+            disabled={selectedIds.size === 0}
+            size="sm"
+            className="text-xs bg-white hover:bg-green-800/10 text-foreground border border-border/50 hover:border-green-800/30 hover:text-green-800/80 shadow-sm"
+          >
+            {selectedIds.size === 0
+              ? 'Select roles to add'
+              : `Add ${selectedIds.size} Role${selectedIds.size > 1 ? 's' : ''}`}
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   )
@@ -436,7 +476,7 @@ function LaborLogTab({
   onAddLocation: (name: string) => void
   onDeleteLocation: (id: string) => void
   onRenameLocation: (id: string, name: string) => void
-  onAddEntry: (entry: { role_name: string; unit_rate: number; cost_rate: number | null; gl_code: string | null; rate_card_item_id: string | null }) => void
+  onAddEntry: (entries: { role_name: string; unit_rate: number; cost_rate: number | null; gl_code: string | null; rate_card_item_id: string | null }[]) => void
   onUpdateEntry: (id: string, updates: Partial<LaborEntry>) => void
   onDeleteEntry: (id: string) => void
 }) {
@@ -1246,32 +1286,37 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
     }
   }
 
-  async function handleAddEntry(data: { role_name: string; unit_rate: number; cost_rate: number | null; gl_code: string | null; rate_card_item_id: string | null }) {
+  async function handleAddEntry(entries: { role_name: string; unit_rate: number; cost_rate: number | null; gl_code: string | null; rate_card_item_id: string | null }[]) {
     if (!activeLocationId) return
     try {
-      const entry = await createLaborEntry({
-        labor_log_id: activeLocationId,
-        role_name: data.role_name,
-        unit_rate: data.unit_rate,
-        cost_rate: data.cost_rate,
-        gl_code: data.gl_code,
-        rate_card_item_id: data.rate_card_item_id,
-        quantity: 1,
-        days: estimate?.duration_days ?? 1,
-        override_rate: null,
-        override_reason: null,
-        has_overtime: false,
-        overtime_rate: null,
-        overtime_hours: null,
-        notes: null,
-        display_order: (laborEntriesMap[activeLocationId]?.length ?? 0),
-      })
+      const currentCount = laborEntriesMap[activeLocationId]?.length ?? 0
+      const created = await Promise.all(
+        entries.map((data, i) =>
+          createLaborEntry({
+            labor_log_id: activeLocationId,
+            role_name: data.role_name,
+            unit_rate: data.unit_rate,
+            cost_rate: data.cost_rate,
+            gl_code: data.gl_code,
+            rate_card_item_id: data.rate_card_item_id,
+            quantity: 1,
+            days: estimate?.duration_days ?? 1,
+            override_rate: null,
+            override_reason: null,
+            has_overtime: false,
+            overtime_rate: null,
+            overtime_hours: null,
+            notes: null,
+            display_order: currentCount + i,
+          })
+        )
+      )
       setLaborEntriesMap((prev) => ({
         ...prev,
-        [activeLocationId]: [...(prev[activeLocationId] ?? []), entry],
+        [activeLocationId]: [...(prev[activeLocationId] ?? []), ...created],
       }))
     } catch (err) {
-      console.error('Failed to add entry:', err)
+      console.error('Failed to add entries:', err)
     }
   }
 

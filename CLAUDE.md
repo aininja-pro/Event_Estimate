@@ -22,7 +22,25 @@ A web application that replaces DriveShop's spreadsheet-based event estimation w
 
 ## Current State
 
-Phase 2 is underway. The Rate Card Management Engine is complete — Supabase schema deployed, all 8 client rate cards seeded from MSA data, functional UI with section grouping, collapsible sections, client selector, and Add Rate functionality with Custom badge tracking. Current sprint: Estimate Builder & Labor Planning (Weeks 3-5).
+Phase 2 is well underway. Completed features:
+
+- **Rate Card Management Engine** — Supabase schema deployed, all 8 client rate cards seeded from MSA data. Two-tab UI:
+  - **Client Rate Cards tab** — Section-grouped rate tables with collapsible sections (default collapsed), client dropdown selector, MSA vs Custom badge tracking. Add Rate modal uses a searchable fee type dropdown (filtered by section) that auto-fills name, GL code, and unit label from the `fee_types` table. Edit mode shows name read-only with rate-only editing. Inline editable client billing contact fields (name, phone, email, address) in the header row, saving to Supabase on blur. Bulk Import button for uploading CSV/Excel files with fee type matching preview.
+  - **Fee Types tab** — Full CRUD management of the master fee types table, grouped by section (Planning & Admin, Onsite Labor, Travel, Production, Logistics). Add/edit/delete with confirmation dialogs.
+- **fee_types Master Table** — Centralized GL codes based on Dave's feedback. GL codes live in `fee_types` and `rate_card_items` reference them via `fee_type_id`. This ensures GL code consistency across all clients. 127 fee types seeded across 5 sections.
+- **Estimate Builder** — Full estimate creation and editing with Supabase-backed CRUD. Includes:
+  - Labor Log tab with role-based staffing (qty, days, day rate, cost rate, GP calculation). "Add Role from Rate Card" modal supports multi-select with checkboxes and batch add.
+  - Multi-segment support ("Segments" replaces "Locations" to support both geographic and temporal divisions, e.g., "San Diego" or "January 2026"). Segments are pill-selectable with double-click inline rename.
+  - Section tabs: Production, Travel & Logistics, Creative, Access & Logistics, Misc
+  - Summary tab with labor grouped by segment, line items grouped by section, grand totals
+  - AI nudge panel (right sidebar) for scoping assistance
+- **Estimates List Page** — Table view of all estimates with status dots, create flow via modal dialog, navigation to Estimate Builder.
+- **UI Styling** — Professional density pass (Stripe/Linear aesthetic) across all pages. Muted hunter green accents, slate section backgrounds, consistent `text-[13px]` body / `text-[10px]` uppercase headers.
+
+All data persists to Supabase (estimates, labor_logs, labor_entries, estimate_line_items, rate_card_items, fee_types, clients, rate_card_sections).
+
+**Completed Sprint:** Rate Card refinements — Fee Types management tab, fee-type-linked Add Rate modal, client billing contact fields, bulk CSV/Excel import with preview.
+**Next Sprint (Weeks 6-7):** Workflow Engine (approval routing, version history, status management).
 
 ## Tech Stack
 
@@ -31,6 +49,7 @@ Phase 2 is underway. The Rate Card Management Engine is complete — Supabase sc
 | Frontend | React 19 + TypeScript, Vite 7, React Router v7 |
 | Styling | Tailwind CSS v4 + shadcn/ui |
 | Charts | Recharts |
+| File Parsing | SheetJS (xlsx) for CSV/Excel import |
 | Database | PostgreSQL via Supabase |
 | Backend | Python + FastAPI (to be added in Phase 2) |
 | AI | Claude API (Anthropic) |
@@ -51,9 +70,11 @@ Phase 2 is underway. The Rate Card Management Engine is complete — Supabase sc
 │   ├── lib/
 │   │   ├── ai.ts                  — Anthropic API integration
 │   │   ├── data.ts                — Historical data helpers
+│   │   ├── estimate-service.ts    — Estimate/labor CRUD (Supabase)
+│   │   ├── rate-card-service.ts   — Rate card/client CRUD (Supabase)
 │   │   ├── supabase.ts            — Supabase client (graceful null if env vars missing)
 │   │   └── utils.ts               — cn() helper
-│   ├── pages/                     — All page components
+│   ├── pages/                     — All page components (EstimateBuilderPage, EstimatesListPage, RateCardManagementPage, etc.)
 │   └── types/                     — TypeScript interfaces
 ├── scripts/                       — Python data pipeline scripts
 ├── historical_estimates/          — 1,700+ historical estimate spreadsheets
@@ -72,9 +93,18 @@ The app has two independent layout trees under a single BrowserRouter:
 
 ## Supabase Integration
 
-Supabase is already wired up in `src/lib/supabase.ts`. Currently used only for a feedback table. The client gracefully returns `null` if `VITE_SUPABASE_URL` or `VITE_SUPABASE_ANON_KEY` env vars are missing, so the rest of the app works without Supabase configured.
+Supabase is the primary data store. Client configured in `src/lib/supabase.ts` (graceful null if env vars missing). Key tables:
 
-**Phase 2 will expand Supabase to be the primary data store** for rate cards, estimates, labor logs, approvals, versions, and more.
+- `clients` — OEM client records (Mazda, Volvo, VW, Lucid, etc.) with billing contact fields (name, email, phone, address)
+- `rate_card_sections` — Section groupings per client (Planning & Admin Labor, Onsite Labor, etc.)
+- `rate_card_items` — Individual rate entries with MSA/Custom tracking, references `fee_type_id`
+- `fee_types` — Master table of centralized GL codes and fee type names. Section values are snake_case keys: `planning_admin`, `onsite_labor`, `travel`, `production`, `logistics`
+- `estimates` — Estimate header records (event name, client, dates, status, cost structure)
+- `labor_logs` — Segments within an estimate (geographic or temporal divisions)
+- `labor_entries` — Individual labor roles staffed per segment (qty, days, rates)
+- `estimate_line_items` — Non-labor line items per segment per section (production, travel, etc.)
+
+Service layers: `src/lib/rate-card-service.ts` (clients, rate cards, fee types CRUD) and `src/lib/estimate-service.ts`.
 
 ## Environment Variables
 
@@ -163,7 +193,10 @@ When building an estimate, rates are consumed in a grid format:
 | Outputs | 10-11 | Change orders, recaps, PDF generation |
 | Delivery | 12 | Intacct integration, pipeline dashboard, QA, training |
 
-**Current Sprint: Weeks 1-2 — Rate Card Management Engine**
+**Weeks 1-2 (Complete):** Rate Card Management Engine
+**Weeks 3-5 (Complete):** Estimate Builder & Labor Planning
+**Week 5+ (Complete):** Rate Card refinements — Fee Types tab, fee-type-linked Add Rate, client contacts, bulk import
+**Next Sprint (Weeks 6-7):** Workflow Engine (approval routing, version history, status management)
 
 ## Key Stakeholders
 
