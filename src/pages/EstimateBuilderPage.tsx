@@ -30,6 +30,7 @@ import {
   ChevronUp,
   ChevronDown,
 } from 'lucide-react'
+import { ScheduleGrid } from '@/components/schedule/ScheduleGrid'
 import {
   getEstimate,
   updateEstimate,
@@ -232,8 +233,9 @@ function EventHeader({
   const [attendance, setAttendance] = useState(estimate.expected_attendance?.toString() ?? '')
   const [poNumber, setPoNumber] = useState(estimate.po_number ?? '')
   const [projectId, setProjectId] = useState(estimate.project_id ?? '')
-  const [notes, setNotes] = useState(estimate.project_notes ?? '')
-  const [showNotes, setShowNotes] = useState(!!estimate.project_notes)
+  const [internalNotes, setInternalNotes] = useState(estimate.internal_notes ?? '')
+  const [publishedNotes, setPublishedNotes] = useState(estimate.published_notes ?? '')
+  const [showNotes, setShowNotes] = useState(!!(estimate.internal_notes || estimate.published_notes))
 
   function saveField(field: string, value: string | number | null) {
     const updates: EstimateUpdate = { [field]: value || null }
@@ -310,9 +312,15 @@ function EventHeader({
           + Add notes
         </button>
       ) : (
-        <div className="mt-2.5">
-          <p className={fieldLabel}>Notes</p>
-          <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} onBlur={() => saveField('project_notes', notes)} className="min-h-[40px] text-[13px] border-border/40 bg-transparent resize-none focus-visible:ring-0 focus-visible:border-border/40" placeholder="Internal notes..." />
+        <div className="mt-2.5 grid grid-cols-2 gap-3">
+          <div>
+            <p className={fieldLabel}>Internal Notes <span className="text-muted-foreground/40 normal-case tracking-normal">(not shown to client)</span></p>
+            <Textarea value={internalNotes} onChange={(e) => setInternalNotes(e.target.value)} onBlur={() => saveField('internal_notes', internalNotes)} className="min-h-[40px] text-[13px] border-border/40 bg-transparent resize-none focus-visible:ring-0 focus-visible:border-border/40" placeholder="Internal team notes..." />
+          </div>
+          <div>
+            <p className={fieldLabel}>Published Notes <span className="text-muted-foreground/40 normal-case tracking-normal">(shown on estimate)</span></p>
+            <Textarea value={publishedNotes} onChange={(e) => setPublishedNotes(e.target.value)} onBlur={() => saveField('published_notes', publishedNotes)} className="min-h-[40px] text-[13px] border-border/40 bg-transparent resize-none focus-visible:ring-0 focus-visible:border-border/40" placeholder="Notes visible to client..." />
+          </div>
         </div>
       )}
     </div>
@@ -1373,13 +1381,13 @@ function AddLineItemManualModal({
 
 // Rate card section display order and line-item key mapping
 const SUMMARY_SECTIONS = [
-  { name: 'Planning & Administration Labor', type: 'labor', lineItemKey: null },
-  { name: 'Onsite Event Labor', type: 'labor', lineItemKey: null },
-  { name: 'Travel Expenses', type: 'line_item', lineItemKey: 'travel' },
-  { name: 'Creative Costs', type: 'line_item', lineItemKey: 'creative' },
-  { name: 'Production Expenses', type: 'line_item', lineItemKey: 'production' },
-  { name: 'Logistics Expenses', type: 'line_item', lineItemKey: 'access' },
-  { name: 'Misc', type: 'line_item', lineItemKey: 'misc' },
+  { name: 'Planning & Administration Labor', type: 'labor', lineItemKey: null, passThrough: false },
+  { name: 'Onsite Event Labor', type: 'labor', lineItemKey: null, passThrough: false },
+  { name: 'Travel Expenses', type: 'line_item', lineItemKey: 'travel', passThrough: true },
+  { name: 'Creative Costs', type: 'line_item', lineItemKey: 'creative', passThrough: false },
+  { name: 'Production Expenses', type: 'line_item', lineItemKey: 'production', passThrough: true },
+  { name: 'Logistics Expenses', type: 'line_item', lineItemKey: 'access', passThrough: false },
+  { name: 'Misc', type: 'line_item', lineItemKey: 'misc', passThrough: false },
 ] as const
 
 function SummaryTab({
@@ -1427,6 +1435,7 @@ function SummaryTab({
     name: string
     details: DetailRow[]
     total: { revenue: number; cost: number }
+    passThrough: boolean
   }
 
   const blocks: SectionBlock[] = []
@@ -1486,13 +1495,19 @@ function SummaryTab({
     }
 
     if (details.length > 0) {
-      blocks.push({ name: sec.name, details, total: { revenue: totalRevenue, cost: totalCost } })
+      blocks.push({ name: sec.name, details, total: { revenue: totalRevenue, cost: totalCost }, passThrough: sec.passThrough })
     }
   }
 
   const grandRevenue = blocks.reduce((s, b) => s + b.total.revenue, 0)
   const grandCost = blocks.reduce((s, b) => s + b.total.cost, 0)
   const grandGP = grandRevenue - grandCost
+  const ptBlocks = blocks.filter(b => b.passThrough)
+  const passThroughRevenue = ptBlocks.reduce((s, b) => s + b.total.revenue, 0)
+  const passThroughCost = ptBlocks.reduce((s, b) => s + b.total.cost, 0)
+  const netRevenue = grandRevenue - passThroughRevenue
+  const netCost = grandCost - passThroughCost
+  const netGP = netRevenue - netCost
 
   return (
     <div className="border border-border/40 rounded-md">
@@ -1508,7 +1523,7 @@ function SummaryTab({
               <TableRow className="border-b border-border/40 bg-slate-50 dark:bg-slate-800/30 hover:bg-slate-50 dark:hover:bg-slate-800/30">
                 <TableHead className="w-[200px] py-2 text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Item</TableHead>
                 <TableHead className="py-2 text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Detail</TableHead>
-                <TableHead className="py-2 text-[10px] font-medium uppercase tracking-widest text-right w-[80px] text-muted-foreground">Revenue</TableHead>
+                <TableHead className="py-2 text-[10px] font-medium uppercase tracking-widest text-right w-[80px] text-muted-foreground">GR</TableHead>
                 <TableHead className="py-2 text-[10px] font-medium uppercase tracking-widest text-right w-[80px] text-muted-foreground">Cost</TableHead>
                 <TableHead className="py-2 text-[10px] font-medium uppercase tracking-widest text-right w-[80px] text-muted-foreground">GP</TableHead>
                 <TableHead className="py-2 text-[10px] font-medium uppercase tracking-widest text-right w-[52px] text-muted-foreground">GP%</TableHead>
@@ -1552,13 +1567,20 @@ function SummaryTab({
                   </React.Fragment>
                 )
               })}
-              {/* Grand Total — same table, columns align */}
+              {/* Grand Totals */}
               <TableRow className="border-t border-foreground/10 hover:bg-transparent">
-                <TableCell colSpan={2} className="py-2 text-[11px] font-bold uppercase tracking-widest text-foreground/90">Grand Total</TableCell>
-                <TableCell className="py-2 text-[12px] text-right font-bold tabular-nums text-foreground">{fmt(grandRevenue)}</TableCell>
-                <TableCell className="py-2 text-[12px] text-right font-bold tabular-nums text-foreground">{fmt(grandCost)}</TableCell>
-                <TableCell className="py-2 text-[12px] text-right font-bold tabular-nums text-green-800/60">{fmt(grandGP)}</TableCell>
-                <TableCell className="py-2 text-[12px] text-right font-bold tabular-nums text-foreground/60">{pct(grandGP, grandRevenue)}</TableCell>
+                <TableCell colSpan={2} className="py-1.5 text-[11px] font-bold uppercase tracking-widest text-foreground/90">GR (Gross Revenue)</TableCell>
+                <TableCell className="py-1.5 text-[12px] text-right font-bold tabular-nums text-foreground">{fmt(grandRevenue)}</TableCell>
+                <TableCell className="py-1.5 text-[12px] text-right font-bold tabular-nums text-foreground">{fmt(grandCost)}</TableCell>
+                <TableCell className="py-1.5 text-[12px] text-right font-bold tabular-nums text-green-800/60">{fmt(grandGP)}</TableCell>
+                <TableCell className="py-1.5 text-[12px] text-right font-bold tabular-nums text-foreground/60">{pct(grandGP, grandRevenue)}</TableCell>
+              </TableRow>
+              <TableRow className="hover:bg-transparent">
+                <TableCell colSpan={2} className="py-1.5 text-[11px] font-bold uppercase tracking-widest text-foreground/70">NR (Net Revenue)</TableCell>
+                <TableCell className="py-1.5 text-[12px] text-right font-bold tabular-nums text-foreground/80">{fmt(netRevenue)}</TableCell>
+                <TableCell className="py-1.5 text-[12px] text-right font-bold tabular-nums text-foreground/80">{fmt(netCost)}</TableCell>
+                <TableCell className="py-1.5 text-[12px] text-right font-bold tabular-nums text-green-800/60">{fmt(netGP)}</TableCell>
+                <TableCell className="py-1.5 text-[12px] text-right font-bold tabular-nums text-foreground/60">{pct(netGP, netRevenue)}</TableCell>
               </TableRow>
             </TableBody>
           </Table>
@@ -1627,6 +1649,17 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
     try {
       const updated = await updateEstimate(estimateId, updates)
       setEstimate((prev) => prev ? { ...prev, ...updated } : prev)
+
+      // Sync date changes to labor logs so the schedule grid picks them up
+      if (updates.start_date !== undefined || updates.end_date !== undefined) {
+        const dateUpdates: { start_date?: string | null; end_date?: string | null } = {}
+        if (updates.start_date !== undefined) dateUpdates.start_date = updates.start_date
+        if (updates.end_date !== undefined) dateUpdates.end_date = updates.end_date
+        const updatedLogs = await Promise.all(
+          laborLogs.map((log) => updateLaborLog(log.id, dateUpdates))
+        )
+        setLaborLogs(updatedLogs)
+      }
     } catch (err) {
       console.error('Failed to update estimate:', err)
     }
@@ -1841,14 +1874,35 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
         <div className="flex-[7] min-w-0 space-y-2.5">
           <EventHeader estimate={estimate} onUpdate={handleUpdateEstimate} />
 
-          <Tabs defaultValue="labor">
+          <Tabs defaultValue="schedule">
             <TabsList variant="line" className="border-b border-border/40 w-full">
+              <TabsTrigger value="schedule" className="text-[13px]">Schedule</TabsTrigger>
               <TabsTrigger value="labor" className="text-[13px]">Labor Log</TabsTrigger>
               {lineItemTabs.map((tab) => (
                 <TabsTrigger key={tab.key} value={tab.key} className="text-[13px]">{tab.label}</TabsTrigger>
               ))}
               <TabsTrigger value="summary" className="text-[13px]">Summary</TabsTrigger>
             </TabsList>
+
+            <TabsContent value="schedule">
+              <div className="space-y-2">
+                <LocationSelector
+                  laborLogs={laborLogs}
+                  activeLocationId={activeLocationId}
+                  onSelectLocation={setActiveLocationId}
+                  onAddLocation={handleAddLocation}
+                  onDeleteLocation={handleDeleteLocation}
+                  onRenameLocation={handleRenameLocation}
+                />
+                {activeLocationId && laborLogs.find((l) => l.id === activeLocationId) && (
+                  <ScheduleGrid
+                    laborLog={laborLogs.find((l) => l.id === activeLocationId)!}
+                    estimate={estimate}
+                    rateCardData={rateCardData}
+                  />
+                )}
+              </div>
+            </TabsContent>
 
             <TabsContent value="labor">
               <LaborLogTab

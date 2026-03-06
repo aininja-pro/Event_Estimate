@@ -157,7 +157,8 @@ export function EstimatesListPage() {
         po_number: null,
         project_id: null,
         cost_structure: formCostStructure,
-        project_notes: null,
+        internal_notes: null,
+        published_notes: null,
         status: 'draft',
         created_by: null,
       })
@@ -168,6 +169,8 @@ export function EstimatesListPage() {
           estimate_id: estimate.id,
           location_name: formLocation,
           is_primary: true,
+          start_date: formStartDate || null,
+          end_date: formEndDate || null,
         })
       }
 

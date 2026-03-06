@@ -13,7 +13,8 @@ export interface Estimate {
   po_number: string | null
   project_id: string | null
   cost_structure: 'corporate' | 'office'
-  project_notes: string | null
+  internal_notes: string | null
+  published_notes: string | null
   status: 'pipeline' | 'draft' | 'review' | 'approved' | 'active' | 'recap' | 'complete' | 'archived'
   created_by: string | null
   created_at: string
