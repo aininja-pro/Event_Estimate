@@ -29,8 +29,11 @@ import {
   Plus,
   ChevronUp,
   ChevronDown,
+  Calendar,
 } from 'lucide-react'
 import { ScheduleGrid } from '@/components/schedule/ScheduleGrid'
+import { getScheduleEntries, computeScheduleRollup } from '@/lib/schedule-service'
+import type { ScheduleEntry, LaborRollupRow } from '@/types/schedule'
 import {
   getEstimate,
   updateEstimate,
@@ -646,6 +649,7 @@ function LaborLogTab({
   entries,
   rateCardData,
   allEntriesMap,
+  scheduleEntriesMap,
   onSelectLocation,
   onAddLocation,
   onDeleteLocation,
@@ -653,6 +657,7 @@ function LaborLogTab({
   onAddEntry,
   onUpdateEntry,
   onDeleteEntry,
+  onSwitchToSchedule,
 }: {
   estimate: EstimateWithClient
   laborLogs: LaborLog[]
@@ -660,6 +665,7 @@ function LaborLogTab({
   entries: LaborEntry[]
   rateCardData: RateCardItemsBySection[]
   allEntriesMap: Record<string, LaborEntry[]>
+  scheduleEntriesMap: Record<string, ScheduleEntry[]>
   onSelectLocation: (id: string) => void
   onAddLocation: (name: string) => void
   onDeleteLocation: (id: string) => void
@@ -667,26 +673,52 @@ function LaborLogTab({
   onAddEntry: (entries: { role_name: string; unit_rate: number; cost_rate: number | null; gl_code: string | null; rate_card_item_id: string | null }[]) => void
   onUpdateEntry: (id: string, updates: Partial<LaborEntry>) => void
   onDeleteEntry: (id: string) => void
+  onSwitchToSchedule: () => void
 }) {
   const [showAddRole, setShowAddRole] = useState(false)
 
-  // Active segment summary
-  const segLabor = entries.filter((e) => !e.role_name.toLowerCase().includes('per diem'))
-  const segRevenue = segLabor.reduce((sum, e) => sum + e.quantity * e.days * (e.override_rate ?? e.unit_rate), 0)
-  const segCost = segLabor.reduce((sum, e) => sum + e.quantity * e.days * (e.cost_rate ?? 0), 0)
-  const segGP = segRevenue - segCost
-  const segStaff = segLabor.reduce((sum, e) => sum + e.quantity, 0)
+  // Check if the active segment has schedule data
+  const activeScheduleEntries = activeLocationId ? (scheduleEntriesMap[activeLocationId] ?? []) : []
+  const hasScheduleData = activeScheduleEntries.length > 0
+  const activeRollup = hasScheduleData ? computeScheduleRollup(activeScheduleEntries) : []
+
+  // Active segment summary (from schedule rollup or manual entries)
   const activeLog = laborLogs.find((l) => l.id === activeLocationId)
+  let segRevenue: number, segCost: number, segGP: number, segStaff: number
+
+  if (hasScheduleData) {
+    segRevenue = activeRollup.reduce((s, r) => s + r.revenue_total, 0)
+    segCost = activeRollup.reduce((s, r) => s + r.cost_total, 0)
+    segGP = segRevenue - segCost
+    segStaff = activeRollup.reduce((s, r) => s + r.quantity, 0)
+  } else {
+    const segLabor = entries.filter((e) => !e.role_name.toLowerCase().includes('per diem'))
+    segRevenue = segLabor.reduce((sum, e) => sum + e.quantity * e.days * (e.override_rate ?? e.unit_rate), 0)
+    segCost = segLabor.reduce((sum, e) => sum + e.quantity * e.days * (e.cost_rate ?? 0), 0)
+    segGP = segRevenue - segCost
+    segStaff = segLabor.reduce((sum, e) => sum + e.quantity, 0)
+  }
 
   // All-segments summary
-  const allEntries = Object.values(allEntriesMap).flat()
-  const laborEntries = allEntries.filter((e) => !e.role_name.toLowerCase().includes('per diem'))
-  const perDiemEntries = allEntries.filter((e) => e.role_name.toLowerCase().includes('per diem'))
-  const laborRevenue = laborEntries.reduce((sum, e) => sum + e.quantity * e.days * (e.override_rate ?? e.unit_rate), 0)
-  const laborCost = laborEntries.reduce((sum, e) => sum + e.quantity * e.days * (e.cost_rate ?? 0), 0)
-  const laborGP = laborRevenue - laborCost
-  const staffCount = laborEntries.reduce((sum, e) => sum + e.quantity, 0)
-  const perDiemTotal = perDiemEntries.reduce((sum, e) => sum + e.quantity * e.days * (e.override_rate ?? e.unit_rate), 0)
+  let laborRevenue = 0, laborCost = 0, laborGP = 0, staffCount = 0, perDiemTotal = 0
+  for (const log of laborLogs) {
+    const schedEntries = scheduleEntriesMap[log.id] ?? []
+    if (schedEntries.length > 0) {
+      const rollup = computeScheduleRollup(schedEntries)
+      laborRevenue += rollup.reduce((s, r) => s + r.revenue_total, 0)
+      laborCost += rollup.reduce((s, r) => s + r.cost_total, 0)
+      staffCount += rollup.reduce((s, r) => s + r.quantity, 0)
+    } else {
+      const allEntries = allEntriesMap[log.id] ?? []
+      const labor = allEntries.filter((e) => !e.role_name.toLowerCase().includes('per diem'))
+      const perDiem = allEntries.filter((e) => e.role_name.toLowerCase().includes('per diem'))
+      laborRevenue += labor.reduce((sum, e) => sum + e.quantity * e.days * (e.override_rate ?? e.unit_rate), 0)
+      laborCost += labor.reduce((sum, e) => sum + e.quantity * e.days * (e.cost_rate ?? 0), 0)
+      staffCount += labor.reduce((sum, e) => sum + e.quantity, 0)
+      perDiemTotal += perDiem.reduce((sum, e) => sum + e.quantity * e.days * (e.override_rate ?? e.unit_rate), 0)
+    }
+  }
+  laborGP = laborRevenue - laborCost
 
   return (
     <div className="space-y-2">
@@ -699,43 +731,101 @@ function LaborLogTab({
         onRenameLocation={onRenameLocation}
       />
 
+      {/* Schedule-driven banner */}
+      {hasScheduleData && (
+        <div className="flex items-center gap-2 px-3 py-2 bg-sky-50 dark:bg-sky-900/20 border border-sky-200/50 rounded-md">
+          <Calendar className="h-3.5 w-3.5 text-sky-600/70" />
+          <p className="text-[12px] text-sky-800/70">This labor log is driven by the Schedule tab. Edit the schedule to update labor.</p>
+        </div>
+      )}
+
       {/* Labor Table */}
       <div>
-        {entries.length === 0 ? (
-          <p className="text-xs text-muted-foreground/70 text-center py-6">No roles added yet</p>
+        {hasScheduleData ? (
+          /* Read-only rollup from schedule data */
+          activeRollup.length === 0 ? (
+            <p className="text-xs text-muted-foreground/70 text-center py-6">No staff scheduled yet</p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow className="border-b border-border/40 bg-slate-50 dark:bg-slate-800/30 hover:bg-slate-50 dark:hover:bg-slate-800/30">
+                  <TableHead className="w-[200px] text-[10px] uppercase tracking-widest text-muted-foreground font-medium py-2">Role</TableHead>
+                  <TableHead className="text-center w-14 text-[10px] uppercase tracking-widest text-muted-foreground font-medium py-2">Qty</TableHead>
+                  <TableHead className="text-center w-14 text-[10px] uppercase tracking-widest text-muted-foreground font-medium py-2">Days</TableHead>
+                  <TableHead className="text-right w-24 text-[10px] uppercase tracking-widest text-muted-foreground font-medium py-2">Day Rate</TableHead>
+                  <TableHead className="text-right w-24 text-[10px] uppercase tracking-widest text-muted-foreground font-medium py-2">Line Total</TableHead>
+                  <TableHead className="text-right w-24 text-[10px] uppercase tracking-widest text-muted-foreground font-medium py-2">Cost Rate</TableHead>
+                  <TableHead className="text-right w-24 text-[10px] uppercase tracking-widest text-muted-foreground font-medium py-2">Cost Total</TableHead>
+                  <TableHead className="text-right w-20 text-[10px] uppercase tracking-widest text-muted-foreground font-medium py-2">GP</TableHead>
+                  <TableHead className="text-right w-14 text-[10px] uppercase tracking-widest text-muted-foreground font-medium py-2">GP%</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {activeRollup.map((row, idx) => {
+                  const gp = row.revenue_total - row.cost_total
+                  return (
+                    <TableRow key={idx} className="border-b border-border/10 hover:bg-muted/30">
+                      <TableCell className="py-1.5 text-[13px] font-medium">{row.role_name}</TableCell>
+                      <TableCell className="py-1.5 text-[13px] text-center tabular-nums">{row.quantity}</TableCell>
+                      <TableCell className="py-1.5 text-[13px] text-center tabular-nums">{row.total_days}</TableCell>
+                      <TableCell className="py-1.5 text-[13px] text-right tabular-nums">{fmt(row.day_rate)}</TableCell>
+                      <TableCell className="py-1.5 text-[13px] text-right tabular-nums">{fmt(row.revenue_total)}</TableCell>
+                      <TableCell className="py-1.5 text-[13px] text-right tabular-nums">{fmt(row.cost_rate)}</TableCell>
+                      <TableCell className="py-1.5 text-[13px] text-right tabular-nums">{fmt(row.cost_total)}</TableCell>
+                      <TableCell className="py-1.5 text-[13px] text-right tabular-nums text-green-800/60 font-medium">{fmt(gp)}</TableCell>
+                      <TableCell className="py-1.5 text-[13px] text-right tabular-nums">{pct(gp, row.revenue_total)}</TableCell>
+                    </TableRow>
+                  )
+                })}
+              </TableBody>
+            </Table>
+          )
         ) : (
-          <Table>
-            <TableHeader>
-              <TableRow className="border-b border-border/40 bg-slate-50 dark:bg-slate-800/30 hover:bg-slate-50 dark:hover:bg-slate-800/30">
-                <TableHead className="w-[200px] text-[10px] uppercase tracking-widest text-muted-foreground font-medium py-2">Role</TableHead>
-                <TableHead className="text-center w-14 text-[10px] uppercase tracking-widest text-muted-foreground font-medium py-2">Qty</TableHead>
-                <TableHead className="text-center w-14 text-[10px] uppercase tracking-widest text-muted-foreground font-medium py-2">Days</TableHead>
-                <TableHead className="text-right w-24 text-[10px] uppercase tracking-widest text-muted-foreground font-medium py-2">Day Rate</TableHead>
-                <TableHead className="text-right w-24 text-[10px] uppercase tracking-widest text-muted-foreground font-medium py-2">Line Total</TableHead>
-                <TableHead className="text-right w-24 text-[10px] uppercase tracking-widest text-muted-foreground font-medium py-2">Cost Rate</TableHead>
-                <TableHead className="text-right w-24 text-[10px] uppercase tracking-widest text-muted-foreground font-medium py-2">Cost Total</TableHead>
-                <TableHead className="text-right w-20 text-[10px] uppercase tracking-widest text-muted-foreground font-medium py-2">GP</TableHead>
-                <TableHead className="text-right w-14 text-[10px] uppercase tracking-widest text-muted-foreground font-medium py-2">GP%</TableHead>
-                <TableHead className="w-6" />
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {entries.map((entry) => (
-                <LaborEntryRow
-                  key={entry.id}
-                  entry={entry}
-                  isOffice={estimate.cost_structure === 'office'}
-                  officePayout={estimate.clients.office_payout_pct}
-                  onUpdate={onUpdateEntry}
-                  onDelete={onDeleteEntry}
-                />
-              ))}
-            </TableBody>
-          </Table>
+          /* Editable labor entries (no schedule data — backward compat) */
+          <>
+            {entries.length === 0 ? (
+              <p className="text-xs text-muted-foreground/70 text-center py-6">No roles added yet</p>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow className="border-b border-border/40 bg-slate-50 dark:bg-slate-800/30 hover:bg-slate-50 dark:hover:bg-slate-800/30">
+                    <TableHead className="w-[200px] text-[10px] uppercase tracking-widest text-muted-foreground font-medium py-2">Role</TableHead>
+                    <TableHead className="text-center w-14 text-[10px] uppercase tracking-widest text-muted-foreground font-medium py-2">Qty</TableHead>
+                    <TableHead className="text-center w-14 text-[10px] uppercase tracking-widest text-muted-foreground font-medium py-2">Days</TableHead>
+                    <TableHead className="text-right w-24 text-[10px] uppercase tracking-widest text-muted-foreground font-medium py-2">Day Rate</TableHead>
+                    <TableHead className="text-right w-24 text-[10px] uppercase tracking-widest text-muted-foreground font-medium py-2">Line Total</TableHead>
+                    <TableHead className="text-right w-24 text-[10px] uppercase tracking-widest text-muted-foreground font-medium py-2">Cost Rate</TableHead>
+                    <TableHead className="text-right w-24 text-[10px] uppercase tracking-widest text-muted-foreground font-medium py-2">Cost Total</TableHead>
+                    <TableHead className="text-right w-20 text-[10px] uppercase tracking-widest text-muted-foreground font-medium py-2">GP</TableHead>
+                    <TableHead className="text-right w-14 text-[10px] uppercase tracking-widest text-muted-foreground font-medium py-2">GP%</TableHead>
+                    <TableHead className="w-6" />
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {entries.map((entry) => (
+                    <LaborEntryRow
+                      key={entry.id}
+                      entry={entry}
+                      isOffice={estimate.cost_structure === 'office'}
+                      officePayout={estimate.clients.office_payout_pct}
+                      onUpdate={onUpdateEntry}
+                      onDelete={onDeleteEntry}
+                    />
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </>
         )}
-        <button onClick={() => setShowAddRole(true)} className="mt-1.5 text-[11px] text-muted-foreground/60 hover:text-foreground/90 transition-colors">
-          + Add Role
-        </button>
+        {hasScheduleData ? (
+          <button onClick={onSwitchToSchedule} className="mt-1.5 text-[11px] text-muted-foreground/60 hover:text-foreground/90 transition-colors">
+            + Add Staff on Schedule
+          </button>
+        ) : (
+          <button onClick={() => setShowAddRole(true)} className="mt-1.5 text-[11px] text-muted-foreground/60 hover:text-foreground/90 transition-colors">
+            + Add Role
+          </button>
+        )}
       </div>
 
       {/* Labor Summary — two compact lines */}
@@ -770,14 +860,16 @@ function LaborLogTab({
         )}
       </div>
 
-      {/* Modals */}
-      <AddRoleModal
-        open={showAddRole}
-        onOpenChange={setShowAddRole}
-        rateCardData={rateCardData}
-        estimate={estimate}
-        onAdd={onAddEntry}
-      />
+      {/* Modals (only used in manual mode) */}
+      {!hasScheduleData && (
+        <AddRoleModal
+          open={showAddRole}
+          onOpenChange={setShowAddRole}
+          rateCardData={rateCardData}
+          estimate={estimate}
+          onAdd={onAddEntry}
+        />
+      )}
     </div>
   )
 }
@@ -1395,11 +1487,13 @@ function SummaryTab({
   allEntriesMap,
   lineItemsMap,
   rateCardData,
+  scheduleEntriesMap,
 }: {
   laborLogs: LaborLog[]
   allEntriesMap: Record<string, LaborEntry[]>
   lineItemsMap: Record<string, EstimateLineItem[]>
   rateCardData: RateCardItemsBySection[]
+  scheduleEntriesMap: Record<string, ScheduleEntry[]>
 }) {
   // Build lookup: rate_card_item_id → rate_card_section name
   const itemSectionMap = new Map<string, string>()
@@ -1420,6 +1514,17 @@ function SummaryTab({
       if (sec) return sec
     }
     // Default: onsite for day-rate roles, planning for hourly admin
+    return 'Onsite Event Labor'
+  }
+
+  // Categorize schedule rollup rows by rate card item
+  function rollupSectionName(row: LaborRollupRow, schedEntries: ScheduleEntry[]): string {
+    // Find the first schedule entry matching this role to get its rate_card_item_id
+    const entry = schedEntries.find((e) => e.role_name === row.role_name)
+    if (entry?.rate_card_item_id) {
+      const sec = itemSectionMap.get(entry.rate_card_item_id)
+      if (sec) return sec
+    }
     return 'Onsite Event Labor'
   }
 
@@ -1447,27 +1552,52 @@ function SummaryTab({
 
     if (sec.type === 'labor') {
       for (const log of laborLogs) {
-        const entries = (allEntriesMap[log.id] ?? []).filter(
-          (e) => laborSectionName(e) === sec.name
-        )
-        if (entries.length === 0) continue
+        const schedEntries = scheduleEntriesMap[log.id] ?? []
 
-        if (hasMultipleSegments) {
-          details.push({ label: log.location_name, detail: '', revenue: 0, cost: 0, isSegmentHeader: true })
-        }
+        if (schedEntries.length > 0) {
+          // Schedule-driven: use rollup data
+          const rollup = computeScheduleRollup(schedEntries)
+          const sectionRows = rollup.filter((r) => rollupSectionName(r, schedEntries) === sec.name)
+          if (sectionRows.length === 0) continue
 
-        for (const e of entries) {
-          const rev = e.quantity * e.days * (e.override_rate ?? e.unit_rate)
-          const cost = e.quantity * e.days * (e.cost_rate ?? 0)
-          const rate = e.override_rate ?? e.unit_rate
-          details.push({
-            label: e.role_name,
-            detail: `${e.quantity} × ${e.days}d × ${fmt(rate)}`,
-            revenue: rev,
-            cost,
-          })
-          totalRevenue += rev
-          totalCost += cost
+          if (hasMultipleSegments) {
+            details.push({ label: log.location_name, detail: '', revenue: 0, cost: 0, isSegmentHeader: true })
+          }
+
+          for (const r of sectionRows) {
+            details.push({
+              label: r.role_name,
+              detail: `${r.quantity} × ${r.total_days}d × ${fmt(r.day_rate)}${r.total_ot_hours > 0 ? ` + ${r.total_ot_hours}h OT` : ''}`,
+              revenue: r.revenue_total,
+              cost: r.cost_total,
+            })
+            totalRevenue += r.revenue_total
+            totalCost += r.cost_total
+          }
+        } else {
+          // Manual labor entries (backward compat)
+          const entries = (allEntriesMap[log.id] ?? []).filter(
+            (e) => laborSectionName(e) === sec.name
+          )
+          if (entries.length === 0) continue
+
+          if (hasMultipleSegments) {
+            details.push({ label: log.location_name, detail: '', revenue: 0, cost: 0, isSegmentHeader: true })
+          }
+
+          for (const e of entries) {
+            const rev = e.quantity * e.days * (e.override_rate ?? e.unit_rate)
+            const cost = e.quantity * e.days * (e.cost_rate ?? 0)
+            const rate = e.override_rate ?? e.unit_rate
+            details.push({
+              label: e.role_name,
+              detail: `${e.quantity} × ${e.days}d × ${fmt(rate)}`,
+              revenue: rev,
+              cost,
+            })
+            totalRevenue += rev
+            totalCost += cost
+          }
         }
       }
     } else {
@@ -1599,6 +1729,8 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
   const [laborEntriesMap, setLaborEntriesMap] = useState<Record<string, LaborEntry[]>>({})
   const [lineItemsMap, setLineItemsMap] = useState<Record<string, EstimateLineItem[]>>({})
   const [rateCardData, setRateCardData] = useState<RateCardItemsBySection[]>([])
+  const [scheduleEntriesMap, setScheduleEntriesMap] = useState<Record<string, ScheduleEntry[]>>({})
+  const [activeTab, setActiveTab] = useState('schedule')
   const [loading, setLoading] = useState(true)
 
   const loadData = useCallback(async () => {
@@ -1614,19 +1746,23 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
       setLaborLogs(logs)
       setRateCardData(rcData)
 
-      // Load entries and line items for all logs in parallel
+      // Load entries, line items, and schedule entries for all logs in parallel
       const entriesMap: Record<string, LaborEntry[]> = {}
       const itemsMap: Record<string, EstimateLineItem[]> = {}
+      const schedMap: Record<string, ScheduleEntry[]> = {}
       await Promise.all(logs.map(async (log) => {
-        const [entries, items] = await Promise.all([
+        const [entries, items, schedEntries] = await Promise.all([
           getLaborEntries(log.id),
           getLineItemsByLocation(log.id),
+          getScheduleEntries(log.id),
         ])
         entriesMap[log.id] = entries
         itemsMap[log.id] = items
+        schedMap[log.id] = schedEntries
       }))
       setLaborEntriesMap(entriesMap)
       setLineItemsMap(itemsMap)
+      setScheduleEntriesMap(schedMap)
 
       // Set active location
       if (logs.length > 0) {
@@ -1874,7 +2010,7 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
         <div className="flex-[7] min-w-0 space-y-2.5">
           <EventHeader estimate={estimate} onUpdate={handleUpdateEstimate} />
 
-          <Tabs defaultValue="schedule">
+          <Tabs value={activeTab} onValueChange={setActiveTab}>
             <TabsList variant="line" className="border-b border-border/40 w-full">
               <TabsTrigger value="schedule" className="text-[13px]">Schedule</TabsTrigger>
               <TabsTrigger value="labor" className="text-[13px]">Labor Log</TabsTrigger>
@@ -1912,6 +2048,7 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
                 entries={activeEntries}
                 rateCardData={rateCardData}
                 allEntriesMap={laborEntriesMap}
+                scheduleEntriesMap={scheduleEntriesMap}
                 onSelectLocation={setActiveLocationId}
                 onAddLocation={handleAddLocation}
                 onDeleteLocation={handleDeleteLocation}
@@ -1919,6 +2056,7 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
                 onAddEntry={handleAddEntry}
                 onUpdateEntry={handleUpdateEntry}
                 onDeleteEntry={handleDeleteEntry}
+                onSwitchToSchedule={() => setActiveTab('schedule')}
               />
             </TabsContent>
 
@@ -1945,7 +2083,7 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
             ))}
 
             <TabsContent value="summary">
-              <SummaryTab laborLogs={laborLogs} allEntriesMap={laborEntriesMap} lineItemsMap={lineItemsMap} rateCardData={rateCardData} />
+              <SummaryTab laborLogs={laborLogs} allEntriesMap={laborEntriesMap} lineItemsMap={lineItemsMap} rateCardData={rateCardData} scheduleEntriesMap={scheduleEntriesMap} />
             </TabsContent>
           </Tabs>
         </div>

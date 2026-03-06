@@ -241,10 +241,12 @@ export async function bulkFillRow(scheduleEntryId: string, dates: string[], hour
  * - Hours over 10 = overtime at day_rate/10 per hour
  */
 export function computeScheduleRollup(entries: ScheduleEntry[]): LaborRollupRow[] {
-  // Group entries by staff_group_id, falling back to role_name
+  // Group entries by role_name + day_rate (the natural rollup grouping).
+  // staff_group_id is NOT used for rollup grouping because multiple different
+  // roles could share a group_id if added in the same batch.
   const groups = new Map<string, ScheduleEntry[]>()
   for (const entry of entries) {
-    const key = entry.staff_group_id || `role:${entry.role_name}:${entry.day_rate}:${entry.cost_rate}`
+    const key = `${entry.role_name}:${entry.day_rate}:${entry.cost_rate}`
     const group = groups.get(key) || []
     group.push(entry)
     groups.set(key, group)

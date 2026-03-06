@@ -439,18 +439,25 @@ export function ScheduleGrid({
 
   async function handleAddStaff(roles: { role_name: string; day_rate: number; cost_rate: number; gl_code: string | null; rate_card_item_id: string | null }[]) {
     const baseIndex = entries.length
-    const groupId = crypto.randomUUID()
+
+    // Generate a group ID per unique role (so same-role entries group together in rollup)
+    const roleGroupIds = new Map<string, string>()
+    for (const role of roles) {
+      const key = `${role.role_name}:${role.day_rate}`
+      if (!roleGroupIds.has(key)) roleGroupIds.set(key, crypto.randomUUID())
+    }
 
     const created: ScheduleEntry[] = []
     for (let i = 0; i < roles.length; i++) {
       const role = roles[i]
+      const groupKey = `${role.role_name}:${role.day_rate}`
       const entry = await addScheduleEntry({
         labor_log_id: laborLog.id,
         rate_card_item_id: role.rate_card_item_id,
         role_name: role.role_name,
         person_name: null,
         row_index: baseIndex + i,
-        staff_group_id: roles.length > 1 ? groupId : null,
+        staff_group_id: roleGroupIds.get(groupKey) ?? null,
         needs_airfare: true,
         needs_hotel: true,
         needs_per_diem: true,
