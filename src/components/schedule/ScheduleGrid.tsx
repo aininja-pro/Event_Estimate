@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react'
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -369,16 +369,59 @@ function GridCell({
   )
 }
 
+// ── Segment Date Picker (empty state) ─────────────────────────────────────────
+
+function SegmentDatePicker({ onUpdateDates }: { onUpdateDates?: (startDate: string, endDate: string) => Promise<void> }) {
+  const [startDate, setStartDate] = useState('')
+  const [endDate, setEndDate] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  async function handleGenerate() {
+    if (!startDate || !endDate || !onUpdateDates) return
+    setSaving(true)
+    try {
+      await onUpdateDates(startDate, endDate)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="flex flex-col items-center justify-center py-12 text-center space-y-4">
+      <Calendar className="h-10 w-10 text-muted-foreground/30" />
+      <div>
+        <p className="text-sm font-medium text-muted-foreground/70">Set event dates to generate your staffing schedule</p>
+        <p className="text-xs text-muted-foreground/50 mt-1">Choose a date range for this segment</p>
+      </div>
+      <div className="flex items-center gap-2">
+        <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="h-8 text-sm w-[150px]" />
+        <span className="text-xs text-muted-foreground/50">to</span>
+        <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="h-8 text-sm w-[150px]" />
+      </div>
+      <Button
+        size="sm"
+        disabled={!startDate || !endDate || !onUpdateDates || saving}
+        onClick={handleGenerate}
+        className="text-[13px]"
+      >
+        {saving ? 'Generating...' : 'Generate Schedule'}
+      </Button>
+    </div>
+  )
+}
+
 // ── Main ScheduleGrid Component ────────────────────────────────────────────────
 
 export function ScheduleGrid({
   laborLog,
   estimate,
   rateCardData,
+  onUpdateDates,
 }: {
   laborLog: LaborLog
   estimate: EstimateWithClient
   rateCardData: RateCardItemsBySection[]
+  onUpdateDates?: (startDate: string, endDate: string) => Promise<void>
 }) {
   const [entries, setEntries] = useState<ScheduleEntry[]>([])
   const [dayTypes, setDayTypes] = useState<ScheduleDayType[]>([])
@@ -388,6 +431,33 @@ export function ScheduleGrid({
   const [newDate, setNewDate] = useState('')
   const [showFillConfirm, setShowFillConfirm] = useState<string | null>(null)
   const debounceTimers = useRef<Map<string, NodeJS.Timeout>>(new Map())
+
+  // ── Sort state ──
+  const [sortField, setSortField] = useState<'name' | 'role' | null>(null)
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
+
+  function handleSortClick(field: 'name' | 'role') {
+    if (sortField === field) {
+      if (sortDir === 'asc') setSortDir('desc')
+      else { setSortField(null); setSortDir('asc') }
+    } else {
+      setSortField(field)
+      setSortDir('asc')
+    }
+  }
+
+  const sortedEntries = useMemo(() => {
+    if (!sortField) return entries
+    return [...entries].sort((a, b) => {
+      const aVal = sortField === 'name' ? (a.person_name ?? '') : a.role_name
+      const bVal = sortField === 'name' ? (b.person_name ?? '') : b.role_name
+      // Push empty values to the end regardless of direction
+      if (!aVal && bVal) return 1
+      if (aVal && !bVal) return -1
+      const cmp = aVal.localeCompare(bVal, undefined, { sensitivity: 'base' })
+      return sortDir === 'asc' ? cmp : -cmp
+    })
+  }, [entries, sortField, sortDir])
 
   // Load data
   const loadSchedule = useCallback(async () => {
@@ -619,13 +689,7 @@ export function ScheduleGrid({
   // Empty state: no dates
   if (sortedDates.length === 0 && !laborLog.start_date) {
     return (
-      <div className="flex flex-col items-center justify-center py-12 text-center space-y-3">
-        <Calendar className="h-10 w-10 text-muted-foreground/30" />
-        <div>
-          <p className="text-sm font-medium text-muted-foreground/70">Set event dates to generate your staffing schedule</p>
-          <p className="text-xs text-muted-foreground/50 mt-1">Add start and end dates in the event header above</p>
-        </div>
-      </div>
+      <SegmentDatePicker onUpdateDates={onUpdateDates} />
     )
   }
 
@@ -650,8 +714,18 @@ export function ScheduleGrid({
           <thead className="sticky top-0 z-10">
             {/* Date row */}
             <tr className="bg-slate-100">
-              <th className="sticky left-0 z-20 bg-slate-100 text-left px-2 py-1.5 text-[10px] uppercase tracking-widest text-muted-foreground font-medium w-[120px] border-b border-r border-slate-200">Name</th>
-              <th className="sticky left-[120px] z-20 bg-slate-100 text-left px-2 py-1.5 text-[10px] uppercase tracking-widest text-muted-foreground font-medium w-[100px] border-b border-r border-slate-200">Role</th>
+              <th
+                className="sticky left-0 z-20 bg-slate-100 text-left px-2 py-1.5 text-[10px] uppercase tracking-widest text-muted-foreground font-medium w-[120px] border-b border-r border-slate-200 cursor-pointer select-none hover:text-foreground/80 transition-colors"
+                onClick={() => handleSortClick('name')}
+              >
+                Name {sortField === 'name' ? (sortDir === 'asc' ? '▲' : '▼') : ''}
+              </th>
+              <th
+                className="sticky left-[120px] z-20 bg-slate-100 text-left px-2 py-1.5 text-[10px] uppercase tracking-widest text-muted-foreground font-medium w-[100px] border-b border-r border-slate-200 cursor-pointer select-none hover:text-foreground/80 transition-colors"
+                onClick={() => handleSortClick('role')}
+              >
+                Role {sortField === 'role' ? (sortDir === 'asc' ? '▲' : '▼') : ''}
+              </th>
               {sortedDates.map((dt) => {
                 const d = formatDate(dt.work_date)
                 return (
@@ -691,7 +765,7 @@ export function ScheduleGrid({
                 </td>
               </tr>
             ) : (
-              entries.map((entry, rowIdx) => (
+              sortedEntries.map((entry, rowIdx) => (
                 <tr key={entry.id} className={`group/row ${rowIdx % 2 === 1 ? 'bg-slate-50/50' : ''} hover:bg-slate-50`}>
                   {/* Name (frozen) */}
                   <td className={`sticky left-0 z-10 border-b border-r border-slate-200 px-1 ${rowIdx % 2 === 1 ? 'bg-slate-50/50' : 'bg-white'}`}>

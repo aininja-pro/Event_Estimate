@@ -2035,6 +2035,10 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
                     laborLog={laborLogs.find((l) => l.id === activeLocationId)!}
                     estimate={estimate}
                     rateCardData={rateCardData}
+                    onUpdateDates={async (startDate, endDate) => {
+                      const updated = await updateLaborLog(activeLocationId, { start_date: startDate, end_date: endDate })
+                      setLaborLogs((prev) => prev.map((l) => l.id === activeLocationId ? updated : l))
+                    }}
                   />
                 )}
               </div>
