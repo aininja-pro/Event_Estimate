@@ -33,6 +33,7 @@ import {
 } from 'lucide-react'
 import { ScheduleGrid } from '@/components/schedule/ScheduleGrid'
 import { EstimateStatusBar } from '@/components/EstimateStatusBar'
+import { VersionHistoryPanel, HistoryButton } from '@/components/VersionHistoryPanel'
 import { getScheduleEntries, computeScheduleRollup } from '@/lib/schedule-service'
 import {
   transitionStatus,
@@ -1737,6 +1738,7 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
   const [rateCardData, setRateCardData] = useState<RateCardItemsBySection[]>([])
   const [scheduleEntriesMap, setScheduleEntriesMap] = useState<Record<string, ScheduleEntry[]>>({})
   const [activeTab, setActiveTab] = useState('schedule')
+  const [historyOpen, setHistoryOpen] = useState(false)
   const [loading, setLoading] = useState(true)
 
   const loadData = useCallback(async () => {
@@ -2028,9 +2030,12 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
 
   return (
     <div className="space-y-3">
-      <div>
-        <h1 className="text-lg font-semibold tracking-tight">{estimate.event_name}</h1>
-        <p className="text-sm text-muted-foreground">{estimate.clients.name} · Estimate Builder</p>
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-lg font-semibold tracking-tight">{estimate.event_name}</h1>
+          <p className="text-sm text-muted-foreground">{estimate.clients.name} · Estimate Builder</p>
+        </div>
+        <HistoryButton onClick={() => setHistoryOpen(true)} />
       </div>
 
       <EstimateStatusBar
@@ -2143,6 +2148,13 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
           <AINudgePanel />
         </div>
       </div>
+
+      <VersionHistoryPanel
+        estimateId={estimateId}
+        open={historyOpen}
+        onClose={() => setHistoryOpen(false)}
+        onRollback={loadData}
+      />
     </div>
   )
 }
