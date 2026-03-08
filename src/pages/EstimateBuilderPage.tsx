@@ -34,12 +34,15 @@ import {
 import { ScheduleGrid } from '@/components/schedule/ScheduleGrid'
 import { EstimateStatusBar } from '@/components/EstimateStatusBar'
 import { VersionHistoryPanel, HistoryButton } from '@/components/VersionHistoryPanel'
+import { ApprovalBanner } from '@/components/ApprovalBanner'
 import { getScheduleEntries, computeScheduleRollup } from '@/lib/schedule-service'
 import {
   transitionStatus,
   submitForApproval,
+  getPendingApproval,
+  reviewApproval,
 } from '@/lib/workflow-service'
-import type { EstimateStatus } from '@/types/workflow'
+import type { EstimateStatus, ApprovalRequest } from '@/types/workflow'
 import type { ScheduleEntry, LaborRollupRow } from '@/types/schedule'
 import {
   getEstimate,
@@ -1739,12 +1742,21 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
   const [scheduleEntriesMap, setScheduleEntriesMap] = useState<Record<string, ScheduleEntry[]>>({})
   const [activeTab, setActiveTab] = useState('schedule')
   const [historyOpen, setHistoryOpen] = useState(false)
+  const [pendingApproval, setPendingApproval] = useState<ApprovalRequest | null>(null)
   const [loading, setLoading] = useState(true)
 
   const loadData = useCallback(async () => {
     try {
       const est = await getEstimate(estimateId)
       setEstimate(est)
+
+      // Load pending approval if in review status
+      if (est.status === 'review') {
+        const approval = await getPendingApproval(estimateId)
+        setPendingApproval(approval)
+      } else {
+        setPendingApproval(null)
+      }
 
       const [logs, rcData] = await Promise.all([
         getLaborLogs(estimateId),
@@ -1989,11 +2001,22 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
   async function handleSubmitForApproval() {
     const result = await submitForApproval(estimateId, 'Current User')
     if (!result.error) {
-      const est = await getEstimate(estimateId)
-      setEstimate(est)
+      await loadData()
       return { success: true, threshold: result.threshold }
     }
     return { success: false, error: result.error }
+  }
+
+  async function handleApprove(approvalId: string) {
+    const result = await reviewApproval(approvalId, 'approved', 'Current User')
+    if (result.success) await loadData()
+    return result
+  }
+
+  async function handleReject(approvalId: string, notes: string) {
+    const result = await reviewApproval(approvalId, 'rejected', 'Current User', notes)
+    if (result.success) await loadData()
+    return result
   }
 
   const isReadOnly = estimate?.status === 'review' || estimate?.status === 'approved' || estimate?.status === 'active' || estimate?.status === 'complete'
@@ -2044,6 +2067,14 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
         onSubmitForApproval={handleSubmitForApproval}
         disabled={isReadOnly && estimate.status !== 'review' && estimate.status !== 'approved'}
       />
+
+      {pendingApproval && estimate.status === 'review' && (
+        <ApprovalBanner
+          approval={pendingApproval}
+          onApprove={handleApprove}
+          onReject={handleReject}
+        />
+      )}
 
       {/* 70/30 Split Layout */}
       <div className="flex gap-4">
