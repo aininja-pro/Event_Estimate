@@ -14,6 +14,8 @@ import {
 } from '@/components/ui/table'
 import type { EstimateVersion } from '@/types/workflow'
 import type { EstimateSnapshot } from '@/types/workflow'
+import type { ScheduleEntry } from '@/types/schedule'
+import { computeScheduleRollup } from '@/lib/schedule-service'
 
 function fmt(n: number): string {
   return '$' + n.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })
@@ -73,13 +75,88 @@ export function VersionSnapshotModal({ version, open, onClose }: VersionSnapshot
           {/* Labor logs */}
           {snapshot.labor_logs?.map((log, logIdx) => {
             const entries = (log as Record<string, unknown>).entries as Record<string, unknown>[] || []
-            const logName = (log as Record<string, unknown>).location_name as string
+            const logRecord = log as Record<string, unknown>
+            const logName = logRecord.location_name as string
+            const logId = logRecord.id as string
+
+            // Check if this log has schedule data in the snapshot
+            const logScheduleEntries = (snapshot.schedule_entries || []).filter(
+              (se) => se.labor_log_id === logId
+            )
+            const hasSchedule = logScheduleEntries.length > 0
+
+            // Build rollup from schedule if available
+            let scheduleRollup: ReturnType<typeof computeScheduleRollup> = []
+            if (hasSchedule) {
+              // Construct fully typed ScheduleEntry[] with nested day entries
+              const typedEntries: ScheduleEntry[] = logScheduleEntries.map((se) => ({
+                id: se.id as string,
+                labor_log_id: se.labor_log_id as string,
+                rate_card_item_id: (se.rate_card_item_id as string) || null,
+                role_name: (se.role_name as string) || '',
+                person_name: (se.person_name as string) || null,
+                row_index: Number(se.row_index) || 0,
+                staff_group_id: (se.staff_group_id as string) || null,
+                needs_airfare: Boolean(se.needs_airfare),
+                needs_hotel: Boolean(se.needs_hotel),
+                needs_per_diem: Boolean(se.needs_per_diem),
+                day_rate: Number(se.day_rate) || 0,
+                cost_rate: Number(se.cost_rate) || 0,
+                ot_hourly_rate: Number(se.ot_hourly_rate) || 0,
+                ot_cost_rate: Number(se.ot_cost_rate) || 0,
+                gl_code: (se.gl_code as string) || null,
+                notes: (se.notes as string) || null,
+                created_at: (se.created_at as string) || '',
+                updated_at: (se.updated_at as string) || '',
+                day_entries: (snapshot.schedule_day_entries || [])
+                  .filter((de) => de.schedule_entry_id === se.id)
+                  .map((de) => ({
+                    id: de.id as string,
+                    schedule_entry_id: de.schedule_entry_id as string,
+                    work_date: de.work_date as string,
+                    hours: Number(de.hours) || 0,
+                    per_diem_override: (de.per_diem_override as boolean | null) ?? null,
+                    created_at: (de.created_at as string) || '',
+                    updated_at: (de.updated_at as string) || '',
+                  })),
+              }))
+              scheduleRollup = computeScheduleRollup(typedEntries)
+            }
+
             return (
               <div key={logIdx}>
                 <p className="text-[10px] font-medium uppercase tracking-widest text-muted-foreground mb-1">
                   {logName || `Segment ${logIdx + 1}`} — Labor
+                  {hasSchedule && <span className="ml-1 text-muted-foreground/60">(from schedule)</span>}
                 </p>
-                {entries.length > 0 ? (
+                {hasSchedule && scheduleRollup.length > 0 ? (
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="text-[10px]">
+                        <TableHead className="h-7">Role</TableHead>
+                        <TableHead className="h-7 text-right w-12">Staff</TableHead>
+                        <TableHead className="h-7 text-right w-12">Days</TableHead>
+                        <TableHead className="h-7 text-right w-20">Rate</TableHead>
+                        <TableHead className="h-7 text-right w-20">Revenue</TableHead>
+                        <TableHead className="h-7 text-right w-20">Cost</TableHead>
+                        <TableHead className="h-7 text-right w-16">GP%</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {scheduleRollup.map((row, i) => (
+                        <TableRow key={i} className="text-[11px]">
+                          <TableCell className="py-1">{row.role_name}</TableCell>
+                          <TableCell className="py-1 text-right">{row.quantity}</TableCell>
+                          <TableCell className="py-1 text-right">{row.total_days}</TableCell>
+                          <TableCell className="py-1 text-right">{fmt(row.day_rate)}</TableCell>
+                          <TableCell className="py-1 text-right font-medium">{fmt(row.revenue_total)}</TableCell>
+                          <TableCell className="py-1 text-right">{fmt(row.cost_total)}</TableCell>
+                          <TableCell className="py-1 text-right">{row.gp_pct.toFixed(1)}%</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                ) : entries.length > 0 ? (
                   <Table>
                     <TableHeader>
                       <TableRow className="text-[10px]">

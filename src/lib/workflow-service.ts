@@ -1,4 +1,6 @@
 import { supabase } from './supabase'
+import { computeScheduleRollup } from './schedule-service'
+import type { ScheduleEntry } from '../types/schedule'
 import type {
   EstimateVersion,
   ApprovalRequest,
@@ -175,10 +177,67 @@ async function buildSnapshot(estimateId: string): Promise<EstimateSnapshot> {
     scheduleDayTypes = sdt || []
   }
 
-  // 6. Calculate totals from labor entries + line items
+  // 6. Calculate totals from labor entries (manual) or schedule entries + line items
   let totalRevenue = 0
   let totalCost = 0
+
+  // Build a set of labor log IDs that have schedule data
+  const logsWithSchedule = new Set(scheduleEntries.map((se) => se.labor_log_id as string))
+
+  // Nest day entries under their parent schedule entries for rollup
+  const dayEntriesByScheduleEntry = new Map<string, Record<string, unknown>[]>()
+  for (const de of scheduleDayEntries) {
+    const seId = de.schedule_entry_id as string
+    const list = dayEntriesByScheduleEntry.get(seId) || []
+    list.push(de)
+    dayEntriesByScheduleEntry.set(seId, list)
+  }
+
+  // Compute schedule rollup for logs that use schedule
+  for (const logId of logsWithSchedule) {
+    const logScheduleEntries: ScheduleEntry[] = scheduleEntries
+      .filter((se) => se.labor_log_id === logId)
+      .map((se) => ({
+        id: se.id as string,
+        labor_log_id: se.labor_log_id as string,
+        rate_card_item_id: (se.rate_card_item_id as string) || null,
+        role_name: (se.role_name as string) || '',
+        person_name: (se.person_name as string) || null,
+        row_index: Number(se.row_index) || 0,
+        staff_group_id: (se.staff_group_id as string) || null,
+        needs_airfare: Boolean(se.needs_airfare),
+        needs_hotel: Boolean(se.needs_hotel),
+        needs_per_diem: Boolean(se.needs_per_diem),
+        day_rate: Number(se.day_rate) || 0,
+        cost_rate: Number(se.cost_rate) || 0,
+        ot_hourly_rate: Number(se.ot_hourly_rate) || 0,
+        ot_cost_rate: Number(se.ot_cost_rate) || 0,
+        gl_code: (se.gl_code as string) || null,
+        notes: (se.notes as string) || null,
+        created_at: (se.created_at as string) || '',
+        updated_at: (se.updated_at as string) || '',
+        day_entries: (dayEntriesByScheduleEntry.get(se.id as string) || []).map((de) => ({
+          id: de.id as string,
+          schedule_entry_id: de.schedule_entry_id as string,
+          work_date: de.work_date as string,
+          hours: Number(de.hours) || 0,
+          per_diem_override: (de.per_diem_override as boolean | null) ?? null,
+          created_at: (de.created_at as string) || '',
+          updated_at: (de.updated_at as string) || '',
+        })),
+      }))
+
+    const rollup = computeScheduleRollup(logScheduleEntries)
+    for (const row of rollup) {
+      totalRevenue += row.revenue_total
+      totalCost += row.cost_total
+    }
+  }
+
+  // Only use manual labor entries for logs WITHOUT schedule data
   for (const entry of laborEntries) {
+    const logId = entry.labor_log_id as string
+    if (logsWithSchedule.has(logId)) continue
     const qty = (entry.quantity as number) || 0
     const days = (entry.days as number) || 0
     const rate = (entry.unit_rate as number) || 0
