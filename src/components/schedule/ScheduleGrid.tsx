@@ -288,11 +288,13 @@ function GridCell({
   dayType,
   onSetHours,
   onClear,
+  readOnly,
 }: {
   hours: number | null
   dayType: DayType
   onSetHours: (h: number) => void
   onClear: () => void
+  readOnly?: boolean
 }) {
   const [editing, setEditing] = useState(false)
   const [editValue, setEditValue] = useState('')
@@ -304,6 +306,7 @@ function GridCell({
   const otHours = isOT ? hours - STANDARD_HOURS : 0
 
   function handleClick() {
+    if (readOnly) return
     if (!hasHours) {
       // Click empty cell -> fill with 10
       onSetHours(STANDARD_HOURS)
@@ -346,9 +349,9 @@ function GridCell({
 
   return (
     <td
-      className={`border border-slate-200 text-center cursor-pointer transition-colors duration-150 relative select-none ${hasHours ? colors.bg : 'hover:bg-slate-100/60'}`}
+      className={`border border-slate-200 text-center transition-colors duration-150 relative select-none ${readOnly ? '' : 'cursor-pointer'} ${hasHours ? colors.bg : (readOnly ? '' : 'hover:bg-slate-100/60')}`}
       onClick={handleClick}
-      onDoubleClick={(e) => { e.stopPropagation(); if (hasHours) onClear() }}
+      onDoubleClick={(e) => { e.stopPropagation(); if (!readOnly && hasHours) onClear() }}
       style={hasHours ? { '--tw-bg-opacity': hours <= 8 ? '0.3' : hours <= 10 ? '0.5' : '0.7' } as React.CSSProperties : undefined}
     >
       {hasHours ? (
@@ -417,11 +420,13 @@ export function ScheduleGrid({
   estimate,
   rateCardData,
   onUpdateDates,
+  readOnly,
 }: {
   laborLog: LaborLog
   estimate: EstimateWithClient
   rateCardData: RateCardItemsBySection[]
   onUpdateDates?: (startDate: string, endDate: string) => Promise<void>
+  readOnly?: boolean
 }) {
   const [entries, setEntries] = useState<ScheduleEntry[]>([])
   const [dayTypes, setDayTypes] = useState<ScheduleDayType[]>([])
@@ -688,7 +693,9 @@ export function ScheduleGrid({
 
   // Empty state: no dates
   if (sortedDates.length === 0 && !laborLog.start_date) {
-    return (
+    return readOnly ? (
+      <div className="text-xs text-muted-foreground/50 text-center py-8">No schedule dates configured</div>
+    ) : (
       <SegmentDatePicker onUpdateDates={onUpdateDates} />
     )
   }
@@ -697,15 +704,17 @@ export function ScheduleGrid({
     <div className="space-y-2.5">
       {/* Toolbar */}
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => setShowAddStaff(true)} className="h-7 text-[11px]">
-            <Plus className="h-3 w-3 mr-1" /> Add Staff
-          </Button>
-          <Button variant="outline" size="sm" onClick={() => setShowAddDate(true)} className="h-7 text-[11px]">
-            <Plus className="h-3 w-3 mr-1" /> Add Date
-          </Button>
-        </div>
-        <p className="text-[10px] text-muted-foreground/50">Click cell to fill 10h · Double-click to clear · Click filled cell to edit</p>
+        {!readOnly ? (
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={() => setShowAddStaff(true)} className="h-7 text-[11px]">
+              <Plus className="h-3 w-3 mr-1" /> Add Staff
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => setShowAddDate(true)} className="h-7 text-[11px]">
+              <Plus className="h-3 w-3 mr-1" /> Add Date
+            </Button>
+          </div>
+        ) : <div />}
+        <p className="text-[10px] text-muted-foreground/50">{readOnly ? 'View-only mode' : 'Click cell to fill 10h · Double-click to clear · Click filled cell to edit'}</p>
       </div>
 
       {/* Grid */}
@@ -732,23 +741,35 @@ export function ScheduleGrid({
                   <th key={dt.work_date} className={`px-1 py-1 border-b border-r border-slate-200 min-w-[56px] text-center ${DAY_TYPE_COLORS[dt.day_type as DayType]?.bg ?? ''}`}>
                     <div className="flex flex-col items-center gap-0.5">
                       <div className="flex items-center gap-1">
-                        <button
-                          onClick={() => setShowFillConfirm(dt.work_date)}
-                          className="text-[11px] font-semibold text-foreground/80 hover:text-blue-600 transition-colors"
-                          title="Click to fill all staff"
-                        >
-                          {d.month} {d.day}
-                        </button>
-                        <button
-                          onClick={() => handleRemoveDate(dt.work_date)}
-                          className="opacity-0 group-hover:opacity-100 hover:opacity-100 text-muted-foreground/40 hover:text-red-500 transition-all"
-                          title="Remove date"
-                        >
-                          <X className="h-2.5 w-2.5" />
-                        </button>
+                        {readOnly ? (
+                          <span className="text-[11px] font-semibold text-foreground/80">{d.month} {d.day}</span>
+                        ) : (
+                          <>
+                            <button
+                              onClick={() => setShowFillConfirm(dt.work_date)}
+                              className="text-[11px] font-semibold text-foreground/80 hover:text-blue-600 transition-colors"
+                              title="Click to fill all staff"
+                            >
+                              {d.month} {d.day}
+                            </button>
+                            <button
+                              onClick={() => handleRemoveDate(dt.work_date)}
+                              className="opacity-0 group-hover:opacity-100 hover:opacity-100 text-muted-foreground/40 hover:text-red-500 transition-all"
+                              title="Remove date"
+                            >
+                              <X className="h-2.5 w-2.5" />
+                            </button>
+                          </>
+                        )}
                       </div>
                       <span className="text-[9px] text-muted-foreground/50">{d.weekday}</span>
-                      <DayTypeDropdown value={dt.day_type as DayType} onChange={(type) => handleDayTypeChange(dt.work_date, type)} />
+                      {readOnly ? (
+                        <span className={`px-1.5 py-0.5 rounded text-[9px] font-medium uppercase tracking-wide border ${DAY_TYPE_COLORS[dt.day_type as DayType]?.badge ?? ''}`}>
+                          {dt.day_type}
+                        </span>
+                      ) : (
+                        <DayTypeDropdown value={dt.day_type as DayType} onChange={(type) => handleDayTypeChange(dt.work_date, type)} />
+                      )}
                     </div>
                   </th>
                 )
@@ -773,8 +794,9 @@ export function ScheduleGrid({
                       value={entry.person_name ?? ''}
                       onChange={(e) => setEntries((prev) => prev.map((en) => en.id === entry.id ? { ...en, person_name: e.target.value } : en))}
                       onBlur={(e) => handleUpdatePersonName(entry.id, e.target.value)}
-                      placeholder="Name..."
+                      placeholder={readOnly ? '' : 'Name...'}
                       className="w-full text-[13px] bg-transparent border-0 outline-none placeholder:text-muted-foreground/30 px-1 py-1.5"
+                      readOnly={readOnly}
                     />
                   </td>
                   {/* Role (frozen) */}
@@ -789,6 +811,7 @@ export function ScheduleGrid({
                       dayType={dt.day_type as DayType}
                       onSetHours={(h) => handleSetCellHours(entry.id, dt.work_date, h)}
                       onClear={() => handleClearCell(entry.id, dt.work_date)}
+                      readOnly={readOnly}
                     />
                   ))}
                   {/* Total days */}
@@ -797,35 +820,43 @@ export function ScheduleGrid({
                   </td>
                   {/* Actions */}
                   <td className="border-b border-slate-200 bg-slate-50 px-1 py-1">
-                    <div className="flex items-center justify-center gap-0.5 opacity-0 group-hover/row:opacity-100 transition-opacity">
-                      <button
-                        onClick={() => handleToggleFlag(entry.id, 'needs_airfare')}
-                        title="Airfare"
-                        className={`p-1 rounded transition-colors ${entry.needs_airfare ? 'text-sky-600' : 'text-muted-foreground/30 hover:text-muted-foreground/60'}`}
-                      >
-                        <Plane className="h-3 w-3" />
-                      </button>
-                      <button
-                        onClick={() => handleToggleFlag(entry.id, 'needs_hotel')}
-                        title="Hotel"
-                        className={`p-1 rounded transition-colors ${entry.needs_hotel ? 'text-violet-600' : 'text-muted-foreground/30 hover:text-muted-foreground/60'}`}
-                      >
-                        <BedDouble className="h-3 w-3" />
-                      </button>
-                      <button
-                        onClick={() => handleToggleFlag(entry.id, 'needs_per_diem')}
-                        title="Per Diem"
-                        className={`p-1 rounded transition-colors ${entry.needs_per_diem ? 'text-amber-600' : 'text-muted-foreground/30 hover:text-muted-foreground/60'}`}
-                      >
-                        <UtensilsCrossed className="h-3 w-3" />
-                      </button>
-                      <button onClick={() => handleDuplicateRow(entry.id)} title="Duplicate" className="p-1 rounded text-muted-foreground/30 hover:text-foreground/60 transition-colors">
-                        <Copy className="h-3 w-3" />
-                      </button>
-                      <button onClick={() => handleDeleteRow(entry.id)} title="Delete" className="p-1 rounded text-muted-foreground/30 hover:text-red-500 transition-colors">
-                        <Trash2 className="h-3 w-3" />
-                      </button>
-                    </div>
+                    {readOnly ? (
+                      <div className="flex items-center justify-center gap-0.5">
+                        {entry.needs_airfare && <Plane className="h-3 w-3 text-sky-600/50" />}
+                        {entry.needs_hotel && <BedDouble className="h-3 w-3 text-violet-600/50" />}
+                        {entry.needs_per_diem && <UtensilsCrossed className="h-3 w-3 text-amber-600/50" />}
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-center gap-0.5 opacity-0 group-hover/row:opacity-100 transition-opacity">
+                        <button
+                          onClick={() => handleToggleFlag(entry.id, 'needs_airfare')}
+                          title="Airfare"
+                          className={`p-1 rounded transition-colors ${entry.needs_airfare ? 'text-sky-600' : 'text-muted-foreground/30 hover:text-muted-foreground/60'}`}
+                        >
+                          <Plane className="h-3 w-3" />
+                        </button>
+                        <button
+                          onClick={() => handleToggleFlag(entry.id, 'needs_hotel')}
+                          title="Hotel"
+                          className={`p-1 rounded transition-colors ${entry.needs_hotel ? 'text-violet-600' : 'text-muted-foreground/30 hover:text-muted-foreground/60'}`}
+                        >
+                          <BedDouble className="h-3 w-3" />
+                        </button>
+                        <button
+                          onClick={() => handleToggleFlag(entry.id, 'needs_per_diem')}
+                          title="Per Diem"
+                          className={`p-1 rounded transition-colors ${entry.needs_per_diem ? 'text-amber-600' : 'text-muted-foreground/30 hover:text-muted-foreground/60'}`}
+                        >
+                          <UtensilsCrossed className="h-3 w-3" />
+                        </button>
+                        <button onClick={() => handleDuplicateRow(entry.id)} title="Duplicate" className="p-1 rounded text-muted-foreground/30 hover:text-foreground/60 transition-colors">
+                          <Copy className="h-3 w-3" />
+                        </button>
+                        <button onClick={() => handleDeleteRow(entry.id)} title="Delete" className="p-1 rounded text-muted-foreground/30 hover:text-red-500 transition-colors">
+                          <Trash2 className="h-3 w-3" />
+                        </button>
+                      </div>
+                    )}
                   </td>
                 </tr>
               ))

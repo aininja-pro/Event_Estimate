@@ -174,12 +174,14 @@ function ComboInput({
   onChange,
   onSave,
   className,
+  readOnly,
 }: {
   value: string
   options: string[]
   onChange: (v: string) => void
   onSave: (v: string) => void
   className?: string
+  readOnly?: boolean
 }) {
   const [open, setOpen] = useState(false)
   const wrapperRef = React.useRef<HTMLDivElement>(null)
@@ -207,10 +209,11 @@ function ComboInput({
       <Input
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        onFocus={() => setOpen(true)}
+        onFocus={() => !readOnly && setOpen(true)}
         onBlur={() => onSave(value)}
         placeholder=""
         className={className}
+        readOnly={readOnly}
       />
       {open && (
         <div className="absolute top-full left-0 right-0 mt-1 z-50 bg-white dark:bg-zinc-900 border border-border/50 rounded-md shadow-lg py-1 max-h-[200px] overflow-y-auto">
@@ -234,9 +237,11 @@ function ComboInput({
 function EventHeader({
   estimate,
   onUpdate,
+  readOnly,
 }: {
   estimate: EstimateWithClient
   onUpdate: (updates: EstimateUpdate) => void
+  readOnly?: boolean
 }) {
   const [eventName, setEventName] = useState(estimate.event_name)
   const [eventType, setEventType] = useState(estimate.event_type ?? '')
@@ -277,42 +282,42 @@ function EventHeader({
         </div>
         <div>
           <p className={fieldLabel}>Event Type</p>
-          <ComboInput value={eventType} options={EVENT_TYPES} onChange={setEventType} onSave={(v) => saveField('event_type', v || null)} className={fieldInput} />
+          <ComboInput value={eventType} options={EVENT_TYPES} onChange={setEventType} onSave={(v) => saveField('event_type', v || null)} className={readOnly ? readOnlyField : fieldInput} readOnly={readOnly} />
         </div>
         <div className="col-span-2">
           <p className={fieldLabel}>Event Name</p>
-          <Input value={eventName} onChange={(e) => setEventName(e.target.value)} onBlur={() => saveField('event_name', eventName)} className={fieldInput} />
+          <Input value={eventName} onChange={(e) => setEventName(e.target.value)} onBlur={() => saveField('event_name', eventName)} className={readOnly ? readOnlyField : fieldInput} readOnly={readOnly} />
         </div>
         <div>
           <p className={fieldLabel}>Location</p>
-          <Input value={location} onChange={(e) => setLocation(e.target.value)} onBlur={() => saveField('location', location)} className={fieldInput} />
+          <Input value={location} onChange={(e) => setLocation(e.target.value)} onBlur={() => saveField('location', location)} className={readOnly ? readOnlyField : fieldInput} readOnly={readOnly} />
         </div>
         <div>
           <p className={fieldLabel}>Start Date</p>
-          <Input type="date" value={startDate} onChange={(e) => { setStartDate(e.target.value); saveField('start_date', e.target.value) }} className={fieldInput} />
+          <Input type="date" value={startDate} onChange={(e) => { setStartDate(e.target.value); saveField('start_date', e.target.value) }} className={readOnly ? readOnlyField : fieldInput} readOnly={readOnly} />
         </div>
         <div>
           <p className={fieldLabel}>End Date</p>
-          <Input type="date" value={endDate} onChange={(e) => { setEndDate(e.target.value); saveField('end_date', e.target.value) }} className={fieldInput} />
+          <Input type="date" value={endDate} onChange={(e) => { setEndDate(e.target.value); saveField('end_date', e.target.value) }} className={readOnly ? readOnlyField : fieldInput} readOnly={readOnly} />
         </div>
         <div>
           <p className={fieldLabel}>Attendance</p>
-          <ComboInput value={attendance} options={ATTENDANCE_RANGES} onChange={setAttendance} onSave={(v) => saveField('expected_attendance', v || null)} className={fieldInput} />
+          <ComboInput value={attendance} options={ATTENDANCE_RANGES} onChange={setAttendance} onSave={(v) => saveField('expected_attendance', v || null)} className={readOnly ? readOnlyField : fieldInput} readOnly={readOnly} />
         </div>
         <div>
           <p className={fieldLabel}>PO Number</p>
-          <Input value={poNumber} onChange={(e) => setPoNumber(e.target.value)} onBlur={() => saveField('po_number', poNumber)} className={fieldInput} />
+          <Input value={poNumber} onChange={(e) => setPoNumber(e.target.value)} onBlur={() => saveField('po_number', poNumber)} className={readOnly ? readOnlyField : fieldInput} readOnly={readOnly} />
         </div>
         <div>
           <p className={fieldLabel}>Project ID</p>
-          <Input value={projectId} onChange={(e) => setProjectId(e.target.value)} onBlur={() => saveField('project_id', projectId)} className={fieldInput} />
+          <Input value={projectId} onChange={(e) => setProjectId(e.target.value)} onBlur={() => saveField('project_id', projectId)} className={readOnly ? readOnlyField : fieldInput} readOnly={readOnly} />
         </div>
         <div>
           <p className={fieldLabel}>Cost Structure</p>
           <div className="flex items-center gap-0 h-7">
-            <button type="button" onClick={() => onUpdate({ cost_structure: 'corporate' })} className={`text-[13px] transition-colors ${estimate.cost_structure === 'corporate' ? 'font-medium text-foreground border-b border-foreground/40' : 'text-muted-foreground/70 hover:text-foreground/90'}`}>Corporate</button>
+            <button type="button" onClick={() => !readOnly && onUpdate({ cost_structure: 'corporate' })} className={`text-[13px] transition-colors ${estimate.cost_structure === 'corporate' ? 'font-medium text-foreground border-b border-foreground/40' : 'text-muted-foreground/70 hover:text-foreground/90'} ${readOnly ? 'pointer-events-none' : ''}`}>Corporate</button>
             <span className="mx-2 text-border/40">/</span>
-            <button type="button" onClick={() => onUpdate({ cost_structure: 'office' })} className={`text-[13px] transition-colors ${estimate.cost_structure === 'office' ? 'font-medium text-foreground border-b border-foreground/40' : 'text-muted-foreground/70 hover:text-foreground/90'}`}>Office</button>
+            <button type="button" onClick={() => !readOnly && onUpdate({ cost_structure: 'office' })} className={`text-[13px] transition-colors ${estimate.cost_structure === 'office' ? 'font-medium text-foreground border-b border-foreground/40' : 'text-muted-foreground/70 hover:text-foreground/90'} ${readOnly ? 'pointer-events-none' : ''}`}>Office</button>
           </div>
         </div>
         <div>
@@ -321,18 +326,18 @@ function EventHeader({
         </div>
       </div>
       {!showNotes ? (
-        <button onClick={() => setShowNotes(true)} className="mt-2.5 text-[10px] uppercase tracking-widest text-muted-foreground/60 hover:text-muted-foreground/60 transition-colors font-medium">
+        !readOnly && <button onClick={() => setShowNotes(true)} className="mt-2.5 text-[10px] uppercase tracking-widest text-muted-foreground/60 hover:text-muted-foreground/60 transition-colors font-medium">
           + Add notes
         </button>
       ) : (
         <div className="mt-2.5 grid grid-cols-2 gap-3">
           <div>
             <p className={fieldLabel}>Internal Notes <span className="text-muted-foreground/40 normal-case tracking-normal">(not shown to client)</span></p>
-            <Textarea value={internalNotes} onChange={(e) => setInternalNotes(e.target.value)} onBlur={() => saveField('internal_notes', internalNotes)} className="min-h-[40px] text-[13px] border-border/40 bg-transparent resize-none focus-visible:ring-0 focus-visible:border-border/40" placeholder="Internal team notes..." />
+            <Textarea value={internalNotes} onChange={(e) => setInternalNotes(e.target.value)} onBlur={() => saveField('internal_notes', internalNotes)} className="min-h-[40px] text-[13px] border-border/40 bg-transparent resize-none focus-visible:ring-0 focus-visible:border-border/40" placeholder="Internal team notes..." readOnly={readOnly} />
           </div>
           <div>
             <p className={fieldLabel}>Published Notes <span className="text-muted-foreground/40 normal-case tracking-normal">(shown on estimate)</span></p>
-            <Textarea value={publishedNotes} onChange={(e) => setPublishedNotes(e.target.value)} onBlur={() => saveField('published_notes', publishedNotes)} className="min-h-[40px] text-[13px] border-border/40 bg-transparent resize-none focus-visible:ring-0 focus-visible:border-border/40" placeholder="Notes visible to client..." />
+            <Textarea value={publishedNotes} onChange={(e) => setPublishedNotes(e.target.value)} onBlur={() => saveField('published_notes', publishedNotes)} className="min-h-[40px] text-[13px] border-border/40 bg-transparent resize-none focus-visible:ring-0 focus-visible:border-border/40" placeholder="Notes visible to client..." readOnly={readOnly} />
           </div>
         </div>
       )}
@@ -558,6 +563,7 @@ function LocationSelector({
   onAddLocation,
   onDeleteLocation,
   onRenameLocation,
+  readOnly,
 }: {
   laborLogs: LaborLog[]
   activeLocationId: string | null
@@ -565,6 +571,7 @@ function LocationSelector({
   onAddLocation: (name: string) => void
   onDeleteLocation: (id: string) => void
   onRenameLocation: (id: string, name: string) => void
+  readOnly?: boolean
 }) {
   const [showAddLocation, setShowAddLocation] = useState(false)
   const [newLocationName, setNewLocationName] = useState('')
@@ -602,7 +609,7 @@ function LocationSelector({
             <button
               key={log.id}
               onClick={() => onSelectLocation(log.id)}
-              onDoubleClick={() => startEditing(log)}
+              onDoubleClick={() => !readOnly && startEditing(log)}
               className={`text-[11px] px-2 py-0.5 rounded transition-colors ${
                 log.id === activeLocationId
                   ? 'font-medium text-foreground bg-slate-100 dark:bg-slate-800/50'
@@ -613,10 +620,12 @@ function LocationSelector({
             </button>
           )
         ))}
-        <button onClick={() => setShowAddLocation(true)} className="text-[11px] px-2 py-0.5 rounded text-muted-foreground/50 hover:text-foreground/60 hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
-          + Add Segment
-        </button>
-        {activeLocationId && laborLogs.length > 1 && !laborLogs.find((l) => l.id === activeLocationId)?.is_primary && (
+        {!readOnly && (
+          <button onClick={() => setShowAddLocation(true)} className="text-[11px] px-2 py-0.5 rounded text-muted-foreground/50 hover:text-foreground/60 hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
+            + Add Segment
+          </button>
+        )}
+        {!readOnly && activeLocationId && laborLogs.length > 1 && !laborLogs.find((l) => l.id === activeLocationId)?.is_primary && (
           <button
             className="text-[11px] px-2 py-0.5 rounded text-muted-foreground/30 hover:text-red-800/60 hover:bg-red-800/5 transition-colors"
             onClick={() => {
@@ -668,6 +677,7 @@ function LaborLogTab({
   onUpdateEntry,
   onDeleteEntry,
   onSwitchToSchedule,
+  readOnly,
 }: {
   estimate: EstimateWithClient
   laborLogs: LaborLog[]
@@ -684,6 +694,7 @@ function LaborLogTab({
   onUpdateEntry: (id: string, updates: Partial<LaborEntry>) => void
   onDeleteEntry: (id: string) => void
   onSwitchToSchedule: () => void
+  readOnly?: boolean
 }) {
   const [showAddRole, setShowAddRole] = useState(false)
 
@@ -739,6 +750,7 @@ function LaborLogTab({
         onAddLocation={onAddLocation}
         onDeleteLocation={onDeleteLocation}
         onRenameLocation={onRenameLocation}
+        readOnly={readOnly}
       />
 
       {/* Schedule-driven banner */}
@@ -820,6 +832,7 @@ function LaborLogTab({
                       officePayout={estimate.clients.office_payout_pct}
                       onUpdate={onUpdateEntry}
                       onDelete={onDeleteEntry}
+                      readOnly={readOnly}
                     />
                   ))}
                 </TableBody>
@@ -827,7 +840,7 @@ function LaborLogTab({
             )}
           </>
         )}
-        {hasScheduleData ? (
+        {!readOnly && (hasScheduleData ? (
           <button onClick={onSwitchToSchedule} className="mt-1.5 text-[11px] text-muted-foreground/60 hover:text-foreground/90 transition-colors">
             + Add Staff on Schedule
           </button>
@@ -835,7 +848,7 @@ function LaborLogTab({
           <button onClick={() => setShowAddRole(true)} className="mt-1.5 text-[11px] text-muted-foreground/60 hover:text-foreground/90 transition-colors">
             + Add Role
           </button>
-        )}
+        ))}
       </div>
 
       {/* Labor Summary — two compact lines */}
@@ -893,6 +906,7 @@ function StepperInput({
   onStep,
   min = 0,
   className = '',
+  disabled,
 }: {
   value: string
   onChange: (v: string) => void
@@ -900,6 +914,7 @@ function StepperInput({
   onStep: (newValue: number) => void
   min?: number
   className?: string
+  disabled?: boolean
 }) {
   function step(delta: number) {
     const next = Math.max(min, (parseInt(value) || 0) + delta)
@@ -909,15 +924,17 @@ function StepperInput({
 
   return (
     <div className="flex items-center justify-center gap-0.5 mx-auto group/stepper">
-      <div className="flex flex-col opacity-0 group-hover/stepper:opacity-100 transition-opacity">
-        <button onClick={() => step(1)} className="h-3 w-3.5 flex items-center justify-center rounded-sm hover:bg-muted/60 text-muted-foreground/50 hover:text-foreground/70" tabIndex={-1}>
-          <ChevronUp className="h-3 w-3" />
-        </button>
-        <button onClick={() => step(-1)} className="h-3 w-3.5 flex items-center justify-center rounded-sm hover:bg-muted/60 text-muted-foreground/50 hover:text-foreground/70" tabIndex={-1}>
-          <ChevronDown className="h-3 w-3" />
-        </button>
-      </div>
-      <Input value={value} onChange={(e) => onChange(e.target.value)} onBlur={onBlur} className={`${className} w-10 text-center`} />
+      {!disabled && (
+        <div className="flex flex-col opacity-0 group-hover/stepper:opacity-100 transition-opacity">
+          <button onClick={() => step(1)} className="h-3 w-3.5 flex items-center justify-center rounded-sm hover:bg-muted/60 text-muted-foreground/50 hover:text-foreground/70" tabIndex={-1}>
+            <ChevronUp className="h-3 w-3" />
+          </button>
+          <button onClick={() => step(-1)} className="h-3 w-3.5 flex items-center justify-center rounded-sm hover:bg-muted/60 text-muted-foreground/50 hover:text-foreground/70" tabIndex={-1}>
+            <ChevronDown className="h-3 w-3" />
+          </button>
+        </div>
+      )}
+      <Input value={value} onChange={(e) => onChange(e.target.value)} onBlur={onBlur} className={`${className} w-10 text-center`} readOnly={disabled} />
     </div>
   )
 }
@@ -930,12 +947,14 @@ function LaborEntryRow({
   officePayout,
   onUpdate,
   onDelete,
+  readOnly,
 }: {
   entry: LaborEntry
   isOffice: boolean
   officePayout: number
   onUpdate: (id: string, updates: Partial<LaborEntry>) => void
   onDelete: (id: string) => void
+  readOnly?: boolean
 }) {
   const [qty, setQty] = useState(entry.quantity.toString())
   const [days, setDays] = useState(entry.days.toString())
@@ -987,10 +1006,10 @@ function LaborEntryRow({
         {isOverridden && <span className="ml-1 text-[9px] text-amber-600 font-medium">*</span>}
       </TableCell>
       <TableCell className="text-center py-1">
-        <StepperInput value={qty} onChange={setQty} onBlur={saveQty} onStep={(v) => onUpdate(entry.id, { quantity: v })} min={0} className={cellInput} />
+        <StepperInput value={qty} onChange={setQty} onBlur={saveQty} onStep={(v) => onUpdate(entry.id, { quantity: v })} min={0} className={cellInput} disabled={readOnly} />
       </TableCell>
       <TableCell className="text-center py-1">
-        <StepperInput value={days} onChange={setDays} onBlur={saveDays} onStep={(v) => onUpdate(entry.id, { days: v })} min={0} className={cellInput} />
+        <StepperInput value={days} onChange={setDays} onBlur={saveDays} onStep={(v) => onUpdate(entry.id, { days: v })} min={0} className={cellInput} disabled={readOnly} />
       </TableCell>
       <TableCell className="text-right py-1">
         <div className="relative w-[72px] ml-auto">
@@ -1000,6 +1019,7 @@ function LaborEntryRow({
             onChange={(e) => setRate(e.target.value)}
             onBlur={saveRate}
             className={`${cellInput} w-full text-right pl-4 ${isOverridden ? 'text-amber-600' : ''}`}
+            readOnly={readOnly}
           />
         </div>
       </TableCell>
@@ -1012,7 +1032,7 @@ function LaborEntryRow({
         ) : (
           <div className="relative w-[72px] ml-auto">
             <span className="absolute left-1 top-1/2 -translate-y-1/2 text-[13px] text-muted-foreground/60 pointer-events-none">$</span>
-            <Input value={costRate} onChange={(e) => setCostRate(e.target.value)} onBlur={saveCostRate} className={`${cellInput} w-full text-right pl-4`} />
+            <Input value={costRate} onChange={(e) => setCostRate(e.target.value)} onBlur={saveCostRate} className={`${cellInput} w-full text-right pl-4`} readOnly={readOnly} />
           </div>
         )}
       </TableCell>
@@ -1026,10 +1046,12 @@ function LaborEntryRow({
         <span className="text-[13px] tabular-nums text-muted-foreground/50">{gpPct}%</span>
       </TableCell>
       <TableCell className="py-1">
-        <Trash2
-          className="h-3 w-3 opacity-0 group-hover:opacity-50 hover:!opacity-100 transition-opacity cursor-pointer text-foreground/60"
-          onClick={() => onDelete(entry.id)}
-        />
+        {!readOnly && (
+          <Trash2
+            className="h-3 w-3 opacity-0 group-hover:opacity-50 hover:!opacity-100 transition-opacity cursor-pointer text-foreground/60"
+            onClick={() => onDelete(entry.id)}
+          />
+        )}
       </TableCell>
     </TableRow>
   )
@@ -1053,6 +1075,7 @@ function LineItemTab({
   onAdd,
   onUpdate,
   onDelete,
+  readOnly,
 }: {
   items: EstimateLineItem[]
   section: string
@@ -1069,6 +1092,7 @@ function LineItemTab({
   onAdd: (items: { item_name: string; description: string; quantity: number; unit_cost: number; markup_pct: number; gl_code: string | null; rate_card_item_id: string | null }[]) => void
   onUpdate: (id: string, updates: Partial<EstimateLineItem>) => void
   onDelete: (id: string) => void
+  readOnly?: boolean
 }) {
   const [showModal, setShowModal] = useState(false)
 
@@ -1081,6 +1105,7 @@ function LineItemTab({
         onAddLocation={onAddLocation}
         onDeleteLocation={onDeleteLocation}
         onRenameLocation={onRenameLocation}
+        readOnly={readOnly}
       />
 
       <div>
@@ -1107,14 +1132,16 @@ function LineItemTab({
             </TableHeader>
             <TableBody>
               {items.map((item) => (
-                <LineItemRow key={item.id} item={item} onUpdate={onUpdate} onDelete={onDelete} />
+                <LineItemRow key={item.id} item={item} onUpdate={onUpdate} onDelete={onDelete} readOnly={readOnly} />
               ))}
             </TableBody>
           </Table>
         )}
-        <button onClick={() => setShowModal(true)} className="mt-1.5 text-[11px] text-muted-foreground/60 hover:text-foreground/90 transition-colors">
-          + Add Item
-        </button>
+        {!readOnly && (
+          <button onClick={() => setShowModal(true)} className="mt-1.5 text-[11px] text-muted-foreground/60 hover:text-foreground/90 transition-colors">
+            + Add Item
+          </button>
+        )}
       </div>
 
       <AddLineItemModal
@@ -1136,10 +1163,12 @@ function LineItemRow({
   item,
   onUpdate,
   onDelete,
+  readOnly,
 }: {
   item: EstimateLineItem
   onUpdate: (id: string, updates: Partial<EstimateLineItem>) => void
   onDelete: (id: string) => void
+  readOnly?: boolean
 }) {
   const [qty, setQty] = useState(item.quantity.toString())
   const [unitCost, setUnitCost] = useState(item.unit_cost.toString())
@@ -1158,25 +1187,27 @@ function LineItemRow({
       <TableCell className="text-[13px] text-foreground py-1">{item.item_name}</TableCell>
       <TableCell className="text-[13px] text-muted-foreground/50 py-1">{item.description || '—'}</TableCell>
       <TableCell className="text-center py-1">
-        <StepperInput value={qty} onChange={setQty} onBlur={() => onUpdate(item.id, { quantity: parseFloat(qty) || 1 })} onStep={(v) => onUpdate(item.id, { quantity: v })} min={0} className={cellInput} />
+        <StepperInput value={qty} onChange={setQty} onBlur={() => onUpdate(item.id, { quantity: parseFloat(qty) || 1 })} onStep={(v) => onUpdate(item.id, { quantity: v })} min={0} className={cellInput} disabled={readOnly} />
       </TableCell>
       <TableCell className="text-right py-1">
         <div className="relative w-[72px] ml-auto">
           <span className="absolute left-1 top-1/2 -translate-y-1/2 text-[13px] text-muted-foreground/60 pointer-events-none">$</span>
-          <Input value={unitCost} onChange={(e) => setUnitCost(e.target.value)} onBlur={() => onUpdate(item.id, { unit_cost: parseFloat(unitCost) || 0 })} className={`${cellInput} w-full text-right pl-4`} />
+          <Input value={unitCost} onChange={(e) => setUnitCost(e.target.value)} onBlur={() => onUpdate(item.id, { unit_cost: parseFloat(unitCost) || 0 })} className={`${cellInput} w-full text-right pl-4`} readOnly={readOnly} />
         </div>
       </TableCell>
       <TableCell className="text-right py-1">
         <span className="text-[13px] font-medium tabular-nums text-foreground">{fmt(total)}</span>
       </TableCell>
       <TableCell className="text-center py-1">
-        <Input value={markup} onChange={(e) => setMarkup(e.target.value)} onBlur={() => onUpdate(item.id, { markup_pct: parseFloat(markup) || 0 })} className={`${cellInput} w-12 text-center mx-auto`} />
+        <Input value={markup} onChange={(e) => setMarkup(e.target.value)} onBlur={() => onUpdate(item.id, { markup_pct: parseFloat(markup) || 0 })} className={`${cellInput} w-12 text-center mx-auto`} readOnly={readOnly} />
       </TableCell>
       <TableCell className="text-right py-1">
         <span className="text-[13px] font-medium tabular-nums text-foreground">{fmt(clientTotal)}</span>
       </TableCell>
       <TableCell className="py-1">
-        <Trash2 className="h-3 w-3 opacity-0 group-hover:opacity-50 hover:!opacity-100 transition-opacity cursor-pointer text-foreground/60" onClick={() => onDelete(item.id)} />
+        {!readOnly && (
+          <Trash2 className="h-3 w-3 opacity-0 group-hover:opacity-50 hover:!opacity-100 transition-opacity cursor-pointer text-foreground/60" onClick={() => onDelete(item.id)} />
+        )}
       </TableCell>
     </TableRow>
   )
@@ -2065,7 +2096,7 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
         status={estimate.status as EstimateStatus}
         onTransition={handleStatusTransition}
         onSubmitForApproval={handleSubmitForApproval}
-        disabled={isReadOnly && estimate.status !== 'review' && estimate.status !== 'approved'}
+        disabled={isReadOnly && !['review', 'approved', 'active', 'recap'].includes(estimate.status)}
       />
 
       {pendingApproval && estimate.status === 'review' && (
@@ -2080,7 +2111,7 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
       <div className="flex gap-4">
         {/* Left Panel — Estimate Working Area (70%) */}
         <div className="flex-[7] min-w-0 space-y-2.5">
-          <EventHeader estimate={estimate} onUpdate={handleUpdateEstimate} />
+          <EventHeader estimate={estimate} onUpdate={handleUpdateEstimate} readOnly={isReadOnly} />
 
           <Tabs value={activeTab} onValueChange={async (tab) => {
             setActiveTab(tab)
@@ -2111,12 +2142,14 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
                   onAddLocation={handleAddLocation}
                   onDeleteLocation={handleDeleteLocation}
                   onRenameLocation={handleRenameLocation}
+                  readOnly={isReadOnly}
                 />
                 {activeLocationId && laborLogs.find((l) => l.id === activeLocationId) && (
                   <ScheduleGrid
                     laborLog={laborLogs.find((l) => l.id === activeLocationId)!}
                     estimate={estimate}
                     rateCardData={rateCardData}
+                    readOnly={isReadOnly}
                     onUpdateDates={async (startDate, endDate) => {
                       const updated = await updateLaborLog(activeLocationId, { start_date: startDate, end_date: endDate })
                       setLaborLogs((prev) => prev.map((l) => l.id === activeLocationId ? updated : l))
@@ -2143,6 +2176,7 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
                 onUpdateEntry={handleUpdateEntry}
                 onDeleteEntry={handleDeleteEntry}
                 onSwitchToSchedule={() => setActiveTab('schedule')}
+                readOnly={isReadOnly}
               />
             </TabsContent>
 
@@ -2164,6 +2198,7 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
                   onAdd={(items) => handleAddLineItems(tab.key, items)}
                   onUpdate={handleUpdateLineItem}
                   onDelete={handleDeleteLineItem}
+                  readOnly={isReadOnly}
                 />
               </TabsContent>
             ))}
