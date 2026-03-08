@@ -128,6 +128,35 @@ CRUD operations for estimates, labor logs, labor entries, and line items:
 - `getLineItems(estimateId)` — All line items for an estimate (used for cross-location queries)
 - `createLineItem()` / `updateLineItem()` / `deleteLineItem()`
 
+### Workflow Engine (`src/lib/workflow-service.ts`)
+
+Status state machine, version history, and approval routing:
+
+**State Machine:** `pipeline → draft → review → approved → active → recap → complete`
+- `canTransition()` / `getNextStatuses()` — validates allowed transitions
+- `transitionStatus()` — validates, creates version snapshot, updates status, logs transition
+
+**Versioning:**
+- `buildSnapshot()` — captures full estimate state (estimate, labor_logs, entries, line_items, schedule data, totals) as JSONB
+- `createVersionSnapshot()` — auto-increments version number, stores snapshot in `estimate_versions`
+- `rollbackToVersion()` — restores all child data from a snapshot, remapping IDs for parent-child relationships
+
+**Approvals:**
+- `submitForApproval()` — transitions to review, creates `approval_requests` row with threshold detection ($50K+ = executive review)
+- `reviewApproval()` — approve (→ approved) or reject with notes (→ draft)
+- `getPendingApproval()` / `getApprovalHistory()`
+
+**Database Tables** (migration: `scripts/supabase_workflow_schema.sql`):
+- `estimate_versions` — Full JSON snapshots with version number, status, change summary
+- `approval_requests` — Review submissions with threshold, reviewer, status, notes
+- `status_transitions` — Audit log of every status change
+
+**UI Components:**
+- `EstimateStatusBar` — Linear progress track with contextual action buttons per status
+- `VersionHistoryPanel` — Slide-out panel with Versions/Approvals tabs, snapshot viewer, rollback
+- `ApprovalBanner` — Amber banner shown in Review status with Approve/Send Back actions
+- `EstimatesListPage` — Status filter tabs, color-coded badges, quick action buttons
+
 ### Seed Data Pipeline
 
 `scripts/seed_rate_cards.py` reads the Excel rate card template and generates SQL:
