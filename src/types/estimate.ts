@@ -38,6 +38,7 @@ export interface LaborLog {
   start_date: string | null
   end_date: string | null
   notes: string | null
+  status: 'draft' | 'active' | 'recap' | 'invoiced'
   created_at: string
   updated_at: string
 }

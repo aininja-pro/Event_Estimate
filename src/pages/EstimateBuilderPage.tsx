@@ -32,7 +32,13 @@ import {
   Calendar,
 } from 'lucide-react'
 import { ScheduleGrid } from '@/components/schedule/ScheduleGrid'
+import { EstimateStatusBar } from '@/components/EstimateStatusBar'
 import { getScheduleEntries, computeScheduleRollup } from '@/lib/schedule-service'
+import {
+  transitionStatus,
+  submitForApproval,
+} from '@/lib/workflow-service'
+import type { EstimateStatus } from '@/types/workflow'
 import type { ScheduleEntry, LaborRollupRow } from '@/types/schedule'
 import {
   getEstimate,
@@ -1967,6 +1973,29 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
     }
   }
 
+  // ── Workflow handlers ──
+
+  async function handleStatusTransition(toStatus: EstimateStatus, reason?: string) {
+    const result = await transitionStatus(estimateId, toStatus, 'Current User', reason)
+    if (result.success) {
+      const est = await getEstimate(estimateId)
+      setEstimate(est)
+    }
+    return result
+  }
+
+  async function handleSubmitForApproval() {
+    const result = await submitForApproval(estimateId, 'Current User')
+    if (!result.error) {
+      const est = await getEstimate(estimateId)
+      setEstimate(est)
+      return { success: true, threshold: result.threshold }
+    }
+    return { success: false, error: result.error }
+  }
+
+  const isReadOnly = estimate?.status === 'review' || estimate?.status === 'approved' || estimate?.status === 'active' || estimate?.status === 'complete'
+
   // ── Render ──
 
   if (loading) {
@@ -2004,13 +2033,30 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
         <p className="text-sm text-muted-foreground">{estimate.clients.name} · Estimate Builder</p>
       </div>
 
+      <EstimateStatusBar
+        status={estimate.status as EstimateStatus}
+        onTransition={handleStatusTransition}
+        onSubmitForApproval={handleSubmitForApproval}
+        disabled={isReadOnly && estimate.status !== 'review' && estimate.status !== 'approved'}
+      />
+
       {/* 70/30 Split Layout */}
       <div className="flex gap-4">
         {/* Left Panel — Estimate Working Area (70%) */}
         <div className="flex-[7] min-w-0 space-y-2.5">
           <EventHeader estimate={estimate} onUpdate={handleUpdateEstimate} />
 
-          <Tabs value={activeTab} onValueChange={setActiveTab}>
+          <Tabs value={activeTab} onValueChange={async (tab) => {
+            setActiveTab(tab)
+            // Refresh schedule entries when leaving the schedule tab so Labor Log / Summary see latest data
+            if (activeTab === 'schedule' && tab !== 'schedule') {
+              const schedMap: Record<string, ScheduleEntry[]> = {}
+              await Promise.all(laborLogs.map(async (log) => {
+                schedMap[log.id] = await getScheduleEntries(log.id)
+              }))
+              setScheduleEntriesMap(schedMap)
+            }
+          }}>
             <TabsList variant="line" className="border-b border-border/40 w-full">
               <TabsTrigger value="schedule" className="text-[13px]">Schedule</TabsTrigger>
               <TabsTrigger value="labor" className="text-[13px]">Labor Log</TabsTrigger>
