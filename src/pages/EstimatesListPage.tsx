@@ -44,14 +44,27 @@ const EVENT_TYPES = [
 
 const STATUS_DOT: Record<string, string> = {
   pipeline: 'bg-zinc-400',
-  draft: 'bg-amber-400',
-  review: 'bg-sky-400',
-  approved: 'bg-emerald-400',
-  active: 'bg-emerald-400',
-  recap: 'bg-violet-400',
-  complete: 'bg-zinc-400',
+  draft: 'bg-zinc-500',
+  review: 'bg-amber-500',
+  approved: 'bg-emerald-500',
+  active: 'bg-sky-500',
+  recap: 'bg-orange-500',
+  complete: 'bg-emerald-700',
   archived: 'bg-slate-300',
 }
+
+const STATUS_BADGE: Record<string, string> = {
+  pipeline: 'bg-zinc-100 text-zinc-600',
+  draft: 'bg-zinc-100 text-zinc-600',
+  review: 'bg-amber-50 text-amber-700',
+  approved: 'bg-emerald-50 text-emerald-700',
+  active: 'bg-sky-50 text-sky-700',
+  recap: 'bg-orange-50 text-orange-700',
+  complete: 'bg-emerald-50 text-emerald-800',
+  archived: 'bg-zinc-100 text-zinc-400',
+}
+
+const FILTER_STATUSES = ['all', 'pipeline', 'draft', 'review', 'approved', 'active', 'recap', 'complete'] as const
 
 function formatDate(dateStr: string | null): string {
   if (!dateStr) return '—'
@@ -72,6 +85,7 @@ export function EstimatesListPage() {
   const [showModal, setShowModal] = useState(false)
   const [saving, setSaving] = useState(false)
   const [showArchived, setShowArchived] = useState(false)
+  const [statusFilter, setStatusFilter] = useState<string>('all')
   const [openMenuId, setOpenMenuId] = useState<string | null>(null)
   const [menuPos, setMenuPos] = useState<{ top: number; right: number }>({ top: 0, right: 0 })
   const [deleteTarget, setDeleteTarget] = useState<EstimateWithClient | null>(null)
@@ -223,11 +237,20 @@ export function EstimatesListPage() {
     }
   }
 
-  const visibleEstimates = showArchived
-    ? estimates
-    : estimates.filter(e => e.status !== 'archived')
-
+  const nonArchivedEstimates = estimates.filter(e => e.status !== 'archived')
   const archivedCount = estimates.filter(e => e.status === 'archived').length
+
+  // Status counts for filter tabs (exclude archived)
+  const statusCounts = nonArchivedEstimates.reduce<Record<string, number>>((acc, e) => {
+    acc[e.status] = (acc[e.status] || 0) + 1
+    return acc
+  }, {})
+
+  const visibleEstimates = (() => {
+    const base = showArchived ? estimates : nonArchivedEstimates
+    if (statusFilter === 'all') return base
+    return base.filter(e => e.status === statusFilter)
+  })()
 
   if (loading) {
     return (
@@ -260,6 +283,29 @@ export function EstimatesListPage() {
         </div>
       </div>
 
+      {/* Status Filter Tabs */}
+      <div className="flex items-center gap-0.5 border-b border-border/40">
+        {FILTER_STATUSES.map((s) => {
+          const isActive = statusFilter === s
+          const count = s === 'all' ? nonArchivedEstimates.length : (statusCounts[s] || 0)
+          if (s !== 'all' && count === 0) return null
+          return (
+            <button
+              key={s}
+              onClick={() => setStatusFilter(s)}
+              className={`px-3 py-1.5 text-[11px] font-medium transition-colors border-b-2 ${
+                isActive
+                  ? 'text-foreground border-foreground'
+                  : 'text-muted-foreground hover:text-foreground border-transparent'
+              }`}
+            >
+              {s === 'all' ? 'All' : s.charAt(0).toUpperCase() + s.slice(1)}
+              <span className="ml-1 text-[10px] text-muted-foreground">{count}</span>
+            </button>
+          )
+        })}
+      </div>
+
       {/* Estimates Table */}
       {visibleEstimates.length === 0 ? (
         <div className="border border-border/40 rounded-md flex flex-col items-center justify-center py-16">
@@ -281,6 +327,7 @@ export function EstimatesListPage() {
                 <TableHead className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium py-2">Location</TableHead>
                 <TableHead className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium py-2">Dates</TableHead>
                 <TableHead className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium py-2 text-right">Last Updated</TableHead>
+                <TableHead className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium py-2 text-right">Action</TableHead>
                 <TableHead className="w-10 py-2" />
               </TableRow>
             </TableHeader>
@@ -296,14 +343,46 @@ export function EstimatesListPage() {
                     <TableCell className="text-[13px] font-medium py-2.5">{est.event_name}</TableCell>
                     <TableCell className="text-[13px] py-2.5">{est.clients.name}</TableCell>
                     <TableCell className="py-2.5">
-                      <span className="inline-flex items-center gap-1.5">
+                      <span className={`inline-flex items-center gap-1.5 text-[11px] font-medium px-2 py-0.5 rounded ${STATUS_BADGE[est.status] ?? 'bg-zinc-100 text-zinc-600'}`}>
                         <span className={`inline-block h-1.5 w-1.5 rounded-full ${STATUS_DOT[est.status] ?? 'bg-zinc-400'}`} />
-                        <span className="text-[13px]">{est.status.charAt(0).toUpperCase() + est.status.slice(1)}</span>
+                        {est.status.charAt(0).toUpperCase() + est.status.slice(1)}
                       </span>
                     </TableCell>
                     <TableCell className="text-[13px] text-muted-foreground py-2.5">{est.location || '—'}</TableCell>
                     <TableCell className="text-[13px] text-muted-foreground tabular-nums py-2.5">{formatDateRange(est.start_date, est.end_date)}</TableCell>
                     <TableCell className="text-[13px] text-muted-foreground tabular-nums py-2.5 text-right">{formatDate(est.updated_at)}</TableCell>
+                    <TableCell className="py-2.5 text-right">
+                      {est.status === 'draft' && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-6 text-[10px] px-2"
+                          onClick={(e) => { e.stopPropagation(); navigate(`/estimates/${est.id}`) }}
+                        >
+                          Submit
+                        </Button>
+                      )}
+                      {est.status === 'review' && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-6 text-[10px] px-2 border-amber-200 text-amber-700 hover:bg-amber-50"
+                          onClick={(e) => { e.stopPropagation(); navigate(`/estimates/${est.id}`) }}
+                        >
+                          Review
+                        </Button>
+                      )}
+                      {est.status === 'approved' && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-6 text-[10px] px-2 border-sky-200 text-sky-700 hover:bg-sky-50"
+                          onClick={(e) => { e.stopPropagation(); navigate(`/estimates/${est.id}`) }}
+                        >
+                          Mark Active
+                        </Button>
+                      )}
+                    </TableCell>
                     <TableCell className="py-2.5 px-2">
                       <div className="relative" ref={openMenuId === est.id ? menuRef : undefined}>
                         <button
