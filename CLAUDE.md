@@ -29,18 +29,30 @@ Phase 2 is well underway. Completed features:
   - **Fee Types tab** — Full CRUD management of the master fee types table, grouped by section (Planning & Admin, Onsite Labor, Travel, Production, Logistics). Add/edit/delete with confirmation dialogs.
 - **fee_types Master Table** — Centralized GL codes based on Dave's feedback. GL codes live in `fee_types` and `rate_card_items` reference them via `fee_type_id`. This ensures GL code consistency across all clients. 127 fee types seeded across 5 sections.
 - **Estimate Builder** — Full estimate creation and editing with Supabase-backed CRUD. Includes:
-  - Labor Log tab with role-based staffing (qty, days, day rate, cost rate, GP calculation). "Add Role from Rate Card" modal supports multi-select with checkboxes and batch add.
-  - Multi-segment support ("Segments" replaces "Locations" to support both geographic and temporal divisions, e.g., "San Diego" or "January 2026"). Segments are pill-selectable with double-click inline rename.
-  - Section tabs: Production, Travel & Logistics, Creative, Access & Logistics, Misc
-  - Summary tab with labor grouped by segment, line items grouped by section, grand totals
+  - **Schedule tab** — Calendar-based staffing grid. Date columns auto-generated from segment start/end dates. Click cell to fill 10h, double-click to clear, click filled cell to edit hours. Day type badges per column (Event, Setup, Training, Travel, Off) with color-coded heat map. OT hours shown as `10+N`. Bulk "Fill All" per column. Add Staff modal (multi-select from rate card + custom roles). Add Date for extra columns. Sortable Name/Role column headers (click cycles asc/desc/default). Summary bar with Staff, Person-Days, Per Diem Days, OT Hours, Est. Revenue/Cost, GP, GP%. New segments get an inline date picker to set their own date range and generate the calendar.
+  - **Labor Log tab** — Read-only rollup view when schedule data exists (driven by Schedule tab). Falls back to manual role-based staffing (qty, days, day rate, cost rate, GP calculation) when no schedule. "Add Role from Rate Card" modal supports multi-select with checkboxes and batch add. "+ Add custom role" inline form for one-off entries. Schedule data auto-refreshes when switching tabs so rollup stays current.
+  - Non-labor tabs (Production, Travel & Logistics, Creative, Access Fees & Insurance, Misc) use the same multi-select modal pattern — checkboxes pulling from the client's rate card filtered to the appropriate section, with batch add and "+ Add custom item" for one-off entries. Misc tab uses a manual free-text form (no rate card section mapped).
+  - All add modals correctly propagate `gl_code` and `rate_card_item_id` from the rate card.
+  - Stepper arrows (up/down chevrons) on QTY and DAYS fields for quick increment/decrement.
+  - Multi-segment support ("Segments" replaces "Locations"). Segments are pill-selectable with double-click inline rename. Button reads "+ Add Segment". Each segment can have independent dates.
+  - Event Header with ComboInput dropdowns: Event Type (Ride & Drive, Static Display, Press Event, etc.) and Attendance (range presets: 1–25 through 5,000+). Both allow free-text entry.
+  - Split notes: Internal Notes (not shown to client) and Published Notes (shown on estimate output). Side-by-side layout.
+  - Summary tab with labor grouped by segment, line items grouped by section. Two footer rows: **GR (Gross Revenue)** and **NR (Net Revenue)**. NR = GR minus pass-through section totals (Travel, Production). GP% shown against both GR and NR. Column header uses "GR" instead of "Revenue".
   - AI nudge panel (right sidebar) for scoping assistance
-- **Estimates List Page** — Table view of all estimates with status dots, create flow via modal dialog, navigation to Estimate Builder.
+- **Workflow Engine** — Full status lifecycle and version control:
+  - **Status state machine** — Pipeline → Draft → Review → Approved → Active → Recap → Complete, with validated transitions and required reasons for rejections/unlocks.
+  - **Status bar UI** — Linear-style progress track in Estimate Builder header with contextual action buttons (Submit for Review, Approve, Mark Active, etc.).
+  - **Version snapshots** — Full estimate snapshot captured on every status transition. Snapshots include estimate header, labor logs with entries, schedule entries with day entries, line items, day types, and computed totals (revenue, cost, GP, GP%). Totals correctly use `computeScheduleRollup()` for schedule-based estimates.
+  - **Version history panel** — Slide-out History panel accessible from estimate header with Versions and Approvals tabs. Expandable version entries with change summaries. Read-only snapshot modal shows estimate header, totals bar, labor (manual or schedule rollup with "(from schedule)" label), and non-labor line items. Rollback to any previous version with confirmation dialog.
+  - **Approval routing** — Threshold-based routing ($50K+ triggers executive review). ApprovalBanner component shown on Review status with submitter info, threshold display, and Approve/Send Back buttons with confirmation dialogs.
+  - **Read-only lockdown** — All interactive elements disabled when estimate is in review, approved, active, or complete status. Disables header fields, notes, segments, labor log editing, line item editing, and schedule grid interactions.
+- **Estimates List Page** — Table view of all estimates with status dots, create flow via modal dialog, navigation to Estimate Builder. Color-coded status badges, status filter tabs with counts (All/Draft/Review/Approved/Active/etc.), and contextual quick action buttons (Submit/Review/Mark Active). Three-dot context menu per row with Archive and Delete actions. Delete has confirmation dialog. "Show archived / Hide archived" toggle with count. Archived rows use muted text color.
 - **UI Styling** — Professional density pass (Stripe/Linear aesthetic) across all pages. Muted hunter green accents, slate section backgrounds, consistent `text-[13px]` body / `text-[10px]` uppercase headers.
 
-All data persists to Supabase (estimates, labor_logs, labor_entries, estimate_line_items, rate_card_items, fee_types, clients, rate_card_sections).
+All data persists to Supabase (estimates, labor_logs, labor_entries, estimate_line_items, rate_card_items, fee_types, clients, rate_card_sections, schedule_entries, schedule_day_entries, schedule_day_types, estimate_versions, approval_requests, status_transitions).
 
-**Completed Sprint:** Rate Card refinements — Fee Types management tab, fee-type-linked Add Rate modal, client billing contact fields, bulk CSV/Excel import with preview.
-**Next Sprint (Weeks 6-7):** Workflow Engine (approval routing, version history, status management).
+**Completed Sprint:** Workflow Engine — status state machine, version snapshots with schedule rollup, approval routing, version history panel with snapshot viewer and rollback, status bar UI, estimates list badges/filters/quick actions, read-only lockdown for locked statuses.
+**Next Sprint (Weeks 8-10):** AI Intelligence (scoping assistant, historical data training).
 
 ## Tech Stack
 
@@ -65,6 +77,11 @@ All data persists to Supabase (estimates, labor_logs, labor_entries, estimate_li
 │   ├── App.tsx                    — Router and layout definitions
 │   ├── components/
 │   │   ├── layout/                — AppLayout, Sidebar, Header + Stakeholder variants
+│   │   ├── schedule/              — ScheduleGrid (calendar staffing grid component)
+│   │   ├── ApprovalBanner.tsx     — Approval actions for estimates in Review status
+│   │   ├── EstimateStatusBar.tsx  — Linear-style progress track with contextual actions
+│   │   ├── VersionHistoryPanel.tsx — Slide-out panel with versions and approvals tabs
+│   │   ├── VersionSnapshotModal.tsx — Read-only snapshot viewer with schedule rollup support
 │   │   └── ui/                    — shadcn/ui primitives (button, card, table, etc.)
 │   ├── data/                      — Pre-computed JSON for dashboard views
 │   ├── lib/
@@ -72,10 +89,12 @@ All data persists to Supabase (estimates, labor_logs, labor_entries, estimate_li
 │   │   ├── data.ts                — Historical data helpers
 │   │   ├── estimate-service.ts    — Estimate/labor CRUD (Supabase)
 │   │   ├── rate-card-service.ts   — Rate card/client CRUD (Supabase)
+│   │   ├── schedule-service.ts    — Schedule entries, day types, rollup (Supabase)
+│   │   ├── workflow-service.ts    — Status machine, versioning, approvals, rollback (Supabase)
 │   │   ├── supabase.ts            — Supabase client (graceful null if env vars missing)
 │   │   └── utils.ts               — cn() helper
 │   ├── pages/                     — All page components (EstimateBuilderPage, EstimatesListPage, RateCardManagementPage, etc.)
-│   └── types/                     — TypeScript interfaces
+│   └── types/                     — TypeScript interfaces (estimate, rate-card, schedule, workflow)
 ├── scripts/                       — Python data pipeline scripts
 ├── historical_estimates/          — 1,700+ historical estimate spreadsheets
 ├── docs/
@@ -99,12 +118,18 @@ Supabase is the primary data store. Client configured in `src/lib/supabase.ts` (
 - `rate_card_sections` — Section groupings per client (Planning & Admin Labor, Onsite Labor, etc.)
 - `rate_card_items` — Individual rate entries with MSA/Custom tracking, references `fee_type_id`
 - `fee_types` — Master table of centralized GL codes and fee type names. Section values are snake_case keys: `planning_admin`, `onsite_labor`, `travel`, `production`, `logistics`
-- `estimates` — Estimate header records (event name, client, dates, status, cost structure)
+- `estimates` — Estimate header records (event name, client, dates, status, cost structure, internal_notes, published_notes). Status includes 'archived'. `expected_attendance` is text (stores range strings like "50–100").
 - `labor_logs` — Segments within an estimate (geographic or temporal divisions)
 - `labor_entries` — Individual labor roles staffed per segment (qty, days, rates)
 - `estimate_line_items` — Non-labor line items per segment per section (production, travel, etc.)
+- `schedule_entries` — Staff rows in the schedule grid (person_name, role_name, day_rate, cost_rate, flags for airfare/hotel/per_diem, staff_group_id for rollup grouping)
+- `schedule_day_entries` — Hours per staff per date (hours, per_diem_override)
+- `schedule_day_types` — Day type per date column per segment (event, setup, training, travel, off)
+- `estimate_versions` — Version snapshots with full JSON snapshot, version number, change summary, status at time of snapshot
+- `approval_requests` — Approval workflow records (requested_by, reviewed_by, status, threshold_triggered, notes)
+- `status_transitions` — Audit log of all status changes (from_status, to_status, transitioned_by, reason, version_id)
 
-Service layers: `src/lib/rate-card-service.ts` (clients, rate cards, fee types CRUD) and `src/lib/estimate-service.ts`.
+Service layers: `src/lib/rate-card-service.ts` (clients, rate cards, fee types CRUD), `src/lib/estimate-service.ts`, `src/lib/schedule-service.ts` (schedule grid CRUD + rollup computation), and `src/lib/workflow-service.ts` (status machine, versioning, approvals, rollback).
 
 ## Environment Variables
 
@@ -195,8 +220,11 @@ When building an estimate, rates are consumed in a grid format:
 
 **Weeks 1-2 (Complete):** Rate Card Management Engine
 **Weeks 3-5 (Complete):** Estimate Builder & Labor Planning
-**Week 5+ (Complete):** Rate Card refinements — Fee Types tab, fee-type-linked Add Rate, client contacts, bulk import
-**Next Sprint (Weeks 6-7):** Workflow Engine (approval routing, version history, status management)
+**Week 5 (Complete):** Rate Card refinements — Fee Types tab, fee-type-linked Add Rate, client contacts, bulk import
+**Week 5-6 (Complete):** Estimate Builder UX — multi-select modals, custom items, steppers, combo dropdowns, split notes, NR summary, archive/delete
+**Week 6 (Complete):** Schedule tab — calendar staffing grid, Labor Log read-only rollup from schedule, sortable columns, per-segment date picker, auto-refresh on tab switch
+**Weeks 6-7 (Complete):** Workflow Engine — status state machine, version snapshots (with schedule rollup support), approval routing with threshold detection, version history panel with snapshot viewer and rollback, linear status bar UI, estimates list status badges/filter tabs/quick actions, read-only lockdown for locked statuses
+**Next Sprint (Weeks 8-10):** AI Intelligence (scoping assistant, historical data training)
 
 ## Key Stakeholders
 
