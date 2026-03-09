@@ -40,18 +40,20 @@ Phase 2 is well underway. Completed features:
   - Summary tab with labor grouped by segment, line items grouped by section. Two footer rows: **GR (Gross Revenue)** and **NR (Net Revenue)**. NR = GR minus pass-through section totals (Travel, Production). GP% shown against both GR and NR. Column header uses "GR" instead of "Revenue".
   - AI nudge panel (right sidebar) for scoping assistance
 - **Workflow Engine** — Full status lifecycle and version control:
-  - **Status state machine** — Pipeline → Draft → Review → Approved → Active → Recap → Complete, with validated transitions and required reasons for rejections/unlocks.
-  - **Status bar UI** — Linear-style progress track in Estimate Builder header with contextual action buttons (Submit for Review, Approve, Mark Active, etc.).
-  - **Version snapshots** — Full estimate snapshot captured on every status transition. Snapshots include estimate header, labor logs with entries, schedule entries with day entries, line items, day types, and computed totals (revenue, cost, GP, GP%). Totals correctly use `computeScheduleRollup()` for schedule-based estimates.
+  - **Segment-level status** — Status now lives on individual segments (labor_logs), not the estimate. Each segment transitions independently: Draft → Review → Approved → Active → Recap → Invoiced → Complete. Estimate-level status is computed as the lowest segment status via `computeEstimateStatus()`.
+  - **SegmentTransitionBar** — Per-segment status progress bar with contextual action buttons (Submit for Review, Approve, Mark Active, etc.). Edit permissions gated per-segment based on status.
+  - **SegmentStatusBadge** — Color-coded status dot + label component used in both the builder and estimates list.
+  - **Status bar UI** — Linear-style progress track in Estimate Builder header showing rolled-up estimate status.
+  - **Version snapshots** — Full estimate snapshot captured on every status transition (including segment-level transitions). Snapshots include estimate header, labor logs with entries, schedule entries with day entries, line items, day types, and computed totals (revenue, cost, GP, GP%). Totals correctly use `computeScheduleRollup()` for schedule-based estimates. Segment transition summaries appear in the History panel.
   - **Version history panel** — Slide-out History panel accessible from estimate header with Versions and Approvals tabs. Expandable version entries with change summaries. Read-only snapshot modal shows estimate header, totals bar, labor (manual or schedule rollup with "(from schedule)" label), and non-labor line items. Rollback to any previous version with confirmation dialog.
   - **Approval routing** — Threshold-based routing ($50K+ triggers executive review). ApprovalBanner component shown on Review status with submitter info, threshold display, and Approve/Send Back buttons with confirmation dialogs.
-  - **Read-only lockdown** — All interactive elements disabled when estimate is in review, approved, active, or complete status. Disables header fields, notes, segments, labor log editing, line item editing, and schedule grid interactions.
-- **Estimates List Page** — Table view of all estimates with status dots, create flow via modal dialog, navigation to Estimate Builder. Color-coded status badges, status filter tabs with counts (All/Draft/Review/Approved/Active/etc.), and contextual quick action buttons (Submit/Review/Mark Active). Three-dot context menu per row with Archive and Delete actions. Delete has confirmation dialog. "Show archived / Hide archived" toggle with count. Archived rows use muted text color.
+  - **Read-only lockdown** — Interactive elements disabled per-segment based on segment status. Segments in review, approved, active, or complete status are locked. Segment removal gated on individual segment draft status.
+- **Estimates List Page** — Table view of all estimates with create flow via modal dialog, navigation to Estimate Builder. Status column shows per-segment pills (segment name + color-coded status dot) using `EstimateWithSegments` type that joins `labor_logs` data. Segment status legend bar below filter tabs. Sortable column headers (Event Name, Client, Status, Last Updated) with asc/desc/default cycling and chevron indicators. Search input filters by event name, client, location, and segment names. Status filter tabs with counts (All/Draft/Review/Approved/Active/etc.). Three-dot context menu per row with Archive and Delete actions. Delete has confirmation dialog. "Show archived / Hide archived" toggle with count. Archived rows use muted text color.
 - **UI Styling** — Professional density pass (Stripe/Linear aesthetic) across all pages. Muted hunter green accents, slate section backgrounds, consistent `text-[13px]` body / `text-[10px]` uppercase headers.
 
 All data persists to Supabase (estimates, labor_logs, labor_entries, estimate_line_items, rate_card_items, fee_types, clients, rate_card_sections, schedule_entries, schedule_day_entries, schedule_day_types, estimate_versions, approval_requests, status_transitions).
 
-**Completed Sprint:** Workflow Engine — status state machine, version snapshots with schedule rollup, approval routing, version history panel with snapshot viewer and rollback, status bar UI, estimates list badges/filters/quick actions, read-only lockdown for locked statuses.
+**Completed Sprint:** Workflow Engine + Segment-Level Workflow — status transitions moved to per-segment, SegmentTransitionBar/SegmentStatusBadge components, version snapshots on segment transitions, per-segment edit lockdown, estimates list with segment status pills/sortable headers/search.
 **Next Sprint (Weeks 8-10):** AI Intelligence (scoping assistant, historical data training).
 
 ## Tech Stack
@@ -78,8 +80,9 @@ All data persists to Supabase (estimates, labor_logs, labor_entries, estimate_li
 │   ├── components/
 │   │   ├── layout/                — AppLayout, Sidebar, Header + Stakeholder variants
 │   │   ├── schedule/              — ScheduleGrid (calendar staffing grid component)
+│   │   ├── segments/              — SegmentStatusBadge, SegmentTransitionBar (per-segment workflow UI)
 │   │   ├── ApprovalBanner.tsx     — Approval actions for estimates in Review status
-│   │   ├── EstimateStatusBar.tsx  — Linear-style progress track with contextual actions
+│   │   ├── EstimateStatusBar.tsx  — Linear-style progress track with rolled-up estimate status
 │   │   ├── VersionHistoryPanel.tsx — Slide-out panel with versions and approvals tabs
 │   │   ├── VersionSnapshotModal.tsx — Read-only snapshot viewer with schedule rollup support
 │   │   └── ui/                    — shadcn/ui primitives (button, card, table, etc.)
@@ -94,7 +97,7 @@ All data persists to Supabase (estimates, labor_logs, labor_entries, estimate_li
 │   │   ├── supabase.ts            — Supabase client (graceful null if env vars missing)
 │   │   └── utils.ts               — cn() helper
 │   ├── pages/                     — All page components (EstimateBuilderPage, EstimatesListPage, RateCardManagementPage, etc.)
-│   └── types/                     — TypeScript interfaces (estimate, rate-card, schedule, workflow)
+│   └── types/                     — TypeScript interfaces (estimate incl. EstimateWithSegments, rate-card, schedule, workflow incl. SegmentStatus)
 ├── scripts/                       — Python data pipeline scripts
 ├── historical_estimates/          — 1,700+ historical estimate spreadsheets
 ├── docs/
@@ -119,7 +122,7 @@ Supabase is the primary data store. Client configured in `src/lib/supabase.ts` (
 - `rate_card_items` — Individual rate entries with MSA/Custom tracking, references `fee_type_id`
 - `fee_types` — Master table of centralized GL codes and fee type names. Section values are snake_case keys: `planning_admin`, `onsite_labor`, `travel`, `production`, `logistics`
 - `estimates` — Estimate header records (event name, client, dates, status, cost structure, internal_notes, published_notes). Status includes 'archived'. `expected_attendance` is text (stores range strings like "50–100").
-- `labor_logs` — Segments within an estimate (geographic or temporal divisions)
+- `labor_logs` — Segments within an estimate (geographic or temporal divisions). Each segment owns its own `status` field (draft/review/approved/active/recap/invoiced/complete) for independent workflow progression.
 - `labor_entries` — Individual labor roles staffed per segment (qty, days, rates)
 - `estimate_line_items` — Non-labor line items per segment per section (production, travel, etc.)
 - `schedule_entries` — Staff rows in the schedule grid (person_name, role_name, day_rate, cost_rate, flags for airfare/hotel/per_diem, staff_group_id for rollup grouping)
@@ -223,7 +226,8 @@ When building an estimate, rates are consumed in a grid format:
 **Week 5 (Complete):** Rate Card refinements — Fee Types tab, fee-type-linked Add Rate, client contacts, bulk import
 **Week 5-6 (Complete):** Estimate Builder UX — multi-select modals, custom items, steppers, combo dropdowns, split notes, NR summary, archive/delete
 **Week 6 (Complete):** Schedule tab — calendar staffing grid, Labor Log read-only rollup from schedule, sortable columns, per-segment date picker, auto-refresh on tab switch
-**Weeks 6-7 (Complete):** Workflow Engine — status state machine, version snapshots (with schedule rollup support), approval routing with threshold detection, version history panel with snapshot viewer and rollback, linear status bar UI, estimates list status badges/filter tabs/quick actions, read-only lockdown for locked statuses
+**Weeks 6-7 (Complete):** Workflow Engine — status state machine, version snapshots (with schedule rollup support), approval routing with threshold detection, version history panel with snapshot viewer and rollback, linear status bar UI, estimates list badges/filters/quick actions, read-only lockdown for locked statuses
+**Week 7 (Complete):** Segment-level workflow — status transitions moved from estimate-level to per-segment, SegmentTransitionBar and SegmentStatusBadge components, segment transitions create version snapshots, edit permissions gated per-segment, segment creation order preserved. Estimates list overhaul — segment status pills replacing single badge, sortable column headers, search input, removed estimate-level action buttons (actions now per-segment in builder).
 **Next Sprint (Weeks 8-10):** AI Intelligence (scoping assistant, historical data training)
 
 ## Key Stakeholders
