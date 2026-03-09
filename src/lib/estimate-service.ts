@@ -4,6 +4,7 @@ import type {
   EstimateInsert,
   EstimateUpdate,
   EstimateWithClient,
+  EstimateWithSegments,
   LaborLog,
   LaborLogInsert,
   LaborLogUpdate,
@@ -24,11 +25,11 @@ function requireSupabase() {
 
 // ---- Estimates ----
 
-export async function getEstimates(): Promise<EstimateWithClient[]> {
+export async function getEstimates(): Promise<EstimateWithSegments[]> {
   const db = requireSupabase()
   const { data, error } = await db
     .from('estimates')
-    .select('*, clients(name, code, third_party_markup, office_payout_pct)')
+    .select('*, clients(name, code, third_party_markup, office_payout_pct), labor_logs(id, location_name, status, is_primary)')
     .order('updated_at', { ascending: false })
   if (error) throw error
   return data

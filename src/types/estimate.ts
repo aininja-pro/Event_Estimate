@@ -29,6 +29,10 @@ export interface EstimateWithClient extends Estimate {
   clients: { name: string; code: string; third_party_markup: number; office_payout_pct: number }
 }
 
+export interface EstimateWithSegments extends EstimateWithClient {
+  labor_logs: Pick<LaborLog, 'id' | 'location_name' | 'status' | 'is_primary'>[]
+}
+
 export interface LaborLog {
   id: string
   estimate_id: string

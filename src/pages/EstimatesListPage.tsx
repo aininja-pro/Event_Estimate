@@ -25,10 +25,10 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { FileSpreadsheet, MoreVertical } from 'lucide-react'
+import { FileSpreadsheet, MoreVertical, ChevronUp, ChevronDown, Search, X } from 'lucide-react'
 import { getEstimates, createEstimate, createLaborLog, updateEstimate, deleteEstimate } from '@/lib/estimate-service'
 import { getClients } from '@/lib/rate-card-service'
-import type { EstimateWithClient } from '@/types/estimate'
+import type { EstimateWithSegments } from '@/types/estimate'
 import type { Client } from '@/types/rate-card'
 
 const EVENT_TYPES = [
@@ -64,6 +64,23 @@ const STATUS_BADGE: Record<string, string> = {
   archived: 'bg-zinc-100 text-zinc-400',
 }
 
+const SEGMENT_DOT: Record<string, string> = {
+  draft: 'bg-zinc-300',
+  review: 'bg-amber-400/70',
+  approved: 'bg-blue-400/70',
+  active: 'bg-emerald-400/70',
+  recap: 'bg-violet-400/70',
+  invoiced: 'bg-teal-400/70',
+  complete: 'bg-emerald-700/70',
+}
+
+const STATUS_ORDER: Record<string, number> = {
+  pipeline: 0, draft: 1, review: 2, approved: 3, active: 4, recap: 5, complete: 6, archived: 7,
+}
+
+type SortKey = 'event_name' | 'client' | 'status' | 'updated_at'
+type SortDir = 'asc' | 'desc' | null
+
 const FILTER_STATUSES = ['all', 'pipeline', 'draft', 'review', 'approved', 'active', 'recap', 'complete'] as const
 
 function formatDate(dateStr: string | null): string {
@@ -79,7 +96,7 @@ function formatDateRange(start: string | null, end: string | null): string {
 
 export function EstimatesListPage() {
   const navigate = useNavigate()
-  const [estimates, setEstimates] = useState<EstimateWithClient[]>([])
+  const [estimates, setEstimates] = useState<EstimateWithSegments[]>([])
   const [clients, setClients] = useState<Client[]>([])
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
@@ -88,8 +105,11 @@ export function EstimatesListPage() {
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [openMenuId, setOpenMenuId] = useState<string | null>(null)
   const [menuPos, setMenuPos] = useState<{ top: number; right: number }>({ top: 0, right: 0 })
-  const [deleteTarget, setDeleteTarget] = useState<EstimateWithClient | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<EstimateWithSegments | null>(null)
   const [deleting, setDeleting] = useState(false)
+  const [sortKey, setSortKey] = useState<SortKey | null>(null)
+  const [sortDir, setSortDir] = useState<SortDir>(null)
+  const [searchQuery, setSearchQuery] = useState('')
   const menuRef = useRef<HTMLDivElement>(null)
 
   // New estimate form state
@@ -198,7 +218,7 @@ export function EstimatesListPage() {
     }
   }
 
-  async function handleArchive(est: EstimateWithClient) {
+  async function handleArchive(est: EstimateWithSegments) {
     setOpenMenuId(null)
     try {
       await updateEstimate(est.id, { status: 'archived' })
@@ -209,7 +229,7 @@ export function EstimatesListPage() {
     }
   }
 
-  async function handleUnarchive(est: EstimateWithClient) {
+  async function handleUnarchive(est: EstimateWithSegments) {
     setOpenMenuId(null)
     try {
       await updateEstimate(est.id, { status: 'draft' })
@@ -246,10 +266,35 @@ export function EstimatesListPage() {
     return acc
   }, {})
 
+  function toggleSort(key: SortKey) {
+    if (sortKey !== key) { setSortKey(key); setSortDir('asc') }
+    else if (sortDir === 'asc') setSortDir('desc')
+    else { setSortKey(null); setSortDir(null) }
+  }
+
   const visibleEstimates = (() => {
     const base = showArchived ? estimates : nonArchivedEstimates
-    if (statusFilter === 'all') return base
-    return base.filter(e => e.status === statusFilter)
+    const byStatus = statusFilter === 'all' ? base : base.filter(e => e.status === statusFilter)
+    const q = searchQuery.trim().toLowerCase()
+    const filtered = !q ? byStatus : byStatus.filter(e =>
+      e.event_name.toLowerCase().includes(q) ||
+      e.clients.name.toLowerCase().includes(q) ||
+      (e.location ?? '').toLowerCase().includes(q) ||
+      e.labor_logs?.some(s => s.location_name.toLowerCase().includes(q))
+    )
+    if (!sortKey || !sortDir) return filtered
+    const sorted = [...filtered]
+    const dir = sortDir === 'asc' ? 1 : -1
+    sorted.sort((a, b) => {
+      switch (sortKey) {
+        case 'event_name': return dir * a.event_name.localeCompare(b.event_name)
+        case 'client': return dir * a.clients.name.localeCompare(b.clients.name)
+        case 'status': return dir * ((STATUS_ORDER[a.status] ?? 99) - (STATUS_ORDER[b.status] ?? 99))
+        case 'updated_at': return dir * (new Date(a.updated_at).getTime() - new Date(b.updated_at).getTime())
+        default: return 0
+      }
+    })
+    return sorted
   })()
 
   if (loading) {
@@ -269,6 +314,24 @@ export function EstimatesListPage() {
           <p className="text-sm text-muted-foreground">Create and manage event estimates</p>
         </div>
         <div className="flex items-center gap-3">
+          <div className="relative">
+            <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground/50" />
+            <input
+              type="text"
+              placeholder="Search estimates..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="h-8 w-[200px] rounded-md border border-border/50 bg-white pl-7 pr-7 text-[13px] placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-ring/30 transition-colors"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground/50 hover:text-foreground transition-colors"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </div>
           {archivedCount > 0 && (
             <button
               onClick={() => setShowArchived(!showArchived)}
@@ -288,7 +351,7 @@ export function EstimatesListPage() {
         {FILTER_STATUSES.map((s) => {
           const isActive = statusFilter === s
           const count = s === 'all' ? nonArchivedEstimates.length : (statusCounts[s] || 0)
-          if (s !== 'all' && count === 0) return null
+          if (s === 'pipeline' && count === 0) return null
           return (
             <button
               key={s}
@@ -306,6 +369,16 @@ export function EstimatesListPage() {
         })}
       </div>
 
+      {/* Segment Status Legend */}
+      <div className="flex items-center gap-3 text-[10px] text-muted-foreground/60">
+        {Object.entries(SEGMENT_DOT).map(([status, dotClass]) => (
+          <span key={status} className="inline-flex items-center gap-1">
+            <span className={`inline-block h-1.5 w-1.5 rounded-full ${dotClass}`} />
+            {status.charAt(0).toUpperCase() + status.slice(1)}
+          </span>
+        ))}
+      </div>
+
       {/* Estimates Table */}
       {visibleEstimates.length === 0 ? (
         <div className="border border-border/40 rounded-md flex flex-col items-center justify-center py-16">
@@ -321,13 +394,26 @@ export function EstimatesListPage() {
           <Table>
             <TableHeader>
               <TableRow className="border-b border-border/40 bg-slate-50 dark:bg-slate-800/30 hover:bg-slate-50 dark:hover:bg-slate-800/30">
-                <TableHead className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium py-2">Event Name</TableHead>
-                <TableHead className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium py-2">Client</TableHead>
-                <TableHead className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium py-2">Status</TableHead>
-                <TableHead className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium py-2">Location</TableHead>
-                <TableHead className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium py-2">Dates</TableHead>
-                <TableHead className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium py-2 text-right">Last Updated</TableHead>
-                <TableHead className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium py-2 text-right">Action</TableHead>
+                {([
+                  { key: 'event_name' as SortKey, label: 'Event Name', align: '' },
+                  { key: 'client' as SortKey, label: 'Client', align: '' },
+                  { key: 'status' as SortKey, label: 'Status', align: '' },
+                  { key: null, label: 'Location', align: '' },
+                  { key: null, label: 'Dates', align: '' },
+                  { key: 'updated_at' as SortKey, label: 'Last Updated', align: 'text-right' },
+                ] as const).map(({ key, label, align }) => (
+                  <TableHead
+                    key={label}
+                    className={`text-[10px] uppercase tracking-wider text-muted-foreground font-medium py-2 ${align} ${key ? 'cursor-pointer select-none hover:text-foreground transition-colors' : ''}`}
+                    onClick={key ? () => toggleSort(key) : undefined}
+                  >
+                    <span className={`inline-flex items-center gap-0.5 ${align === 'text-right' ? 'justify-end' : ''}`}>
+                      {label}
+                      {key && sortKey === key && sortDir === 'asc' && <ChevronUp className="h-3 w-3" />}
+                      {key && sortKey === key && sortDir === 'desc' && <ChevronDown className="h-3 w-3" />}
+                    </span>
+                  </TableHead>
+                ))}
                 <TableHead className="w-10 py-2" />
               </TableRow>
             </TableHeader>
@@ -343,46 +429,28 @@ export function EstimatesListPage() {
                     <TableCell className="text-[13px] font-medium py-2.5">{est.event_name}</TableCell>
                     <TableCell className="text-[13px] py-2.5">{est.clients.name}</TableCell>
                     <TableCell className="py-2.5">
-                      <span className={`inline-flex items-center gap-1.5 text-[11px] font-medium px-2 py-0.5 rounded ${STATUS_BADGE[est.status] ?? 'bg-zinc-100 text-zinc-600'}`}>
-                        <span className={`inline-block h-1.5 w-1.5 rounded-full ${STATUS_DOT[est.status] ?? 'bg-zinc-400'}`} />
-                        {est.status.charAt(0).toUpperCase() + est.status.slice(1)}
-                      </span>
+                      {(est.labor_logs?.length ?? 0) === 0 ? (
+                        <span className={`inline-flex items-center gap-1.5 text-[11px] font-medium px-2 py-0.5 rounded ${STATUS_BADGE[est.status] ?? 'bg-zinc-100 text-zinc-600'}`}>
+                          <span className={`inline-block h-1.5 w-1.5 rounded-full ${STATUS_DOT[est.status] ?? 'bg-zinc-400'}`} />
+                          {est.status.charAt(0).toUpperCase() + est.status.slice(1)}
+                        </span>
+                      ) : (
+                        <div className="flex flex-wrap gap-1.5">
+                          {est.labor_logs.map((seg) => (
+                            <span
+                              key={seg.id}
+                              className="inline-flex items-center gap-1 text-[11px] font-medium px-1.5 py-0.5 rounded bg-zinc-50 dark:bg-zinc-800/40 text-muted-foreground"
+                            >
+                              <span className="text-foreground/80 truncate max-w-[100px]">{seg.location_name}</span>
+                              <span className={`inline-block h-1.5 w-1.5 rounded-full flex-shrink-0 ${SEGMENT_DOT[seg.status] ?? 'bg-zinc-400'}`} />
+                            </span>
+                          ))}
+                        </div>
+                      )}
                     </TableCell>
                     <TableCell className="text-[13px] text-muted-foreground py-2.5">{est.location || '—'}</TableCell>
                     <TableCell className="text-[13px] text-muted-foreground tabular-nums py-2.5">{formatDateRange(est.start_date, est.end_date)}</TableCell>
                     <TableCell className="text-[13px] text-muted-foreground tabular-nums py-2.5 text-right">{formatDate(est.updated_at)}</TableCell>
-                    <TableCell className="py-2.5 text-right">
-                      {est.status === 'draft' && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="h-6 text-[10px] px-2"
-                          onClick={(e) => { e.stopPropagation(); navigate(`/estimates/${est.id}`) }}
-                        >
-                          Submit
-                        </Button>
-                      )}
-                      {est.status === 'review' && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="h-6 text-[10px] px-2 border-amber-200 text-amber-700 hover:bg-amber-50"
-                          onClick={(e) => { e.stopPropagation(); navigate(`/estimates/${est.id}`) }}
-                        >
-                          Review
-                        </Button>
-                      )}
-                      {est.status === 'approved' && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="h-6 text-[10px] px-2 border-sky-200 text-sky-700 hover:bg-sky-50"
-                          onClick={(e) => { e.stopPropagation(); navigate(`/estimates/${est.id}`) }}
-                        >
-                          Mark Active
-                        </Button>
-                      )}
-                    </TableCell>
                     <TableCell className="py-2.5 px-2">
                       <div className="relative" ref={openMenuId === est.id ? menuRef : undefined}>
                         <button
