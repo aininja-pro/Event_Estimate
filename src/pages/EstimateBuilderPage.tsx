@@ -30,6 +30,8 @@ import {
   ChevronUp,
   ChevronDown,
   Calendar,
+  Sparkles,
+  PanelRightClose,
 } from 'lucide-react'
 import { ScheduleGrid } from '@/components/schedule/ScheduleGrid'
 import { EstimateStatusBar } from '@/components/EstimateStatusBar'
@@ -85,15 +87,6 @@ const EVENT_TYPES = [
   'Other',
 ]
 
-const STATUS_DOT: Record<string, string> = {
-  pipeline: 'bg-zinc-400',
-  draft: 'bg-amber-400/80',
-  review: 'bg-sky-400/70',
-  approved: 'bg-emerald-400/70',
-  active: 'bg-emerald-400/70',
-  recap: 'bg-violet-400/70',
-  complete: 'bg-zinc-400',
-}
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -272,10 +265,6 @@ function EventHeader({
 
   return (
     <div className="border border-border/50 bg-slate-50 dark:bg-slate-800/50 rounded-md px-4 py-3">
-      <div className="flex items-center gap-2 mb-2.5">
-        <span className={`inline-block h-1.5 w-1.5 rounded-full ${STATUS_DOT[estimate.status] ?? 'bg-zinc-400'}`} />
-        <span className="text-[11px] text-muted-foreground/50 font-medium">{estimate.status.charAt(0).toUpperCase() + estimate.status.slice(1)}</span>
-      </div>
       <div className="grid grid-cols-4 gap-x-5 gap-y-2">
         <div>
           <p className={fieldLabel}>Client</p>
@@ -1775,6 +1764,7 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
   const [rateCardData, setRateCardData] = useState<RateCardItemsBySection[]>([])
   const [scheduleEntriesMap, setScheduleEntriesMap] = useState<Record<string, ScheduleEntry[]>>({})
   const [activeTab, setActiveTab] = useState('schedule')
+  const [aiPanelOpen, setAiPanelOpen] = useState(false)
   const [historyOpen, setHistoryOpen] = useState(false)
   const [pendingApproval, setPendingApproval] = useState<ApprovalRequest | null>(null)
   const [loading, setLoading] = useState(true)
@@ -2108,10 +2098,10 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
         />
       )}
 
-      {/* 70/30 Split Layout */}
-      <div className="flex gap-4">
-        {/* Left Panel — Estimate Working Area (70%) */}
-        <div className="flex-[7] min-w-0 space-y-2.5">
+      {/* 70/30 Split Layout — AI panel collapsible */}
+      <div className="flex gap-0">
+        {/* Left Panel — Estimate Working Area */}
+        <div className={`min-w-0 space-y-2.5 transition-all duration-200 ${aiPanelOpen ? 'flex-[7]' : 'flex-1'}`}>
           <EventHeader estimate={estimate} onUpdate={handleUpdateEstimate} readOnly={!editRules.event_details} />
 
           <Tabs value={activeTab} onValueChange={async (tab) => {
@@ -2210,10 +2200,32 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
           </Tabs>
         </div>
 
-        {/* Right Panel — AI Intelligence (30%) */}
-        <div className="flex-[3] min-w-[260px] border-l border-border/40 pl-4">
-          <AINudgePanel />
-        </div>
+        {/* Right Panel — Collapsible AI Intelligence */}
+        {aiPanelOpen ? (
+          <div className="flex-[3] min-w-[260px] border-l border-border/40 pl-4 relative">
+            <button
+              onClick={() => setAiPanelOpen(false)}
+              className="absolute top-1 right-0 p-1 rounded hover:bg-muted text-muted-foreground/60 hover:text-muted-foreground transition-colors"
+              title="Collapse panel"
+            >
+              <PanelRightClose className="w-4 h-4" />
+            </button>
+            <AINudgePanel />
+          </div>
+        ) : (
+          <div className="w-9 border-l border-border/40 flex flex-col items-center pt-3 shrink-0">
+            <button
+              onClick={() => setAiPanelOpen(true)}
+              className="flex flex-col items-center gap-2 text-muted-foreground/50 hover:text-muted-foreground transition-colors cursor-pointer"
+              title="Open AI Intelligence panel"
+            >
+              <Sparkles className="w-4 h-4" />
+              <span className="text-[10px] font-medium tracking-wider uppercase" style={{ writingMode: 'vertical-lr' }}>
+                Intelligence
+              </span>
+            </button>
+          </div>
+        )}
       </div>
 
       <VersionHistoryPanel

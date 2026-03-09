@@ -51,8 +51,8 @@ export function Sidebar() {
   return (
     <aside className="flex h-screen w-64 shrink-0 flex-col bg-sidebar text-sidebar-foreground">
       <div className="px-6 py-5">
-        <span className="text-xl font-extrabold tracking-tight">DriveShop</span>
-        <p className="mt-0.5 text-xs font-medium text-zinc-400">Event Estimate Engine</p>
+        <img src="/DriveShop_WebLogo.png" alt="DriveShop" className="h-8 w-auto" />
+        <p className="mt-1.5 text-xs font-medium text-zinc-400">Event Estimate Engine</p>
       </div>
       <Separator className="bg-sidebar-border" />
       <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
