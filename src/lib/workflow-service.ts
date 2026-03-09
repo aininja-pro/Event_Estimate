@@ -653,9 +653,12 @@ export async function getStatusTransitions(estimateId: string): Promise<StatusTr
 // ---- Segment Status ----
 
 const VALID_SEGMENT_TRANSITIONS: Record<string, string[]> = {
-  draft: ['active'],
+  draft: ['review'],
+  review: ['approved', 'draft'],
+  approved: ['active', 'draft'],
   active: ['recap'],
-  recap: ['invoiced'],
+  recap: ['invoiced', 'active'],
+  invoiced: ['complete'],
 }
 
 export function canTransitionSegment(from: string, to: string): boolean {

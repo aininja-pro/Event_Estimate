@@ -157,6 +157,31 @@ Status state machine, version history, and approval routing:
 - `ApprovalBanner` — Amber banner shown in Review status with Approve/Send Back actions
 - `EstimatesListPage` — Status filter tabs, color-coded badges, quick action buttons
 
+### Segment Status Engine (`src/lib/segment-status-service.ts`)
+
+Per-segment status tracking, allowing each segment in a multi-segment estimate to move through the lifecycle independently.
+
+**Segment State Machine:** `draft → review → approved → active → recap → invoiced → complete`
+- Send-back paths: `review → draft`, `approved → draft`, `recap → active`
+- `transitionSegmentStatus()` — validates, updates `labor_logs.status`, logs to `segment_activities`, syncs estimate-level status
+- `computeEstimateStatus()` — derives estimate status from segment statuses (single-segment: direct map; multi-segment: rules-based aggregation)
+
+**Edit Rules:** `getSegmentEditRules()` returns per-field editability for each segment status:
+- Draft: fully editable
+- Review/Approved/Invoiced/Complete: fully locked
+- Active: only staff names and notes editable
+- Recap: staff names, notes, and actuals editable; names required before advancing to Invoiced
+
+**Recap Actuals:** `getRecapActuals()`, `upsertRecapActual()`, `getVarianceReport()` — stores actual values alongside estimates in `recap_actuals` table for variance reporting.
+
+**Database Tables** (migration: `scripts/supabase_segment_status_schema.sql`):
+- `segment_activities` — Per-segment action log (status changes, name assignments, actuals entry)
+- `recap_actuals` — Actual vs estimated values with nullable FKs to labor_entries, schedule_entries, estimate_line_items
+
+**UI Components:**
+- `SegmentStatusBadge` — Colored dot + label on segment pills (draft=gray, review=amber, active=green, recap=violet, etc.)
+- `SegmentTransitionBar` — Contextual action buttons per segment status with confirmation dialogs and lock banner messages
+
 ### Seed Data Pipeline
 
 `scripts/seed_rate_cards.py` reads the Excel rate card template and generates SQL:

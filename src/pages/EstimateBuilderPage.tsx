@@ -35,14 +35,15 @@ import { ScheduleGrid } from '@/components/schedule/ScheduleGrid'
 import { EstimateStatusBar } from '@/components/EstimateStatusBar'
 import { VersionHistoryPanel, HistoryButton } from '@/components/VersionHistoryPanel'
 import { ApprovalBanner } from '@/components/ApprovalBanner'
+import { SegmentStatusBadge } from '@/components/segments/SegmentStatusBadge'
+import { SegmentTransitionBar } from '@/components/segments/SegmentTransitionBar'
 import { getScheduleEntries, computeScheduleRollup } from '@/lib/schedule-service'
 import {
-  transitionStatus,
-  submitForApproval,
   getPendingApproval,
   reviewApproval,
 } from '@/lib/workflow-service'
-import type { EstimateStatus, ApprovalRequest } from '@/types/workflow'
+import { transitionSegmentStatus, getSegmentEditRules } from '@/lib/segment-status-service'
+import type { EstimateStatus, ApprovalRequest, SegmentStatus, SegmentEditRules } from '@/types/workflow'
 import type { ScheduleEntry, LaborRollupRow } from '@/types/schedule'
 import {
   getEstimate,
@@ -617,14 +618,13 @@ function LocationSelector({
               }`}
             >
               {log.location_name}{log.is_primary ? ' (Primary)' : ''}
+              <SegmentStatusBadge status={(log.status || 'draft') as SegmentStatus} />
             </button>
           )
         ))}
-        {!readOnly && (
-          <button onClick={() => setShowAddLocation(true)} className="text-[11px] px-2 py-0.5 rounded text-muted-foreground/50 hover:text-foreground/60 hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
-            + Add Segment
-          </button>
-        )}
+        <button onClick={() => setShowAddLocation(true)} className="text-[11px] px-2 py-0.5 rounded text-muted-foreground/50 hover:text-foreground/60 hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
+          + Add Segment
+        </button>
         {!readOnly && activeLocationId && laborLogs.length > 1 && !laborLogs.find((l) => l.id === activeLocationId)?.is_primary && (
           <button
             className="text-[11px] px-2 py-0.5 rounded text-muted-foreground/30 hover:text-red-800/60 hover:bg-red-800/5 transition-colors"
@@ -2020,22 +2020,11 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
 
   // ── Workflow handlers ──
 
-  async function handleStatusTransition(toStatus: EstimateStatus, reason?: string) {
-    const result = await transitionStatus(estimateId, toStatus, 'Current User', reason)
-    if (result.success) {
-      const est = await getEstimate(estimateId)
-      setEstimate(est)
-    }
+  async function handleSegmentTransition(toStatus: SegmentStatus, comment?: string) {
+    if (!activeLocationId) return { success: false, error: 'No segment selected' }
+    const result = await transitionSegmentStatus(activeLocationId, toStatus, comment)
+    if (result.success) await loadData()
     return result
-  }
-
-  async function handleSubmitForApproval() {
-    const result = await submitForApproval(estimateId, 'Current User')
-    if (!result.error) {
-      await loadData()
-      return { success: true, threshold: result.threshold }
-    }
-    return { success: false, error: result.error }
   }
 
   async function handleApprove(approvalId: string) {
@@ -2050,7 +2039,13 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
     return result
   }
 
-  const isReadOnly = estimate?.status === 'review' || estimate?.status === 'approved' || estimate?.status === 'active' || estimate?.status === 'complete'
+  // Segment-aware edit rules: derive from the active segment's status
+  const activeLog = laborLogs.find((l) => l.id === activeLocationId)
+  const activeSegmentStatus = (activeLog?.status || 'draft') as SegmentStatus
+  const editRules: SegmentEditRules = getSegmentEditRules(activeSegmentStatus)
+
+  // Legacy isReadOnly kept for estimate-level locks (header, notes use editRules directly)
+  const isReadOnly = !editRules.event_details
 
   // ── Render ──
 
@@ -2092,12 +2087,7 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
         <HistoryButton onClick={() => setHistoryOpen(true)} />
       </div>
 
-      <EstimateStatusBar
-        status={estimate.status as EstimateStatus}
-        onTransition={handleStatusTransition}
-        onSubmitForApproval={handleSubmitForApproval}
-        disabled={isReadOnly && !['review', 'approved', 'active', 'recap'].includes(estimate.status)}
-      />
+      <EstimateStatusBar status={activeSegmentStatus} />
 
       {pendingApproval && estimate.status === 'review' && (
         <ApprovalBanner
@@ -2107,11 +2097,19 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
         />
       )}
 
+      {activeLog && (
+        <SegmentTransitionBar
+          segmentName={activeLog.location_name}
+          status={activeSegmentStatus}
+          onTransition={handleSegmentTransition}
+        />
+      )}
+
       {/* 70/30 Split Layout */}
       <div className="flex gap-4">
         {/* Left Panel — Estimate Working Area (70%) */}
         <div className="flex-[7] min-w-0 space-y-2.5">
-          <EventHeader estimate={estimate} onUpdate={handleUpdateEstimate} readOnly={isReadOnly} />
+          <EventHeader estimate={estimate} onUpdate={handleUpdateEstimate} readOnly={!editRules.event_details} />
 
           <Tabs value={activeTab} onValueChange={async (tab) => {
             setActiveTab(tab)
@@ -2142,14 +2140,14 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
                   onAddLocation={handleAddLocation}
                   onDeleteLocation={handleDeleteLocation}
                   onRenameLocation={handleRenameLocation}
-                  readOnly={isReadOnly}
+                  readOnly={!editRules.schedule_add_remove}
                 />
                 {activeLocationId && laborLogs.find((l) => l.id === activeLocationId) && (
                   <ScheduleGrid
                     laborLog={laborLogs.find((l) => l.id === activeLocationId)!}
                     estimate={estimate}
                     rateCardData={rateCardData}
-                    readOnly={isReadOnly}
+                    readOnly={!editRules.schedule_hours}
                     onUpdateDates={async (startDate, endDate) => {
                       const updated = await updateLaborLog(activeLocationId, { start_date: startDate, end_date: endDate })
                       setLaborLogs((prev) => prev.map((l) => l.id === activeLocationId ? updated : l))
@@ -2176,7 +2174,7 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
                 onUpdateEntry={handleUpdateEntry}
                 onDeleteEntry={handleDeleteEntry}
                 onSwitchToSchedule={() => setActiveTab('schedule')}
-                readOnly={isReadOnly}
+                readOnly={!editRules.labor_log}
               />
             </TabsContent>
 
@@ -2198,7 +2196,7 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
                   onAdd={(items) => handleAddLineItems(tab.key, items)}
                   onUpdate={handleUpdateLineItem}
                   onDelete={handleDeleteLineItem}
-                  readOnly={isReadOnly}
+                  readOnly={!editRules.line_items}
                 />
               </TabsContent>
             ))}
