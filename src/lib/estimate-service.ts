@@ -85,7 +85,7 @@ export async function getLaborLogs(estimateId: string): Promise<LaborLog[]> {
     .from('labor_logs')
     .select('*')
     .eq('estimate_id', estimateId)
-    .order('location_order')
+    .order('created_at', { ascending: true })
   if (error) throw error
   return data
 }

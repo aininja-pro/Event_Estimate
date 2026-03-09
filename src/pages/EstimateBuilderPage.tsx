@@ -625,16 +625,19 @@ function LocationSelector({
         <button onClick={() => setShowAddLocation(true)} className="text-[11px] px-2 py-0.5 rounded text-muted-foreground/50 hover:text-foreground/60 hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
           + Add Segment
         </button>
-        {!readOnly && activeLocationId && laborLogs.length > 1 && !laborLogs.find((l) => l.id === activeLocationId)?.is_primary && (
+        {activeLocationId && laborLogs.length > 1 && (() => {
+          const activeLog = laborLogs.find((l) => l.id === activeLocationId)
+          return activeLog && !activeLog.is_primary && (!activeLog.status || activeLog.status === 'draft')
+        })() && (
           <button
-            className="text-[11px] px-2 py-0.5 rounded text-muted-foreground/30 hover:text-red-800/60 hover:bg-red-800/5 transition-colors"
+            className="text-[11px] px-1.5 py-0.5 rounded text-red-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
             onClick={() => {
               if (confirm('Delete this segment and all its data?')) {
                 onDeleteLocation(activeLocationId)
               }
             }}
           >
-            Remove
+            ✕ Remove
           </button>
         )}
       </div>
