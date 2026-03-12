@@ -1,4 +1,5 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom'
+import { AuthProvider, useAuth } from '@/lib/auth'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { StakeholderLayout } from '@/components/layout/StakeholderLayout'
 import { DashboardPage } from '@/pages/DashboardPage'
@@ -13,36 +14,82 @@ import { EstimateBuilderPage } from '@/pages/EstimateBuilderPage'
 import { RateCardManagementPage } from '@/pages/RateCardManagementPage'
 import { FeedbackPage } from '@/pages/FeedbackPage'
 import { AdminFeedbackPage } from '@/pages/AdminFeedbackPage'
+import { LoginPage } from '@/pages/LoginPage'
+import { AdminUsersPage } from '@/pages/AdminUsersPage'
+
+function RequireAuth() {
+  const { session, loading } = useAuth()
+
+  if (loading) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-zinc-950">
+        <p className="text-sm text-zinc-400">Loading...</p>
+      </div>
+    )
+  }
+
+  if (!session) return <Navigate to="/login" replace />
+
+  return <Outlet />
+}
+
+function RequireAdmin() {
+  const { profile, loading } = useAuth()
+
+  if (loading) {
+    return (
+      <div className="flex h-screen items-center justify-center">
+        <p className="text-sm text-muted-foreground">Loading...</p>
+      </div>
+    )
+  }
+
+  if (profile?.role !== 'admin') {
+    return <Navigate to="/estimates" replace />
+  }
+
+  return <Outlet />
+}
 
 function App() {
   return (
     <BrowserRouter>
-      <Routes>
-        <Route path="/" element={<AppLayout />}>
-          <Route index element={<Navigate to="/dashboard" replace />} />
-          <Route path="/dashboard" element={<DashboardPage />} />
-          <Route path="/rate-card" element={<RateCardPage />} />
-          <Route path="/ai-assistant" element={<AIScopingPage />} />
-          <Route path="/system-architecture" element={<SystemArchitecturePage />} />
-          <Route path="/database-schema" element={<DatabaseSchemaPage />} />
-          <Route path="/estimate-lifecycle" element={<EstimateLifecyclePage />} />
-          <Route path="/phase2-roadmap" element={<Phase2RoadmapPage />} />
-          <Route path="/estimates" element={<EstimatesListPage />} />
-          <Route path="/estimates/:id" element={<EstimateBuilderPage />} />
-          <Route path="/estimate-builder" element={<EstimateBuilderPage />} />
-          <Route path="/rate-card-management" element={<RateCardManagementPage />} />
-          <Route path="/admin/feedback" element={<AdminFeedbackPage />} />
-        </Route>
+      <AuthProvider>
+        <Routes>
+          <Route path="/login" element={<LoginPage />} />
 
-        <Route path="/stakeholder" element={<StakeholderLayout />}>
-          <Route index element={<Navigate to="/stakeholder/estimate-lifecycle" replace />} />
-          <Route path="estimate-lifecycle" element={<EstimateLifecyclePage />} />
-          <Route path="phase2-roadmap" element={<Phase2RoadmapPage />} />
-          <Route path="estimate-builder" element={<EstimateBuilderPage />} />
-          <Route path="rate-card-management" element={<RateCardManagementPage />} />
-          <Route path="feedback" element={<FeedbackPage />} />
-        </Route>
-      </Routes>
+          <Route element={<RequireAuth />}>
+            <Route path="/" element={<AppLayout />}>
+              <Route index element={<Navigate to="/estimates" replace />} />
+              <Route path="/dashboard" element={<DashboardPage />} />
+              <Route path="/rate-card" element={<RateCardPage />} />
+              <Route path="/ai-assistant" element={<AIScopingPage />} />
+              <Route path="/system-architecture" element={<SystemArchitecturePage />} />
+              <Route path="/database-schema" element={<DatabaseSchemaPage />} />
+              <Route path="/estimate-lifecycle" element={<EstimateLifecyclePage />} />
+              <Route path="/phase2-roadmap" element={<Phase2RoadmapPage />} />
+              <Route path="/estimates" element={<EstimatesListPage />} />
+              <Route path="/estimates/:id" element={<EstimateBuilderPage />} />
+              <Route path="/estimate-builder" element={<EstimateBuilderPage />} />
+              <Route path="/rate-card-management" element={<RateCardManagementPage />} />
+              <Route path="/admin/feedback" element={<AdminFeedbackPage />} />
+
+              <Route element={<RequireAdmin />}>
+                <Route path="/admin/users" element={<AdminUsersPage />} />
+              </Route>
+            </Route>
+
+            <Route path="/stakeholder" element={<StakeholderLayout />}>
+              <Route index element={<Navigate to="/stakeholder/estimate-lifecycle" replace />} />
+              <Route path="estimate-lifecycle" element={<EstimateLifecyclePage />} />
+              <Route path="phase2-roadmap" element={<Phase2RoadmapPage />} />
+              <Route path="estimate-builder" element={<EstimateBuilderPage />} />
+              <Route path="rate-card-management" element={<RateCardManagementPage />} />
+              <Route path="feedback" element={<FeedbackPage />} />
+            </Route>
+          </Route>
+        </Routes>
+      </AuthProvider>
     </BrowserRouter>
   )
 }

@@ -25,26 +25,26 @@ interface SegmentAction {
 function getSegmentActions(status: SegmentStatus): SegmentAction[] {
   switch (status) {
     case 'draft':
-      return [{ label: 'Submit for Review', toStatus: 'review', variant: 'default', className: 'bg-amber-600 hover:bg-amber-700' }]
+      return [{ label: 'Submit for Review', toStatus: 'review', variant: 'outline', className: 'border-amber-300/60 text-amber-700/80 bg-amber-50/50 hover:bg-amber-100/60 hover:border-amber-400/60 hover:text-amber-800' }]
     case 'review':
       return [
-        { label: 'Approve', toStatus: 'approved', variant: 'default', className: 'bg-blue-600 hover:bg-blue-700' },
-        { label: 'Send Back', toStatus: 'draft', variant: 'outline', requiresReason: true, className: 'border-orange-300 text-orange-700 hover:bg-orange-50' },
+        { label: 'Approve', toStatus: 'approved', variant: 'outline', className: 'border-blue-300/60 text-blue-700/80 bg-blue-50/50 hover:bg-blue-100/60 hover:border-blue-400/60 hover:text-blue-800' },
+        { label: 'Send Back', toStatus: 'draft', variant: 'outline', requiresReason: true, className: 'border-orange-300/60 text-orange-600/80 hover:bg-orange-50/60 hover:text-orange-700' },
       ]
     case 'approved':
       return [
-        { label: 'Mark Active', toStatus: 'active', variant: 'default', className: 'bg-emerald-600 hover:bg-emerald-700' },
-        { label: 'Reopen', toStatus: 'draft', variant: 'outline', requiresReason: true },
+        { label: 'Mark Active', toStatus: 'active', variant: 'outline', className: 'border-emerald-300/60 text-emerald-700/80 bg-emerald-50/50 hover:bg-emerald-100/60 hover:border-emerald-400/60 hover:text-emerald-800' },
+        { label: 'Reopen', toStatus: 'draft', variant: 'outline', requiresReason: true, className: 'hover:text-foreground' },
       ]
     case 'active':
-      return [{ label: 'Begin Recap', toStatus: 'recap', variant: 'default', className: 'bg-violet-600 hover:bg-violet-700' }]
+      return [{ label: 'Begin Recap', toStatus: 'recap', variant: 'outline', className: 'border-violet-300/60 text-violet-700/80 bg-violet-50/50 hover:bg-violet-100/60 hover:border-violet-400/60 hover:text-violet-800' }]
     case 'recap':
       return [
-        { label: 'Mark Invoiced', toStatus: 'invoiced', variant: 'default', className: 'bg-teal-600 hover:bg-teal-700' },
-        { label: 'Reopen Active', toStatus: 'active', variant: 'outline' },
+        { label: 'Mark Invoiced', toStatus: 'invoiced', variant: 'outline', className: 'border-teal-300/60 text-teal-700/80 bg-teal-50/50 hover:bg-teal-100/60 hover:border-teal-400/60 hover:text-teal-800' },
+        { label: 'Reopen Active', toStatus: 'active', variant: 'outline', className: 'hover:text-foreground' },
       ]
     case 'invoiced':
-      return [{ label: 'Mark Complete', toStatus: 'complete', variant: 'default', className: 'bg-slate-600 hover:bg-slate-700' }]
+      return [{ label: 'Mark Complete', toStatus: 'complete', variant: 'outline', className: 'border-slate-300/60 text-slate-600/80 bg-slate-50/50 hover:bg-slate-100/60 hover:border-slate-400/60 hover:text-slate-700' }]
     default:
       return []
   }

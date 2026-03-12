@@ -7,10 +7,10 @@ const STATUSES: { key: EstimateStatus; label: string; accent: string }[] = [
   { key: 'pipeline', label: 'Pipeline', accent: 'bg-zinc-400' },
   { key: 'draft', label: 'Draft', accent: 'bg-zinc-500' },
   { key: 'review', label: 'Review', accent: 'bg-amber-500' },
-  { key: 'approved', label: 'Approved', accent: 'bg-emerald-600' },
-  { key: 'active', label: 'Active', accent: 'bg-sky-600' },
-  { key: 'recap', label: 'Recap', accent: 'bg-orange-500' },
-  { key: 'complete', label: 'Complete', accent: 'bg-emerald-700' },
+  { key: 'approved', label: 'Approved', accent: 'bg-blue-500' },
+  { key: 'active', label: 'Active', accent: 'bg-fuchsia-500' },
+  { key: 'recap', label: 'Recap', accent: 'bg-violet-500' },
+  { key: 'complete', label: 'Complete', accent: 'bg-green-800' },
 ]
 
 const STATUS_INDEX = Object.fromEntries(STATUSES.map((s, i) => [s.key, i]))

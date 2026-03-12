@@ -45,15 +45,17 @@ Phase 2 is well underway. Completed features:
   - **SegmentStatusBadge** — Color-coded status dot + label component used in both the builder and estimates list.
   - **Status bar UI** — Linear-style progress track in Estimate Builder header showing rolled-up estimate status.
   - **Version snapshots** — Full estimate snapshot captured on every status transition (including segment-level transitions). Snapshots include estimate header, labor logs with entries, schedule entries with day entries, line items, day types, and computed totals (revenue, cost, GP, GP%). Totals correctly use `computeScheduleRollup()` for schedule-based estimates. Segment transition summaries appear in the History panel.
-  - **Version history panel** — Slide-out History panel accessible from estimate header with Versions and Approvals tabs. Expandable version entries with change summaries. Read-only snapshot modal shows estimate header, totals bar, labor (manual or schedule rollup with "(from schedule)" label), and non-labor line items. Rollback to any previous version with confirmation dialog.
+  - **Version history panel** — Slide-out History panel accessible from estimate header with Versions and Approvals tabs. Expandable version entries with change summaries. Read-only snapshot modal shows estimate header, totals bar, labor (manual or schedule rollup with "(from schedule)" label), and non-labor line items. Rollback to any previous version with confirmation dialog. Search input filters versions by summary, user, or version number. Segment filter chips extracted from version summaries for quick filtering. Dynamic tab count shows filtered vs total (e.g. "Versions (5 of 29)"). Updated status badge colors: approved=blue, active=fuchsia, recap=violet, complete=green.
   - **Approval routing** — Threshold-based routing ($50K+ triggers executive review). ApprovalBanner component shown on Review status with submitter info, threshold display, and Approve/Send Back buttons with confirmation dialogs.
   - **Read-only lockdown** — Interactive elements disabled per-segment based on segment status. Segments in review, approved, active, or complete status are locked. Segment removal gated on individual segment draft status.
 - **Estimates List Page** — Table view of all estimates with create flow via modal dialog, navigation to Estimate Builder. Status column shows per-segment pills (segment name + color-coded status dot) using `EstimateWithSegments` type that joins `labor_logs` data. Segment status legend bar below filter tabs. Sortable column headers (Event Name, Client, Status, Last Updated) with asc/desc/default cycling and chevron indicators. Search input filters by event name, client, location, and segment names. Status filter tabs with counts (All/Draft/Review/Approved/Active/etc.). Three-dot context menu per row with Archive and Delete actions. Delete has confirmation dialog. "Show archived / Hide archived" toggle with count. Archived rows use muted text color.
 - **UI Styling** — Professional density pass (Stripe/Linear aesthetic) across all pages. Muted hunter green accents, slate section backgrounds, consistent `text-[13px]` body / `text-[10px]` uppercase headers.
+- **Authentication & User Management** — Supabase Auth with email/password login. No self-service signup — admins invite users. Five roles: admin, cfo, operations, production_manager, account_manager. Route guards (RequireAuth, RequireAdmin) protect all routes. Auth context provider (`useAuth`/`useUser` hooks) supplies user identity throughout the app. Admin > Users page for invite, role assignment, activate/deactivate. Sidebar shows user name/role and sign-out button.
+- **Notification System** — In-app notifications with Supabase Realtime. NotificationBell in header with unread count badge and dropdown. Notification dispatch wired into all workflow trigger points: segment status transitions notify CFO (review), creator (approved/sent back), production team (active). Approval decisions and rollbacks notify the original submitter/creator. `notification-service.ts` handles create, query, mark-read, and role-based dispatch respecting user preferences.
 
-All data persists to Supabase (estimates, labor_logs, labor_entries, estimate_line_items, rate_card_items, fee_types, clients, rate_card_sections, schedule_entries, schedule_day_entries, schedule_day_types, estimate_versions, approval_requests, status_transitions).
+All data persists to Supabase (estimates, labor_logs, labor_entries, estimate_line_items, rate_card_items, fee_types, clients, rate_card_sections, schedule_entries, schedule_day_entries, schedule_day_types, estimate_versions, approval_requests, status_transitions, profiles, notifications).
 
-**Completed Sprint:** Workflow Engine + Segment-Level Workflow — status transitions moved to per-segment, SegmentTransitionBar/SegmentStatusBadge components, version snapshots on segment transitions, per-segment edit lockdown, estimates list with segment status pills/sortable headers/search.
+**Completed Sprint:** Auth Foundation + Notification System — Supabase Auth integration, profiles table with roles, login page, route guards, admin users page, notification bell with Realtime, notification dispatch on all workflow transitions, replaced all hardcoded 'Current User' strings with real user identity.
 **Next Sprint (Weeks 8-10):** AI Intelligence (scoping assistant, historical data training).
 
 ## Tech Stack
@@ -83,20 +85,23 @@ All data persists to Supabase (estimates, labor_logs, labor_entries, estimate_li
 │   │   ├── segments/              — SegmentStatusBadge, SegmentTransitionBar (per-segment workflow UI)
 │   │   ├── ApprovalBanner.tsx     — Approval actions for estimates in Review status
 │   │   ├── EstimateStatusBar.tsx  — Linear-style progress track with rolled-up estimate status
+│   │   ├── NotificationBell.tsx   — Header notification dropdown with unread count + Realtime
 │   │   ├── VersionHistoryPanel.tsx — Slide-out panel with versions and approvals tabs
 │   │   ├── VersionSnapshotModal.tsx — Read-only snapshot viewer with schedule rollup support
 │   │   └── ui/                    — shadcn/ui primitives (button, card, table, etc.)
 │   ├── data/                      — Pre-computed JSON for dashboard views
 │   ├── lib/
 │   │   ├── ai.ts                  — Anthropic API integration
+│   │   ├── auth.tsx               — AuthProvider, useAuth/useUser hooks (Supabase Auth)
 │   │   ├── data.ts                — Historical data helpers
 │   │   ├── estimate-service.ts    — Estimate/labor CRUD (Supabase)
+│   │   ├── notification-service.ts — Notification CRUD, role-based dispatch
 │   │   ├── rate-card-service.ts   — Rate card/client CRUD (Supabase)
 │   │   ├── schedule-service.ts    — Schedule entries, day types, rollup (Supabase)
 │   │   ├── workflow-service.ts    — Status machine, versioning, approvals, rollback (Supabase)
 │   │   ├── supabase.ts            — Supabase client (graceful null if env vars missing)
 │   │   └── utils.ts               — cn() helper
-│   ├── pages/                     — All page components (EstimateBuilderPage, EstimatesListPage, RateCardManagementPage, etc.)
+│   ├── pages/                     — All page components (LoginPage, AdminUsersPage, EstimateBuilderPage, etc.)
 │   └── types/                     — TypeScript interfaces (estimate incl. EstimateWithSegments, rate-card, schedule, workflow incl. SegmentStatus)
 ├── scripts/                       — Python data pipeline scripts
 ├── historical_estimates/          — 1,700+ historical estimate spreadsheets
@@ -121,8 +126,10 @@ Supabase is the primary data store. Client configured in `src/lib/supabase.ts` (
 - `rate_card_sections` — Section groupings per client (Planning & Admin Labor, Onsite Labor, etc.)
 - `rate_card_items` — Individual rate entries with MSA/Custom tracking, references `fee_type_id`
 - `fee_types` — Master table of centralized GL codes and fee type names. Section values are snake_case keys: `planning_admin`, `onsite_labor`, `travel`, `production`, `logistics`
-- `estimates` — Estimate header records (event name, client, dates, status, cost structure, internal_notes, published_notes). Status includes 'archived'. `expected_attendance` is text (stores range strings like "50–100").
-- `labor_logs` — Segments within an estimate (geographic or temporal divisions). Each segment owns its own `status` field (draft/review/approved/active/recap/invoiced/complete) for independent workflow progression.
+- `profiles` — User profiles linked to `auth.users`. Fields: id (UUID FK), email, full_name, role (admin/cfo/operations/production_manager/account_manager), notification_prefs (JSONB), phone, is_active. Auto-created via trigger on user signup.
+- `notifications` — In-app notification records. Fields: id, user_id (FK → profiles), type, title, body, estimate_id, labor_log_id, metadata (JSONB), is_read. Realtime enabled.
+- `estimates` — Estimate header records (event name, client, dates, status, cost structure, internal_notes, published_notes). Status includes 'archived'. `expected_attendance` is text (stores range strings like "50–100"). `created_by` UUID FK → profiles.
+- `labor_logs` — Segments within an estimate (geographic or temporal divisions). Each segment owns its own `status` field (draft/review/approved/active/recap/invoiced/complete) for independent workflow progression. `assigned_to` UUID FK → profiles.
 - `labor_entries` — Individual labor roles staffed per segment (qty, days, rates)
 - `estimate_line_items` — Non-labor line items per segment per section (production, travel, etc.)
 - `schedule_entries` — Staff rows in the schedule grid (person_name, role_name, day_rate, cost_rate, flags for airfare/hotel/per_diem, staff_group_id for rollup grouping)
@@ -132,7 +139,7 @@ Supabase is the primary data store. Client configured in `src/lib/supabase.ts` (
 - `approval_requests` — Approval workflow records (requested_by, reviewed_by, status, threshold_triggered, notes)
 - `status_transitions` — Audit log of all status changes (from_status, to_status, transitioned_by, reason, version_id)
 
-Service layers: `src/lib/rate-card-service.ts` (clients, rate cards, fee types CRUD), `src/lib/estimate-service.ts`, `src/lib/schedule-service.ts` (schedule grid CRUD + rollup computation), and `src/lib/workflow-service.ts` (status machine, versioning, approvals, rollback).
+Service layers: `src/lib/rate-card-service.ts` (clients, rate cards, fee types CRUD), `src/lib/estimate-service.ts`, `src/lib/schedule-service.ts` (schedule grid CRUD + rollup computation), `src/lib/workflow-service.ts` (status machine, versioning, approvals, rollback), `src/lib/notification-service.ts` (notification CRUD + role-based dispatch), and `src/lib/auth.tsx` (AuthProvider, useAuth/useUser hooks).
 
 ## Environment Variables
 
@@ -228,6 +235,7 @@ When building an estimate, rates are consumed in a grid format:
 **Week 6 (Complete):** Schedule tab — calendar staffing grid, Labor Log read-only rollup from schedule, sortable columns, per-segment date picker, auto-refresh on tab switch
 **Weeks 6-7 (Complete):** Workflow Engine — status state machine, version snapshots (with schedule rollup support), approval routing with threshold detection, version history panel with snapshot viewer and rollback, linear status bar UI, estimates list badges/filters/quick actions, read-only lockdown for locked statuses
 **Week 7 (Complete):** Segment-level workflow — status transitions moved from estimate-level to per-segment, SegmentTransitionBar and SegmentStatusBadge components, segment transitions create version snapshots, edit permissions gated per-segment, segment creation order preserved. Estimates list overhaul — segment status pills replacing single badge, sortable column headers, search input, removed estimate-level action buttons (actions now per-segment in builder).
+**Week 7-8 (In Progress):** UX polish — Version History search and segment filter, updated status badge color palette (blue/fuchsia/violet/green).
 **Next Sprint (Weeks 8-10):** AI Intelligence (scoping assistant, historical data training)
 
 ## Key Stakeholders

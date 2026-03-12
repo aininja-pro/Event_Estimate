@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react'
-import { History, ChevronDown, ChevronRight, RotateCcw, Eye, X } from 'lucide-react'
+import { useState, useEffect, useMemo } from 'react'
+import { History, ChevronDown, ChevronRight, RotateCcw, Eye, X, Search } from 'lucide-react'
+import { useUser } from '@/lib/auth'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -31,10 +32,10 @@ const STATUS_COLOR: Record<string, string> = {
   pipeline: 'bg-zinc-200 text-zinc-600',
   draft: 'bg-zinc-200 text-zinc-600',
   review: 'bg-amber-100 text-amber-700',
-  approved: 'bg-emerald-100 text-emerald-700',
-  active: 'bg-sky-100 text-sky-700',
-  recap: 'bg-orange-100 text-orange-700',
-  complete: 'bg-emerald-100 text-emerald-800',
+  approved: 'bg-blue-100 text-blue-700',
+  active: 'bg-fuchsia-100 text-fuchsia-700',
+  recap: 'bg-violet-100 text-violet-700',
+  complete: 'bg-green-100 text-green-800',
   // Approval statuses
   pending: 'bg-amber-100 text-amber-700',
   rejected: 'bg-red-100 text-red-700',
@@ -51,6 +52,7 @@ interface VersionHistoryPanelProps {
 }
 
 export function VersionHistoryPanel({ estimateId, open, onClose, onRollback }: VersionHistoryPanelProps) {
+  const { displayName } = useUser()
   const [versions, setVersions] = useState<EstimateVersion[]>([])
   const [approvals, setApprovals] = useState<ApprovalRequest[]>([])
   const [activeTab, setActiveTab] = useState<'versions' | 'approvals'>('versions')
@@ -61,6 +63,33 @@ export function VersionHistoryPanel({ estimateId, open, onClose, onRollback }: V
   const [rolling, setRolling] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [segmentFilter, setSegmentFilter] = useState<string | null>(null)
+
+  const segmentNames = useMemo(() => {
+    const names = new Set<string>()
+    versions.forEach(v => {
+      const match = v.change_summary?.match(/Segment "([^"]+)"/)
+      if (match) names.add(match[1])
+    })
+    return Array.from(names).sort()
+  }, [versions])
+
+  const filteredVersions = useMemo(() => {
+    return versions.filter(v => {
+      if (segmentFilter && !v.change_summary?.includes(`Segment "${segmentFilter}"`)) return false
+      if (searchQuery) {
+        const q = searchQuery.toLowerCase()
+        const matchesSummary = v.change_summary?.toLowerCase().includes(q)
+        const matchesUser = v.changed_by.toLowerCase().includes(q)
+        const matchesVersion = `v${v.version_number}`.includes(q)
+        if (!matchesSummary && !matchesUser && !matchesVersion) return false
+      }
+      return true
+    })
+  }, [versions, searchQuery, segmentFilter])
+
+  const isFiltered = searchQuery || segmentFilter
 
   useEffect(() => {
     if (!open) return
@@ -84,7 +113,7 @@ export function VersionHistoryPanel({ estimateId, open, onClose, onRollback }: V
     if (!rollbackTarget || !rollbackReason.trim()) return
     setRolling(true)
     setError(null)
-    const result = await rollbackToVersion(estimateId, rollbackTarget.id, 'Current User', rollbackReason.trim())
+    const result = await rollbackToVersion(estimateId, rollbackTarget.id, displayName, rollbackReason.trim())
     setRolling(false)
     if (result.success) {
       setRollbackTarget(null)
@@ -123,7 +152,7 @@ export function VersionHistoryPanel({ estimateId, open, onClose, onRollback }: V
                 : 'text-muted-foreground hover:text-foreground'
             }`}
           >
-            Versions ({versions.length})
+            Versions ({isFiltered ? `${filteredVersions.length} of ${versions.length}` : versions.length})
           </button>
           <button
             onClick={() => setActiveTab('approvals')}
@@ -137,6 +166,49 @@ export function VersionHistoryPanel({ estimateId, open, onClose, onRollback }: V
           </button>
         </div>
 
+        {/* Search & segment filter (versions tab only) */}
+        {activeTab === 'versions' && versions.length > 0 && (
+          <div className="px-3 pt-2.5 pb-1.5 border-b border-zinc-100 space-y-2">
+            <div className="relative">
+              <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search versions..."
+                className="w-full h-7 pl-7 pr-2 text-[11px] rounded border border-zinc-200 bg-zinc-50 focus:outline-none focus:border-zinc-400 focus:bg-white transition-colors placeholder:text-muted-foreground/50"
+              />
+            </div>
+            {segmentNames.length > 0 && (
+              <div className="flex flex-wrap gap-1">
+                <button
+                  onClick={() => setSegmentFilter(null)}
+                  className={`text-[10px] px-2 py-0.5 rounded-full transition-colors ${
+                    !segmentFilter
+                      ? 'bg-zinc-900 text-white font-medium'
+                      : 'bg-zinc-100 text-muted-foreground hover:bg-zinc-200'
+                  }`}
+                >
+                  All
+                </button>
+                {segmentNames.map(name => (
+                  <button
+                    key={name}
+                    onClick={() => setSegmentFilter(segmentFilter === name ? null : name)}
+                    className={`text-[10px] px-2 py-0.5 rounded-full transition-colors ${
+                      segmentFilter === name
+                        ? 'bg-zinc-900 text-white font-medium'
+                        : 'bg-zinc-100 text-muted-foreground hover:bg-zinc-200'
+                    }`}
+                  >
+                    {name}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Content */}
         <div className="flex-1 overflow-y-auto">
           {loading ? (
@@ -145,10 +217,12 @@ export function VersionHistoryPanel({ estimateId, open, onClose, onRollback }: V
             <div className="divide-y divide-zinc-100">
               {versions.length === 0 ? (
                 <p className="text-[11px] text-muted-foreground/60 text-center py-8">No versions yet</p>
+              ) : filteredVersions.length === 0 ? (
+                <p className="text-[11px] text-muted-foreground/60 text-center py-8">No matching versions</p>
               ) : (
-                versions.map((v, i) => {
+                filteredVersions.map((v) => {
                   const isExpanded = expandedId === v.id
-                  const isCurrent = i === 0
+                  const isCurrent = versions.length > 0 && v.id === versions[0].id
                   return (
                     <div key={v.id} className="px-4 py-2.5">
                       <button

@@ -2,7 +2,7 @@
 
 ## Overview
 
-Event History is a Vite + React + TypeScript SPA for the DriveShop Event Estimate Engine. Phase 1 presents historical event data analysis, system design deliverables, and UI concepts. Phase 2 adds production modules backed by Supabase (starting with Rate Card Management). A secondary stakeholder review portal allows external reviewers to browse select pages and submit feedback.
+Event History is a Vite + React + TypeScript SPA for the DriveShop Event Estimate Engine. Phase 1 presents historical event data analysis, system design deliverables, and UI concepts. Phase 2 adds production modules backed by Supabase (starting with Rate Card Management). A secondary stakeholder review portal allows external reviewers to browse select pages and submit feedback. The app uses Supabase Auth for authentication with role-based access control and in-app notifications.
 
 ## Tech Stack
 
@@ -19,7 +19,9 @@ Event History is a Vite + React + TypeScript SPA for the DriveShop Event Estimat
 The app runs two independent layout trees under a single `<BrowserRouter>`:
 
 ```
-/                          → AppLayout
+/login                     → LoginPage (public, no auth required)
+
+/                          → RequireAuth → AppLayout
   /dashboard               → DashboardPage
   /rate-card               → RateCardPage
   /ai-assistant            → AIScopingPage
@@ -27,11 +29,14 @@ The app runs two independent layout trees under a single `<BrowserRouter>`:
   /database-schema         → DatabaseSchemaPage
   /estimate-lifecycle      → EstimateLifecyclePage
   /phase2-roadmap          → Phase2RoadmapPage
+  /estimates               → EstimatesListPage
+  /estimates/:id           → EstimateBuilderPage
   /estimate-builder        → EstimateBuilderPage
   /rate-card-management    → RateCardManagementPage
   /admin/feedback          → AdminFeedbackPage
+  /admin/users             → RequireAdmin → AdminUsersPage
 
-/stakeholder               → StakeholderLayout
+/stakeholder               → RequireAuth → StakeholderLayout
   /estimate-lifecycle      → EstimateLifecyclePage (reused)
   /phase2-roadmap          → Phase2RoadmapPage (reused)
   /estimate-builder        → EstimateBuilderPage (reused)
@@ -39,7 +44,11 @@ The app runs two independent layout trees under a single `<BrowserRouter>`:
   /feedback                → FeedbackPage
 ```
 
-**AppLayout** — Full internal app with sidebar (Discovery Intelligence, Phase 1 Deliverables, UI Concepts, Admin sections), header with "CONFIDENTIAL" badge.
+**RequireAuth** — Route guard that redirects unauthenticated users to `/login`.
+
+**RequireAdmin** — Route guard that redirects non-admin users to `/estimates`.
+
+**AppLayout** — Full internal app with sidebar (Discovery Intelligence, Phase 1 Deliverables, Production, UI Concepts, Admin sections), header with notification bell and "CONFIDENTIAL" badge. Sidebar footer shows signed-in user name, role, and sign-out button.
 
 **StakeholderLayout** — Simplified portal with its own sidebar (4 review pages + feedback), header with "REVIEW" badge. Intended for sharing via direct link.
 
@@ -51,28 +60,92 @@ Page components are reused across both layouts via React Router's `<Outlet />` �
 src/
   components/
     layout/              — AppLayout, Sidebar, Header + Stakeholder variants
+    segments/            — SegmentStatusBadge, SegmentTransitionBar
     ui/                  — shadcn/ui primitives (Button, Card, Table, Dialog, etc.)
+    NotificationBell.tsx — Header notification dropdown with unread count + Realtime
   lib/
+    auth.tsx             — AuthProvider context, useAuth/useUser hooks (Supabase Auth)
+    notification-service.ts — Create/query/mark-read notifications, role-based dispatch
     data.ts              — Pre-computed historical data
     ai.ts                — Anthropic API integration
     supabase.ts          — Supabase client (graceful null if env vars missing)
     rate-card-service.ts — CRUD operations for clients, sections, and rate card items
+    segment-status-service.ts — Per-segment status transitions + notification dispatch
+    workflow-service.ts  — Status machine, versioning, approvals + notification dispatch
     utils.ts             — cn() helper
-  pages/                 — All page components
+  pages/
+    LoginPage.tsx        — Email/password login (no self-service signup)
+    AdminUsersPage.tsx   — User management: invite, role assignment, activate/deactivate
+    ...                  — All other page components
   types/
     feedback.ts          — Feedback interface and category types
-    rate-card.ts         — Client, RateCardSection, RateCardItem types (Phase 1 analysis + Phase 2 Supabase)
+    rate-card.ts         — Client, RateCardSection, RateCardItem types
+    workflow.ts          — Workflow, version, approval, segment types
 scripts/
+  migration_auth_profiles_notifications.sql — Auth profiles + notifications tables
   supabase_schema.sql    — Database schema (tables, indexes, triggers, RLS, seed sections)
   seed_rate_cards.py     — Reads Excel rate card template → generates seed SQL
   seed_rate_cards.sql    — Generated INSERT statements (8 clients, 377 rate items)
 ```
 
+## Authentication & Authorization
+
+Authentication uses Supabase Auth with email/password login. No self-service signup — admins create accounts via the Admin > Users page.
+
+**Auth Context (`src/lib/auth.tsx`):**
+- `AuthProvider` wraps the app, listens for Supabase auth state changes
+- `useAuth()` — returns `session`, `user`, `profile`, `loading`, `signIn`, `signOut`, `displayName`
+- `useUser()` — shortcut returning `user`, `profile`, `displayName`
+
+**User Roles:** `admin`, `cfo`, `operations`, `production_manager`, `account_manager`
+- Admin: full access + user management
+- CFO: approve $50K+ estimates
+- Operations/Production Manager: build estimates, run events
+- Account Manager: own client estimates, submit for review
+
+**Route Guards (`src/App.tsx`):**
+- `RequireAuth` — redirects to `/login` if no session
+- `RequireAdmin` — redirects to `/estimates` if role is not `admin`
+
+## Notification System
+
+In-app notifications with Supabase Realtime for live updates.
+
+**Service (`src/lib/notification-service.ts`):**
+- `createNotification()` — insert for a specific user
+- `notifyByRole()` — notify all active users with a given role (respects `notification_prefs.in_app`)
+- `getNotifications()` / `getUnreadCount()` / `markAsRead()` / `markAllAsRead()`
+
+**Trigger Points:**
+- Segment submitted for review → notifies CFO role
+- Segment approved → notifies estimate creator
+- Segment sent back → notifies estimate creator with reason
+- Segment marked active → notifies production_manager role
+- Approval decision → notifies original submitter
+- Rollback → notifies estimate creator
+
+**UI (`src/components/NotificationBell.tsx`):**
+- Bell icon in header with unread count badge
+- Dropdown list of recent notifications with relative timestamps
+- Click notification → mark read + navigate to estimate
+- "Mark all read" action
+- Supabase Realtime subscription for instant updates
+
 ## Supabase Integration
 
-The Supabase client (`src/lib/supabase.ts`) gracefully returns `null` if `VITE_SUPABASE_URL` or `VITE_SUPABASE_ANON_KEY` env vars are missing. Pages that need Supabase show an error state; the rest of the app is unaffected. All tables use permissive RLS (no auth — open access via anon key).
+The Supabase client (`src/lib/supabase.ts`) gracefully returns `null` if `VITE_SUPABASE_URL` or `VITE_SUPABASE_ANON_KEY` env vars are missing. Pages that need Supabase show an error state; the rest of the app is unaffected.
 
 ### Database Tables
+
+**`profiles`** — User profiles linked to Supabase Auth
+- Columns: `id` (FK → auth.users), `email`, `full_name`, `role`, `notification_prefs` (JSONB), `phone`, `is_active`, `created_at`, `updated_at`
+- Auto-created via trigger on `auth.users` insert
+- RLS: all users can read, users can update own, admins can update any
+
+**`notifications`** — In-app notification records
+- Columns: `id`, `user_id` (FK → profiles), `type`, `title`, `body`, `estimate_id`, `labor_log_id`, `metadata` (JSONB), `is_read`, `created_at`
+- Realtime enabled for live bell updates
+- RLS: users can only see/update their own notifications
 
 **`feedback`** — Stakeholder review feedback (Phase 1)
 - Columns: `id`, `name`, `category`, `message`, `status`, `created_at`

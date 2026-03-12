@@ -46,10 +46,10 @@ const STATUS_DOT: Record<string, string> = {
   pipeline: 'bg-zinc-400',
   draft: 'bg-zinc-500',
   review: 'bg-amber-500',
-  approved: 'bg-emerald-500',
-  active: 'bg-sky-500',
-  recap: 'bg-orange-500',
-  complete: 'bg-emerald-700',
+  approved: 'bg-blue-500',
+  active: 'bg-fuchsia-500',
+  recap: 'bg-violet-500',
+  complete: 'bg-green-800',
   archived: 'bg-slate-300',
 }
 
@@ -57,21 +57,31 @@ const STATUS_BADGE: Record<string, string> = {
   pipeline: 'bg-zinc-100 text-zinc-600',
   draft: 'bg-zinc-100 text-zinc-600',
   review: 'bg-amber-50 text-amber-700',
-  approved: 'bg-emerald-50 text-emerald-700',
-  active: 'bg-sky-50 text-sky-700',
-  recap: 'bg-orange-50 text-orange-700',
-  complete: 'bg-emerald-50 text-emerald-800',
+  approved: 'bg-blue-50 text-blue-700',
+  active: 'bg-fuchsia-50 text-fuchsia-700',
+  recap: 'bg-violet-50 text-violet-700',
+  complete: 'bg-green-50 text-green-900',
   archived: 'bg-zinc-100 text-zinc-400',
 }
 
+const SEGMENT_PILL: Record<string, string> = {
+  draft: 'bg-zinc-200 text-zinc-700 border-zinc-300',
+  review: 'bg-amber-100 text-amber-800 border-amber-300',
+  approved: 'bg-blue-100 text-blue-800 border-blue-300',
+  active: 'bg-fuchsia-100 text-fuchsia-800 border-fuchsia-300',
+  recap: 'bg-violet-100 text-violet-800 border-violet-300',
+  invoiced: 'bg-teal-100 text-teal-800 border-teal-300',
+  complete: 'bg-green-100 text-green-800 border-green-300',
+}
+
 const SEGMENT_DOT: Record<string, string> = {
-  draft: 'bg-zinc-300',
-  review: 'bg-amber-400/70',
-  approved: 'bg-blue-400/70',
-  active: 'bg-emerald-400/70',
-  recap: 'bg-violet-400/70',
-  invoiced: 'bg-teal-400/70',
-  complete: 'bg-emerald-700/70',
+  draft: 'bg-zinc-500',
+  review: 'bg-amber-500',
+  approved: 'bg-blue-500',
+  active: 'bg-fuchsia-500',
+  recap: 'bg-violet-500',
+  invoiced: 'bg-teal-500',
+  complete: 'bg-green-600',
 }
 
 const STATUS_ORDER: Record<string, number> = {
@@ -370,10 +380,10 @@ export function EstimatesListPage() {
       </div>
 
       {/* Segment Status Legend */}
-      <div className="flex items-center gap-3 text-[10px] text-muted-foreground/60">
+      <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
         {Object.entries(SEGMENT_DOT).map(([status, dotClass]) => (
-          <span key={status} className="inline-flex items-center gap-1">
-            <span className={`inline-block h-1.5 w-1.5 rounded-full ${dotClass}`} />
+          <span key={status} className="inline-flex items-center gap-1.5">
+            <span className={`inline-block h-2 w-2 rounded-full ${dotClass}`} />
             {status.charAt(0).toUpperCase() + status.slice(1)}
           </span>
         ))}
@@ -439,10 +449,10 @@ export function EstimatesListPage() {
                           {est.labor_logs.map((seg) => (
                             <span
                               key={seg.id}
-                              className="inline-flex items-center gap-1 text-[11px] font-medium px-1.5 py-0.5 rounded bg-zinc-50 dark:bg-zinc-800/40 text-muted-foreground"
+                              className={`inline-flex items-center gap-1.5 text-[11px] font-medium px-2 py-0.5 rounded-full border ${SEGMENT_PILL[seg.status] ?? 'bg-zinc-100 text-zinc-600 border-zinc-300'}`}
                             >
-                              <span className="text-foreground/80 truncate max-w-[100px]">{seg.location_name}</span>
-                              <span className={`inline-block h-1.5 w-1.5 rounded-full flex-shrink-0 ${SEGMENT_DOT[seg.status] ?? 'bg-zinc-400'}`} />
+                              <span className="truncate max-w-[100px]">{seg.location_name}</span>
+                              <span className="text-[9px] uppercase tracking-wider opacity-80">{seg.status}</span>
                             </span>
                           ))}
                         </div>

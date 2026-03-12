@@ -37,7 +37,6 @@ import { ScheduleGrid } from '@/components/schedule/ScheduleGrid'
 import { EstimateStatusBar } from '@/components/EstimateStatusBar'
 import { VersionHistoryPanel, HistoryButton } from '@/components/VersionHistoryPanel'
 import { ApprovalBanner } from '@/components/ApprovalBanner'
-import { SegmentStatusBadge } from '@/components/segments/SegmentStatusBadge'
 import { SegmentTransitionBar } from '@/components/segments/SegmentTransitionBar'
 import { getScheduleEntries, computeScheduleRollup } from '@/lib/schedule-service'
 import {
@@ -45,6 +44,7 @@ import {
   reviewApproval,
 } from '@/lib/workflow-service'
 import { transitionSegmentStatus, getSegmentEditRules } from '@/lib/segment-status-service'
+import { useUser } from '@/lib/auth'
 import type { EstimateStatus, ApprovalRequest, SegmentStatus, SegmentEditRules } from '@/types/workflow'
 import type { ScheduleEntry, LaborRollupRow } from '@/types/schedule'
 import {
@@ -97,6 +97,11 @@ function fmt(n: number): string {
 function pct(gp: number, rev: number): string {
   if (rev === 0) return '0.0%'
   return ((gp / rev) * 100).toFixed(1) + '%'
+}
+
+/** Select all text on focus so typing replaces leading zeros */
+function selectOnFocus(e: React.FocusEvent<HTMLInputElement>) {
+  e.target.select()
 }
 
 function computeDuration(start: string | null, end: string | null): number | null {
@@ -546,6 +551,21 @@ function AddRoleModal({
 
 // ── Segment Selector (shared across Labor Log + Line Item tabs) ──────────────
 
+const SEGMENT_TAB_STYLES: Record<string, { dot: string; selected: string; unselected: string; underline: string }> = {
+  draft:    { dot: 'bg-zinc-400',    selected: 'text-zinc-700',    unselected: 'text-zinc-400',    underline: 'bg-zinc-400' },
+  review:   { dot: 'bg-amber-500',   selected: 'text-amber-700',   unselected: 'text-amber-400/70', underline: 'bg-amber-500' },
+  approved: { dot: 'bg-blue-500',    selected: 'text-blue-700',    unselected: 'text-blue-400/70',  underline: 'bg-blue-500' },
+  active:   { dot: 'bg-fuchsia-500', selected: 'text-fuchsia-700', unselected: 'text-fuchsia-400/70', underline: 'bg-fuchsia-500' },
+  recap:    { dot: 'bg-violet-500',  selected: 'text-violet-700',  unselected: 'text-violet-400/70', underline: 'bg-violet-500' },
+  invoiced: { dot: 'bg-teal-500',   selected: 'text-teal-700',    unselected: 'text-teal-400/70',  underline: 'bg-teal-500' },
+  complete: { dot: 'bg-green-800',   selected: 'text-green-800',   unselected: 'text-green-600/60', underline: 'bg-green-800' },
+}
+
+const SEGMENT_BADGE_LABELS: Record<string, string> = {
+  draft: 'DRAFT', review: 'REVIEW', approved: 'APPROVED', active: 'ACTIVE',
+  recap: 'RECAP', invoiced: 'INVOICED', complete: 'COMPLETE',
+}
+
 function LocationSelector({
   laborLogs,
   activeLocationId,
@@ -583,9 +603,12 @@ function LocationSelector({
 
   return (
     <>
-      <div className="flex items-center gap-1 flex-wrap py-0.5">
-        {laborLogs.map((log) => (
-          editingId === log.id ? (
+      <div className="flex items-center gap-4 flex-wrap border-b border-border/30">
+        {laborLogs.map((log) => {
+          const status = (log.status || 'draft') as string
+          const style = SEGMENT_TAB_STYLES[status] || SEGMENT_TAB_STYLES.draft
+          const isActive = log.id === activeLocationId
+          return editingId === log.id ? (
             <input
               key={log.id}
               value={editingName}
@@ -593,25 +616,27 @@ function LocationSelector({
               onBlur={commitEdit}
               onKeyDown={(e) => { if (e.key === 'Enter') commitEdit(); if (e.key === 'Escape') { setEditingId(null); setEditingName('') } }}
               autoFocus
-              className="text-[11px] px-2 py-0.5 rounded font-medium bg-white dark:bg-slate-900 border border-border/50 outline-none w-[120px]"
+              className="text-[12px] px-1 py-1.5 font-medium bg-white dark:bg-slate-900 border-b-2 border-foreground outline-none w-[120px]"
             />
           ) : (
             <button
               key={log.id}
               onClick={() => onSelectLocation(log.id)}
               onDoubleClick={() => !readOnly && startEditing(log)}
-              className={`text-[11px] px-2 py-0.5 rounded transition-colors ${
-                log.id === activeLocationId
-                  ? 'font-medium text-foreground bg-slate-100 dark:bg-slate-800/50'
-                  : 'text-muted-foreground/70 hover:text-foreground/80 hover:bg-slate-50 dark:hover:bg-slate-800/30'
+              className={`relative text-[12px] px-1 py-1.5 transition-colors ${
+                isActive ? `font-semibold ${style.selected}` : `${style.unselected} hover:opacity-100`
               }`}
             >
-              {log.location_name}{log.is_primary ? ' (Primary)' : ''}
-              <SegmentStatusBadge status={(log.status || 'draft') as SegmentStatus} />
+              <span className="flex items-center gap-1.5">
+                <span className={`inline-block h-1.5 w-1.5 rounded-full ${style.dot} ${isActive ? '' : 'opacity-60'}`} />
+                {log.location_name}{log.is_primary ? ' (Primary)' : ''}
+                <span className="text-[9px] uppercase tracking-wider opacity-70">{SEGMENT_BADGE_LABELS[status] || 'DRAFT'}</span>
+              </span>
+              {isActive && <span className={`absolute bottom-0 left-0 right-0 h-[2px] ${style.underline} rounded-full`} />}
             </button>
           )
-        ))}
-        <button onClick={() => setShowAddLocation(true)} className="text-[11px] px-2 py-0.5 rounded text-muted-foreground/50 hover:text-foreground/60 hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
+        })}
+        <button onClick={() => setShowAddLocation(true)} className="text-[11px] px-1 py-1.5 text-muted-foreground/50 hover:text-foreground/60 transition-colors">
           + Add Segment
         </button>
         {activeLocationId && laborLogs.length > 1 && (() => {
@@ -619,7 +644,7 @@ function LocationSelector({
           return activeLog && !activeLog.is_primary && (!activeLog.status || activeLog.status === 'draft')
         })() && (
           <button
-            className="text-[11px] px-1.5 py-0.5 rounded text-red-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+            className="text-[11px] px-1 py-1.5 text-red-400 hover:text-red-600 transition-colors"
             onClick={() => {
               if (confirm('Delete this segment and all its data?')) {
                 onDeleteLocation(activeLocationId)
@@ -926,7 +951,7 @@ function StepperInput({
           </button>
         </div>
       )}
-      <Input value={value} onChange={(e) => onChange(e.target.value)} onBlur={onBlur} className={`${className} w-10 text-center`} readOnly={disabled} />
+      <Input value={value} onChange={(e) => onChange(e.target.value)} onBlur={onBlur} onFocus={selectOnFocus} className={`${className} w-10 text-center`} readOnly={disabled} />
     </div>
   )
 }
@@ -1010,6 +1035,7 @@ function LaborEntryRow({
             value={rate}
             onChange={(e) => setRate(e.target.value)}
             onBlur={saveRate}
+            onFocus={selectOnFocus}
             className={`${cellInput} w-full text-right pl-4 ${isOverridden ? 'text-amber-600' : ''}`}
             readOnly={readOnly}
           />
@@ -1024,7 +1050,7 @@ function LaborEntryRow({
         ) : (
           <div className="relative w-[72px] ml-auto">
             <span className="absolute left-1 top-1/2 -translate-y-1/2 text-[13px] text-muted-foreground/60 pointer-events-none">$</span>
-            <Input value={costRate} onChange={(e) => setCostRate(e.target.value)} onBlur={saveCostRate} className={`${cellInput} w-full text-right pl-4`} readOnly={readOnly} />
+            <Input value={costRate} onChange={(e) => setCostRate(e.target.value)} onBlur={saveCostRate} onFocus={selectOnFocus} className={`${cellInput} w-full text-right pl-4`} readOnly={readOnly} />
           </div>
         )}
       </TableCell>
@@ -1165,6 +1191,7 @@ function LineItemRow({
   const [qty, setQty] = useState(item.quantity.toString())
   const [unitCost, setUnitCost] = useState(item.unit_cost.toString())
   const [markup, setMarkup] = useState(item.markup_pct.toString())
+  const [desc, setDesc] = useState(item.description || '')
 
   const qtyNum = parseFloat(qty) || 0
   const costNum = parseFloat(unitCost) || 0
@@ -1177,21 +1204,30 @@ function LineItemRow({
   return (
     <TableRow className="group border-b border-border/30 hover:bg-muted/30">
       <TableCell className="text-[13px] text-foreground py-1">{item.item_name}</TableCell>
-      <TableCell className="text-[13px] text-muted-foreground/50 py-1">{item.description || '—'}</TableCell>
+      <TableCell className="py-1">
+        <Input
+          value={desc}
+          onChange={(e) => setDesc(e.target.value)}
+          onBlur={() => onUpdate(item.id, { description: desc.trim() || null })}
+          placeholder="—"
+          className={`${cellInput} w-full text-muted-foreground`}
+          readOnly={readOnly}
+        />
+      </TableCell>
       <TableCell className="text-center py-1">
         <StepperInput value={qty} onChange={setQty} onBlur={() => onUpdate(item.id, { quantity: parseFloat(qty) || 1 })} onStep={(v) => onUpdate(item.id, { quantity: v })} min={0} className={cellInput} disabled={readOnly} />
       </TableCell>
       <TableCell className="text-right py-1">
         <div className="relative w-[72px] ml-auto">
           <span className="absolute left-1 top-1/2 -translate-y-1/2 text-[13px] text-muted-foreground/60 pointer-events-none">$</span>
-          <Input value={unitCost} onChange={(e) => setUnitCost(e.target.value)} onBlur={() => onUpdate(item.id, { unit_cost: parseFloat(unitCost) || 0 })} className={`${cellInput} w-full text-right pl-4`} readOnly={readOnly} />
+          <Input value={unitCost} onChange={(e) => setUnitCost(e.target.value)} onBlur={() => onUpdate(item.id, { unit_cost: parseFloat(unitCost) || 0 })} onFocus={selectOnFocus} className={`${cellInput} w-full text-right pl-4`} readOnly={readOnly} />
         </div>
       </TableCell>
       <TableCell className="text-right py-1">
         <span className="text-[13px] font-medium tabular-nums text-foreground">{fmt(total)}</span>
       </TableCell>
       <TableCell className="text-center py-1">
-        <Input value={markup} onChange={(e) => setMarkup(e.target.value)} onBlur={() => onUpdate(item.id, { markup_pct: parseFloat(markup) || 0 })} className={`${cellInput} w-12 text-center mx-auto`} readOnly={readOnly} />
+        <Input value={markup} onChange={(e) => setMarkup(e.target.value)} onBlur={() => onUpdate(item.id, { markup_pct: parseFloat(markup) || 0 })} onFocus={selectOnFocus} className={`${cellInput} w-12 text-center mx-auto`} readOnly={readOnly} />
       </TableCell>
       <TableCell className="text-right py-1">
         <span className="text-[13px] font-medium tabular-nums text-foreground">{fmt(clientTotal)}</span>
@@ -1756,6 +1792,7 @@ function SummaryTab({
 // ── Main Page ────────────────────────────────────────────────────────────────
 
 function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
+  const { displayName } = useUser()
   const [estimate, setEstimate] = useState<EstimateWithClient | null>(null)
   const [laborLogs, setLaborLogs] = useState<LaborLog[]>([])
   const [activeLocationId, setActiveLocationId] = useState<string | null>(null)
@@ -2015,19 +2052,19 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
 
   async function handleSegmentTransition(toStatus: SegmentStatus, comment?: string) {
     if (!activeLocationId) return { success: false, error: 'No segment selected' }
-    const result = await transitionSegmentStatus(activeLocationId, toStatus, comment)
+    const result = await transitionSegmentStatus(activeLocationId, toStatus, comment, displayName)
     if (result.success) await loadData()
     return result
   }
 
   async function handleApprove(approvalId: string) {
-    const result = await reviewApproval(approvalId, 'approved', 'Current User')
+    const result = await reviewApproval(approvalId, 'approved', displayName)
     if (result.success) await loadData()
     return result
   }
 
   async function handleReject(approvalId: string, notes: string) {
-    const result = await reviewApproval(approvalId, 'rejected', 'Current User', notes)
+    const result = await reviewApproval(approvalId, 'rejected', displayName, notes)
     if (result.success) await loadData()
     return result
   }

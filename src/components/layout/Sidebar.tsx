@@ -1,6 +1,7 @@
 import { NavLink } from 'react-router-dom'
-import { BarChart3, ClipboardList, Bot, Layers, Database, GitBranch, Map, FileSpreadsheet, DollarSign, MessageSquare, Briefcase } from 'lucide-react'
+import { BarChart3, ClipboardList, Bot, Layers, Database, GitBranch, Map, FileSpreadsheet, DollarSign, MessageSquare, Briefcase, Users } from 'lucide-react'
 import { Separator } from '@/components/ui/separator'
+import { useAuth } from '@/lib/auth'
 
 const discoveryItems = [
   { to: '/dashboard', label: 'Historical Dashboard', icon: BarChart3 },
@@ -26,6 +27,7 @@ const uiConceptItems = [
 
 const adminItems = [
   { to: '/admin/feedback', label: 'Feedback Management', icon: MessageSquare },
+  { to: '/admin/users', label: 'User Management', icon: Users },
 ]
 
 function NavItem({ to, label, icon: Icon }: { to: string; label: string; icon: React.ComponentType<{ className?: string }> }) {
@@ -48,6 +50,9 @@ function NavItem({ to, label, icon: Icon }: { to: string; label: string; icon: R
 }
 
 export function Sidebar() {
+  const { profile, signOut } = useAuth()
+  const isAdmin = profile?.role === 'admin'
+
   return (
     <aside className="flex h-screen w-64 shrink-0 flex-col bg-sidebar text-sidebar-foreground">
       <div className="px-6 py-5">
@@ -92,17 +97,34 @@ export function Sidebar() {
 
         <div className="my-3" />
 
-        <p className="mb-2 px-3 text-xs font-semibold uppercase tracking-wider text-zinc-500">
-          Admin
-        </p>
-        {adminItems.map((item) => (
-          <NavItem key={item.to} {...item} />
-        ))}
+        {isAdmin && (
+          <>
+            <p className="mb-2 px-3 text-xs font-semibold uppercase tracking-wider text-zinc-500">
+              Admin
+            </p>
+            {adminItems.map((item) => (
+              <NavItem key={item.to} {...item} />
+            ))}
+          </>
+        )}
       </nav>
-      <div className="px-6 py-4">
-        <p className="text-xs text-zinc-400">Phase 1 Discovery</p>
-        <p className="text-xs text-zinc-400">Intelligence Report</p>
-        <p className="mt-1 text-xs text-zinc-500">February 2026</p>
+      <div className="border-t border-sidebar-border px-4 py-3">
+        {profile ? (
+          <div className="flex items-center justify-between">
+            <div className="min-w-0">
+              <p className="truncate text-xs font-medium text-zinc-300">{profile.full_name}</p>
+              <p className="truncate text-[10px] text-zinc-500">{profile.role.replace('_', ' ')}</p>
+            </div>
+            <button
+              onClick={() => signOut()}
+              className="shrink-0 rounded px-2 py-1 text-[10px] text-zinc-500 transition-colors hover:bg-zinc-800 hover:text-zinc-300"
+            >
+              Sign out
+            </button>
+          </div>
+        ) : (
+          <p className="text-xs text-zinc-500">Not signed in</p>
+        )}
       </div>
     </aside>
   )

@@ -1,5 +1,6 @@
 import { useLocation } from 'react-router-dom'
 import { Badge } from '@/components/ui/badge'
+import { NotificationBell } from '@/components/NotificationBell'
 
 const pageTitles: Record<string, string> = {
   '/dashboard': 'Historical Intelligence Dashboard',
@@ -13,6 +14,7 @@ const pageTitles: Record<string, string> = {
   '/estimate-builder': 'Estimate Builder',
   '/rate-card-management': 'Rate Card Management',
   '/admin/feedback': 'Feedback Management',
+  '/admin/users': 'User Management',
 }
 
 export function Header() {
@@ -35,7 +37,10 @@ export function Header() {
           </p>
         )}
       </div>
-      <Badge variant="destructive" className="text-xs font-semibold tracking-wide">CONFIDENTIAL</Badge>
+      <div className="flex items-center gap-3">
+        <NotificationBell />
+        <Badge variant="destructive" className="text-xs font-semibold tracking-wide">CONFIDENTIAL</Badge>
+      </div>
     </header>
   )
 }

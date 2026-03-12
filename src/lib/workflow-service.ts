@@ -1,5 +1,9 @@
 import { supabase } from './supabase'
 import { computeScheduleRollup } from './schedule-service'
+import {
+  createNotification,
+  getEstimateCreatorId,
+} from './notification-service'
 import type { ScheduleEntry } from '../types/schedule'
 import type {
   EstimateVersion,
@@ -508,6 +512,19 @@ export async function rollbackToVersion(
       })
     if (logError) throw logError
 
+    // Notify estimate creator of the rollback
+    const creatorId = await getEstimateCreatorId(estimateId)
+    if (creatorId) {
+      createNotification({
+        user_id: creatorId,
+        type: 'rollback',
+        title: 'Estimate rolled back',
+        body: `${userId} rolled back to version ${version.version_number}. Reason: ${reason}`,
+        estimate_id: estimateId,
+        metadata: { version_number: version.version_number, rolled_back_by: userId },
+      }).catch((err) => console.error('Rollback notification failed:', err))
+    }
+
     return { success: true }
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Rollback failed'
@@ -608,6 +625,22 @@ export async function reviewApproval(
   const toStatus = decision === 'approved' ? 'approved' : 'draft'
   const reason = decision === 'rejected' ? notes : undefined
   const result = await transitionStatus(approval.estimate_id, toStatus, reviewerId, reason)
+
+  // Notify the original submitter of the decision
+  if (result.success && approval.requested_by) {
+    const creatorId = await getEstimateCreatorId(approval.estimate_id)
+    const targetUserId = creatorId || approval.requested_by
+    createNotification({
+      user_id: targetUserId,
+      type: 'approval_decision',
+      title: decision === 'approved' ? 'Estimate approved' : 'Estimate sent back',
+      body: decision === 'approved'
+        ? `Your estimate was approved by ${reviewerId}.`
+        : `Your estimate was sent back by ${reviewerId}. Reason: ${notes}`,
+      estimate_id: approval.estimate_id,
+      metadata: { decision, reviewer: reviewerId },
+    }).catch((err) => console.error('Notification dispatch failed:', err))
+  }
 
   return result
 }

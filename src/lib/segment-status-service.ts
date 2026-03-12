@@ -1,5 +1,10 @@
 import { supabase } from './supabase'
 import { createVersionSnapshot } from './workflow-service'
+import {
+  createNotification,
+  notifyByRole,
+  getEstimateCreatorId,
+} from './notification-service'
 import type {
   SegmentStatus,
   SegmentActivity,
@@ -48,7 +53,8 @@ export async function getSegmentStatus(laborLogId: string): Promise<SegmentStatu
 export async function transitionSegmentStatus(
   laborLogId: string,
   toStatus: SegmentStatus,
-  comment?: string
+  comment?: string,
+  userName?: string
 ): Promise<{ success: boolean; error?: string }> {
   const db = requireSupabase()
 
@@ -88,7 +94,7 @@ export async function transitionSegmentStatus(
       action: 'status_change',
       from_status: fromStatus,
       to_status: toStatus,
-      changed_by: 'Current User',
+      changed_by: userName || 'Unknown User',
       comment: comment || null,
     })
   if (actErr) console.error('Failed to log segment activity:', actErr)
@@ -99,11 +105,78 @@ export async function transitionSegmentStatus(
   // Create version snapshot for History panel
   await createVersionSnapshot(
     log.estimate_id,
-    'Current User',
+    userName || 'Unknown User',
     `Segment "${log.location_name}" moved from ${fromStatus} to ${toStatus}`
   )
 
+  // Dispatch notifications (fire-and-forget)
+  dispatchSegmentNotifications(
+    log.estimate_id,
+    laborLogId,
+    log.location_name,
+    fromStatus,
+    toStatus,
+    userName || 'Unknown User',
+    comment
+  ).catch((err) => console.error('Notification dispatch failed:', err))
+
   return { success: true }
+}
+
+async function dispatchSegmentNotifications(
+  estimateId: string,
+  laborLogId: string,
+  segmentName: string,
+  fromStatus: string,
+  toStatus: string,
+  changedBy: string,
+  comment?: string
+): Promise<void> {
+  const base = {
+    type: 'segment_status_changed' as const,
+    estimate_id: estimateId,
+    labor_log_id: laborLogId,
+    metadata: { from_status: fromStatus, to_status: toStatus, changed_by: changedBy },
+  }
+
+  if (toStatus === 'review') {
+    // Notify CFO for $50K+ or account_manager lead for standard
+    await notifyByRole('cfo', {
+      ...base,
+      type: 'approval_requested',
+      title: `Review requested: ${segmentName}`,
+      body: `${changedBy} submitted "${segmentName}" for review.`,
+    })
+  } else if (toStatus === 'approved') {
+    // Notify estimate creator
+    const creatorId = await getEstimateCreatorId(estimateId)
+    if (creatorId) {
+      await createNotification({
+        ...base,
+        user_id: creatorId,
+        title: `Segment approved: ${segmentName}`,
+        body: `"${segmentName}" has been approved by ${changedBy}.`,
+      })
+    }
+  } else if (toStatus === 'draft' && (fromStatus === 'review' || fromStatus === 'approved')) {
+    // Segment sent back — notify creator
+    const creatorId = await getEstimateCreatorId(estimateId)
+    if (creatorId) {
+      await createNotification({
+        ...base,
+        user_id: creatorId,
+        title: `Segment sent back: ${segmentName}`,
+        body: `"${segmentName}" was sent back by ${changedBy}.${comment ? ` Reason: ${comment}` : ''}`,
+      })
+    }
+  } else if (toStatus === 'active') {
+    // Notify production team
+    await notifyByRole('production_manager', {
+      ...base,
+      title: `Segment active: ${segmentName}`,
+      body: `"${segmentName}" is now active. ${changedBy} marked it ready for execution.`,
+    })
+  }
 }
 
 // ---- Segment Activity Log ----
@@ -124,14 +197,15 @@ export async function logSegmentActivity(
   estimateId: string,
   action: string,
   metadata?: Record<string, unknown>,
-  comment?: string
+  comment?: string,
+  userName?: string
 ): Promise<void> {
   const db = requireSupabase()
   await db.from('segment_activities').insert({
     labor_log_id: laborLogId,
     estimate_id: estimateId,
     action,
-    changed_by: 'Current User',
+    changed_by: userName || 'Unknown User',
     comment: comment || null,
     metadata: metadata || null,
   })
