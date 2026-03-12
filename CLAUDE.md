@@ -42,14 +42,14 @@ Phase 2 is well underway. Completed features:
 - **Workflow Engine** — Full status lifecycle and version control:
   - **Segment-level status** — Status now lives on individual segments (labor_logs), not the estimate. Each segment transitions independently: Draft → Review → Approved → Active → Recap → Invoiced → Complete. Estimate-level status is computed as the lowest segment status via `computeEstimateStatus()`.
   - **SegmentTransitionBar** — Per-segment status progress bar with contextual action buttons (Submit for Review, Approve, Mark Active, etc.). Edit permissions gated per-segment based on status.
-  - **SegmentStatusBadge** — Color-coded status dot + label component used in both the builder and estimates list.
+  - **SegmentStatusBadge** — High-contrast colored pill badges (e.g. `bg-amber-100 text-amber-800 border-amber-300` for Review) used in both the builder and estimates list. Replaced earlier tiny dot+label design for better readability.
   - **Status bar UI** — Linear-style progress track in Estimate Builder header showing rolled-up estimate status.
   - **Version snapshots** — Full estimate snapshot captured on every status transition (including segment-level transitions). Snapshots include estimate header, labor logs with entries, schedule entries with day entries, line items, day types, and computed totals (revenue, cost, GP, GP%). Totals correctly use `computeScheduleRollup()` for schedule-based estimates. Segment transition summaries appear in the History panel.
   - **Version history panel** — Slide-out History panel accessible from estimate header with Versions and Approvals tabs. Expandable version entries with change summaries. Read-only snapshot modal shows estimate header, totals bar, labor (manual or schedule rollup with "(from schedule)" label), and non-labor line items. Rollback to any previous version with confirmation dialog. Search input filters versions by summary, user, or version number. Segment filter chips extracted from version summaries for quick filtering. Dynamic tab count shows filtered vs total (e.g. "Versions (5 of 29)"). Updated status badge colors: approved=blue, active=fuchsia, recap=violet, complete=green.
   - **Approval routing** — Threshold-based routing ($50K+ triggers executive review). ApprovalBanner component shown on Review status with submitter info, threshold display, and Approve/Send Back buttons with confirmation dialogs.
   - **Read-only lockdown** — Interactive elements disabled per-segment based on segment status. Segments in review, approved, active, or complete status are locked. Segment removal gated on individual segment draft status.
-- **Estimates List Page** — Table view of all estimates with create flow via modal dialog, navigation to Estimate Builder. Status column shows per-segment pills (segment name + color-coded status dot) using `EstimateWithSegments` type that joins `labor_logs` data. Segment status legend bar below filter tabs. Sortable column headers (Event Name, Client, Status, Last Updated) with asc/desc/default cycling and chevron indicators. Search input filters by event name, client, location, and segment names. Status filter tabs with counts (All/Draft/Review/Approved/Active/etc.). Three-dot context menu per row with Archive and Delete actions. Delete has confirmation dialog. "Show archived / Hide archived" toggle with count. Archived rows use muted text color.
-- **UI Styling** — Professional density pass (Stripe/Linear aesthetic) across all pages. Muted hunter green accents, slate section backgrounds, consistent `text-[13px]` body / `text-[10px]` uppercase headers.
+- **Estimates List Page** — Table view of all estimates with create flow via modal dialog, navigation to Estimate Builder. Status column shows per-segment colored pill badges (segment name + status label, e.g. amber for Review, blue for Approved, fuchsia for Active) using `EstimateWithSegments` type that joins `labor_logs` data. Segment status legend bar below filter tabs with larger dots and bolder text. Sortable column headers (Event Name, Client, Status, Last Updated) with asc/desc/default cycling and chevron indicators. Search input filters by event name, client, location, and segment names. Status filter tabs with counts (All/Draft/Review/Approved/Active/etc.). Three-dot context menu per row with Archive and Delete actions. Delete has confirmation dialog. "Show archived / Hide archived" toggle with count. Archived rows use muted text color.
+- **UI Styling** — Professional density pass (Stripe/Linear aesthetic) across all pages. Muted hunter green accents, slate section backgrounds, consistent `text-[13px]` body / `text-[10px]` uppercase headers. High-contrast light-background color palette for all badges and pills (e.g. `bg-amber-100 text-amber-800 border-amber-300`) replacing earlier dark-theme-only colors.
 - **Authentication & User Management** — Supabase Auth with email/password login. No self-service signup — admins invite users. Five roles: admin, cfo, operations, production_manager, account_manager. Route guards (RequireAuth, RequireAdmin) protect all routes. Auth context provider (`useAuth`/`useUser` hooks) supplies user identity throughout the app. Admin > Users page for invite, role assignment, activate/deactivate. Sidebar shows user name/role and sign-out button.
 - **Notification System** — In-app notifications with Supabase Realtime. NotificationBell in header with unread count badge and dropdown. Notification dispatch wired into all workflow trigger points: segment status transitions notify CFO (review), creator (approved/sent back), production team (active). Approval decisions and rollbacks notify the original submitter/creator. `notification-service.ts` handles create, query, mark-read, and role-based dispatch respecting user preferences.
 
@@ -98,6 +98,7 @@ All data persists to Supabase (estimates, labor_logs, labor_entries, estimate_li
 │   │   ├── notification-service.ts — Notification CRUD, role-based dispatch
 │   │   ├── rate-card-service.ts   — Rate card/client CRUD (Supabase)
 │   │   ├── schedule-service.ts    — Schedule entries, day types, rollup (Supabase)
+│   │   ├── segment-status-service.ts — Per-segment status transitions, edit rules, notification dispatch
 │   │   ├── workflow-service.ts    — Status machine, versioning, approvals, rollback (Supabase)
 │   │   ├── supabase.ts            — Supabase client (graceful null if env vars missing)
 │   │   └── utils.ts               — cn() helper
@@ -113,10 +114,12 @@ All data persists to Supabase (estimates, labor_logs, labor_entries, estimate_li
 
 ## Dual Layout System
 
-The app has two independent layout trees under a single BrowserRouter:
+The app has two independent layout trees under a single BrowserRouter, wrapped by `AuthProvider`:
 
-- **AppLayout** (`/`) — Full internal app with sidebar (Discovery Intelligence, Phase 1 Deliverables, UI Concepts, Admin sections). Header shows "CONFIDENTIAL" badge.
-- **StakeholderLayout** (`/stakeholder`) — Simplified review portal with its own sidebar, "REVIEW" badge. Shares page components via React Router Outlet.
+- **`/login`** — Public login page (email/password, no self-service signup)
+- **AppLayout** (`/`) — Protected by `RequireAuth` route guard. Full internal app with sidebar (Discovery Intelligence, Phase 1 Deliverables, Production, UI Concepts, Admin sections). Header shows NotificationBell and "CONFIDENTIAL" badge. Sidebar footer shows signed-in user name, role, and sign-out button. Admin section (Users, Feedback) only visible to admin role.
+  - **`/admin/users`** — Protected by `RequireAdmin` route guard. User management page.
+- **StakeholderLayout** (`/stakeholder`) — Protected by `RequireAuth`. Simplified review portal with its own sidebar, "REVIEW" badge. Shares page components via React Router Outlet.
 
 ## Supabase Integration
 
@@ -235,7 +238,8 @@ When building an estimate, rates are consumed in a grid format:
 **Week 6 (Complete):** Schedule tab — calendar staffing grid, Labor Log read-only rollup from schedule, sortable columns, per-segment date picker, auto-refresh on tab switch
 **Weeks 6-7 (Complete):** Workflow Engine — status state machine, version snapshots (with schedule rollup support), approval routing with threshold detection, version history panel with snapshot viewer and rollback, linear status bar UI, estimates list badges/filters/quick actions, read-only lockdown for locked statuses
 **Week 7 (Complete):** Segment-level workflow — status transitions moved from estimate-level to per-segment, SegmentTransitionBar and SegmentStatusBadge components, segment transitions create version snapshots, edit permissions gated per-segment, segment creation order preserved. Estimates list overhaul — segment status pills replacing single badge, sortable column headers, search input, removed estimate-level action buttons (actions now per-segment in builder).
-**Week 7-8 (In Progress):** UX polish — Version History search and segment filter, updated status badge color palette (blue/fuchsia/violet/green).
+**Week 7-8 (Complete):** UX polish — Version History search and segment filter, updated status badge color palette (blue/fuchsia/violet/green). High-contrast pill badges for all status indicators (estimates list, builder, admin users).
+**Week 8 (Complete):** Auth Foundation + Notification System — Supabase Auth integration (email/password, invite-only), profiles table with 5 roles, login page, RequireAuth/RequireAdmin route guards, admin users page (invite, role assignment, activate/deactivate), notification bell with Realtime subscription, notification dispatch on all workflow transitions (segment status, approvals, rollbacks), replaced all 6 hardcoded 'Current User' strings with real user identity from auth context. SQL migration: `scripts/migration_auth_profiles_notifications.sql`.
 **Next Sprint (Weeks 8-10):** AI Intelligence (scoping assistant, historical data training)
 
 ## Key Stakeholders
