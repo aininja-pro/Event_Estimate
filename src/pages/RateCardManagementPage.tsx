@@ -109,9 +109,13 @@ interface RateFormState {
   unit_rate: string
   unit_label: string
   gl_code: string
+  corporate_cost: string
+  corporate_cost_is_percent: boolean
+  office_cost: string
+  office_cost_is_percent: boolean
 }
 
-const EMPTY_FORM: RateFormState = { fee_type_id: null, name: '', unit_rate: '', unit_label: '', gl_code: '' }
+const EMPTY_FORM: RateFormState = { fee_type_id: null, name: '', unit_rate: '', unit_label: '', gl_code: '', corporate_cost: '', corporate_cost_is_percent: false, office_cost: '', office_cost_is_percent: true }
 
 function formFromItem(item: RateCardItem): RateFormState {
   return {
@@ -120,7 +124,17 @@ function formFromItem(item: RateCardItem): RateFormState {
     unit_rate: item.unit_rate != null ? String(item.unit_rate) : '',
     unit_label: item.unit_label ?? '',
     gl_code: item.gl_code ?? '',
+    corporate_cost: item.corporate_cost != null ? String(item.corporate_cost) : '',
+    corporate_cost_is_percent: item.corporate_cost_is_percent,
+    office_cost: item.office_cost != null ? String(item.office_cost) : '',
+    office_cost_is_percent: item.office_cost_is_percent,
   }
+}
+
+function fmtCost(value: number | null, isPercent: boolean): string {
+  if (value == null) return '—'
+  if (isPercent) return value.toFixed(1).replace(/\.0$/, '') + '%'
+  return '$' + value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
 interface RateFormDialogProps {
@@ -284,16 +298,46 @@ function RateFormDialog({ open, onClose, onSave, onDelete, title, description, i
             </div>
           )}
           {!isPassThrough && (
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label className="text-xs">Unit Rate ($)</Label>
-                <Input id="rate-amount" type="number" step="0.01" value={form.unit_rate} onChange={(e) => setForm({ ...form, unit_rate: e.target.value })} placeholder="0.00" className="h-8 text-sm border-border/50" />
+            <>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label className="text-xs">Unit Rate ($)</Label>
+                  <Input id="rate-amount" type="number" step="0.01" value={form.unit_rate} onChange={(e) => setForm({ ...form, unit_rate: e.target.value })} placeholder="0.00" className="h-8 text-sm border-border/50" />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Unit Label</Label>
+                  <Input id="rate-unit" value={form.unit_label} onChange={(e) => setForm({ ...form, unit_label: e.target.value })} placeholder="e.g., /10 hr day" className="h-8 text-sm border-border/50" />
+                </div>
               </div>
-              <div className="space-y-1">
-                <Label className="text-xs">Unit Label</Label>
-                <Input id="rate-unit" value={form.unit_label} onChange={(e) => setForm({ ...form, unit_label: e.target.value })} placeholder="e.g., /10 hr day" className="h-8 text-sm border-border/50" />
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label className="text-xs">Corp Cost</Label>
+                  <div className="flex gap-1">
+                    <Input type="number" step="0.01" value={form.corporate_cost} onChange={(e) => setForm({ ...form, corporate_cost: e.target.value })} placeholder="0.00" className="h-8 text-sm border-border/50 flex-1" />
+                    <button
+                      type="button"
+                      className="h-8 px-2 text-[11px] font-medium border border-border/50 rounded-md bg-muted/30 hover:bg-muted/60 transition-colors min-w-[28px]"
+                      onClick={() => setForm({ ...form, corporate_cost_is_percent: !form.corporate_cost_is_percent })}
+                    >
+                      {form.corporate_cost_is_percent ? '%' : '$'}
+                    </button>
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Office Cost</Label>
+                  <div className="flex gap-1">
+                    <Input type="number" step="0.01" value={form.office_cost} onChange={(e) => setForm({ ...form, office_cost: e.target.value })} placeholder="0.00" className="h-8 text-sm border-border/50 flex-1" />
+                    <button
+                      type="button"
+                      className="h-8 px-2 text-[11px] font-medium border border-border/50 rounded-md bg-muted/30 hover:bg-muted/60 transition-colors min-w-[28px]"
+                      onClick={() => setForm({ ...form, office_cost_is_percent: !form.office_cost_is_percent })}
+                    >
+                      {form.office_cost_is_percent ? '%' : '$'}
+                    </button>
+                  </div>
+                </div>
               </div>
-            </div>
+            </>
           )}
           {isPassThrough && (
             <p className="text-[13px] text-muted-foreground">Pass-through items are estimated per project. No fixed rate is set here.</p>
@@ -419,12 +463,14 @@ function SectionTable({ section, items, search, thirdPartyMarkup, collapsed, onT
           <Table>
             <TableHeader>
               <TableRow className="border-b border-border/40 hover:bg-transparent">
-                <TableHead className="w-[40%] text-[10px] uppercase tracking-wider text-muted-foreground font-medium py-2">Item Name</TableHead>
-                {!isPassThrough && <TableHead className="text-right w-[15%] text-[10px] uppercase tracking-wider text-muted-foreground font-medium py-2">Unit Rate</TableHead>}
-                <TableHead className="w-[15%] text-[10px] uppercase tracking-wider text-muted-foreground font-medium py-2">Unit Label</TableHead>
-                <TableHead className="w-[12%] text-[10px] uppercase tracking-wider text-muted-foreground font-medium py-2">GL Code</TableHead>
-                <TableHead className="w-[10%] text-[10px] uppercase tracking-wider text-muted-foreground font-medium py-2">Source</TableHead>
-                <TableHead className="w-[8%]" />
+                <TableHead className={`${isPassThrough ? 'w-[40%]' : 'w-[26%]'} text-[10px] uppercase tracking-wider text-muted-foreground font-medium py-2`}>Item Name</TableHead>
+                {!isPassThrough && <TableHead className="text-right w-[11%] text-[10px] uppercase tracking-wider text-muted-foreground font-medium py-2">Unit Rate</TableHead>}
+                {!isPassThrough && <TableHead className="text-right w-[10%] text-[10px] uppercase tracking-wider text-muted-foreground font-medium py-2 pr-5">Corp Cost</TableHead>}
+                {!isPassThrough && <TableHead className="text-right w-[10%] text-[10px] uppercase tracking-wider text-muted-foreground font-medium py-2 pr-8">Office Cost</TableHead>}
+                <TableHead className={`${isPassThrough ? 'w-[15%]' : 'w-[13%]'} text-[10px] uppercase tracking-wider text-muted-foreground font-medium py-2 pl-6`}>Unit Label</TableHead>
+                <TableHead className="w-[10%] text-[10px] uppercase tracking-wider text-muted-foreground font-medium py-2">GL Code</TableHead>
+                <TableHead className="w-[8%] text-[10px] uppercase tracking-wider text-muted-foreground font-medium py-2">Source</TableHead>
+                <TableHead className="w-[6%]" />
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -444,7 +490,17 @@ function SectionTable({ section, items, search, thirdPartyMarkup, collapsed, onT
                       <span className="text-[13px] font-medium tabular-nums text-foreground">{fmt(item.unit_rate)}</span>
                     </TableCell>
                   )}
-                  <TableCell className="py-1">
+                  {!isPassThrough && (
+                    <TableCell className="text-right py-1 pr-5">
+                      <span className="text-[13px] tabular-nums text-muted-foreground">{fmtCost(item.corporate_cost, item.corporate_cost_is_percent)}</span>
+                    </TableCell>
+                  )}
+                  {!isPassThrough && (
+                    <TableCell className="text-right py-1 pr-8">
+                      <span className="text-[13px] tabular-nums text-muted-foreground">{fmtCost(item.office_cost, item.office_cost_is_percent)}</span>
+                    </TableCell>
+                  )}
+                  <TableCell className="py-1 pl-6">
                     <span className="text-[13px] text-muted-foreground">{item.unit_label ?? '—'}</span>
                   </TableCell>
                   <TableCell className="py-1">
@@ -467,7 +523,7 @@ function SectionTable({ section, items, search, thirdPartyMarkup, collapsed, onT
               ))}
               {filtered.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={isPassThrough ? 5 : 6} className="text-center text-muted-foreground/70 text-xs py-6">
+                  <TableCell colSpan={isPassThrough ? 5 : 8} className="text-center text-muted-foreground/70 text-xs py-6">
                     No items in this section
                   </TableCell>
                 </TableRow>
@@ -1316,6 +1372,10 @@ export function RateCardManagementPage() {
       overtime_rate: null,
       overtime_unit_label: null,
       overtime_gl_code: null,
+      corporate_cost: form.corporate_cost ? parseFloat(form.corporate_cost) : null,
+      corporate_cost_is_percent: form.corporate_cost_is_percent,
+      office_cost: form.office_cost ? parseFloat(form.office_cost) : null,
+      office_cost_is_percent: form.office_cost_is_percent,
       notes: null,
       display_order: 0,
       is_active: true,
@@ -1330,6 +1390,10 @@ export function RateCardManagementPage() {
     await updateRateCardItem(dialogItem.id, {
       unit_rate: form.unit_rate ? parseFloat(form.unit_rate) : null,
       unit_label: form.unit_label || null,
+      corporate_cost: form.corporate_cost ? parseFloat(form.corporate_cost) : null,
+      corporate_cost_is_percent: form.corporate_cost_is_percent,
+      office_cost: form.office_cost ? parseFloat(form.office_cost) : null,
+      office_cost_is_percent: form.office_cost_is_percent,
     })
     await loadItems(selectedClientId)
   }

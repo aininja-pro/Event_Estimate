@@ -43,6 +43,10 @@ export interface RateCardItem {
   overtime_rate: number | null
   overtime_unit_label: string | null
   overtime_gl_code: string | null
+  corporate_cost: number | null
+  corporate_cost_is_percent: boolean
+  office_cost: number | null
+  office_cost_is_percent: boolean
   fee_type_id: string | null
   notes: string | null
   display_order: number
