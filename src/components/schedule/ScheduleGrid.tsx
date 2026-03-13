@@ -57,10 +57,6 @@ const STANDARD_HOURS = 10
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
-function fmt(n: number): string {
-  return '$' + n.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })
-}
-
 function formatDate(dateStr: string): { month: string; day: string; weekday: string } {
   const d = new Date(dateStr + 'T00:00:00')
   return {
@@ -680,10 +676,10 @@ export function ScheduleGrid({
     .filter((e) => e.needs_per_diem)
     .reduce((sum, e) => sum + getRowTotalDays(e), 0)
   const totalOtHours = rollup.reduce((sum, r) => sum + r.total_ot_hours, 0)
-  const totalRevenue = rollup.reduce((sum, r) => sum + r.revenue_total, 0)
-  const totalCost = rollup.reduce((sum, r) => sum + r.cost_total, 0)
-  const totalGP = totalRevenue - totalCost
-  const gpPct = totalRevenue > 0 ? (totalGP / totalRevenue) * 100 : 0
+  const totalAirfares = entries.filter((e) => e.needs_airfare).length
+  const totalHotelNights = entries
+    .filter((e) => e.needs_hotel)
+    .reduce((sum, e) => sum + getRowTotalDays(e), 0)
 
   // ── Render ──
 
@@ -775,13 +771,22 @@ export function ScheduleGrid({
                 )
               })}
               <th className="px-2 py-1.5 border-b border-slate-200 bg-slate-50 text-[10px] uppercase tracking-widest text-muted-foreground font-medium min-w-[50px] text-center">Days</th>
-              <th className="px-1 py-1.5 border-b border-slate-200 bg-slate-50 text-[10px] uppercase tracking-widest text-muted-foreground font-medium w-[80px] text-center">Actions</th>
+              <th className="px-0 py-1.5 border-b border-slate-200 bg-slate-50 w-[36px] text-center" title="Airfare">
+                <Plane className="h-3 w-3 mx-auto text-muted-foreground/50" />
+              </th>
+              <th className="px-0 py-1.5 border-b border-slate-200 bg-slate-50 w-[36px] text-center" title="Hotel">
+                <BedDouble className="h-3 w-3 mx-auto text-muted-foreground/50" />
+              </th>
+              <th className="px-0 py-1.5 border-b border-slate-200 bg-slate-50 w-[36px] text-center" title="Per Diem">
+                <UtensilsCrossed className="h-3 w-3 mx-auto text-muted-foreground/50" />
+              </th>
+              <th className="px-1 py-1.5 border-b border-slate-200 bg-slate-50 w-[60px] text-center" />
             </tr>
           </thead>
           <tbody>
             {entries.length === 0 ? (
               <tr>
-                <td colSpan={sortedDates.length + 4} className="text-center py-8 text-xs text-muted-foreground/50 border-dashed border-2 border-slate-200">
+                <td colSpan={sortedDates.length + 7} className="text-center py-8 text-xs text-muted-foreground/50 border-dashed border-2 border-slate-200">
                   Click <span className="font-medium">+ Add Staff</span> to start building your schedule
                 </td>
               </tr>
@@ -818,37 +823,50 @@ export function ScheduleGrid({
                   <td className="border-b border-slate-200 bg-slate-50 text-center text-sm font-semibold tabular-nums py-1.5">
                     {getRowTotalDays(entry)}
                   </td>
-                  {/* Actions */}
-                  <td className="border-b border-slate-200 bg-slate-50 px-1 py-1">
+                  {/* Travel indicators — always visible */}
+                  <td className="border-b border-slate-200 bg-slate-50 text-center px-0 py-1">
                     {readOnly ? (
-                      <div className="flex items-center justify-center gap-0.5">
-                        {entry.needs_airfare && <Plane className="h-3 w-3 text-sky-600/50" />}
-                        {entry.needs_hotel && <BedDouble className="h-3 w-3 text-violet-600/50" />}
-                        {entry.needs_per_diem && <UtensilsCrossed className="h-3 w-3 text-amber-600/50" />}
-                      </div>
+                      entry.needs_airfare ? <Plane className="h-3.5 w-3.5 mx-auto text-sky-600" /> : <Plane className="h-3.5 w-3.5 mx-auto text-muted-foreground/20" />
                     ) : (
+                      <button
+                        onClick={() => handleToggleFlag(entry.id, 'needs_airfare')}
+                        title="Airfare"
+                        className={`p-0.5 rounded transition-colors ${entry.needs_airfare ? 'text-sky-600' : 'text-muted-foreground/20 hover:text-muted-foreground/50'}`}
+                      >
+                        <Plane className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                  </td>
+                  <td className="border-b border-slate-200 bg-slate-50 text-center px-0 py-1">
+                    {readOnly ? (
+                      entry.needs_hotel ? <BedDouble className="h-3.5 w-3.5 mx-auto text-violet-600" /> : <BedDouble className="h-3.5 w-3.5 mx-auto text-muted-foreground/20" />
+                    ) : (
+                      <button
+                        onClick={() => handleToggleFlag(entry.id, 'needs_hotel')}
+                        title="Hotel"
+                        className={`p-0.5 rounded transition-colors ${entry.needs_hotel ? 'text-violet-600' : 'text-muted-foreground/20 hover:text-muted-foreground/50'}`}
+                      >
+                        <BedDouble className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                  </td>
+                  <td className="border-b border-slate-200 bg-slate-50 text-center px-0 py-1">
+                    {readOnly ? (
+                      entry.needs_per_diem ? <UtensilsCrossed className="h-3.5 w-3.5 mx-auto text-amber-600" /> : <UtensilsCrossed className="h-3.5 w-3.5 mx-auto text-muted-foreground/20" />
+                    ) : (
+                      <button
+                        onClick={() => handleToggleFlag(entry.id, 'needs_per_diem')}
+                        title="Per Diem"
+                        className={`p-0.5 rounded transition-colors ${entry.needs_per_diem ? 'text-amber-600' : 'text-muted-foreground/20 hover:text-muted-foreground/50'}`}
+                      >
+                        <UtensilsCrossed className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                  </td>
+                  {/* Actions — hover only */}
+                  <td className="border-b border-slate-200 bg-slate-50 px-1 py-1">
+                    {!readOnly && (
                       <div className="flex items-center justify-center gap-0.5 opacity-0 group-hover/row:opacity-100 transition-opacity">
-                        <button
-                          onClick={() => handleToggleFlag(entry.id, 'needs_airfare')}
-                          title="Airfare"
-                          className={`p-1 rounded transition-colors ${entry.needs_airfare ? 'text-sky-600' : 'text-muted-foreground/30 hover:text-muted-foreground/60'}`}
-                        >
-                          <Plane className="h-3 w-3" />
-                        </button>
-                        <button
-                          onClick={() => handleToggleFlag(entry.id, 'needs_hotel')}
-                          title="Hotel"
-                          className={`p-1 rounded transition-colors ${entry.needs_hotel ? 'text-violet-600' : 'text-muted-foreground/30 hover:text-muted-foreground/60'}`}
-                        >
-                          <BedDouble className="h-3 w-3" />
-                        </button>
-                        <button
-                          onClick={() => handleToggleFlag(entry.id, 'needs_per_diem')}
-                          title="Per Diem"
-                          className={`p-1 rounded transition-colors ${entry.needs_per_diem ? 'text-amber-600' : 'text-muted-foreground/30 hover:text-muted-foreground/60'}`}
-                        >
-                          <UtensilsCrossed className="h-3 w-3" />
-                        </button>
                         <button onClick={() => handleDuplicateRow(entry.id)} title="Duplicate" className="p-1 rounded text-muted-foreground/30 hover:text-foreground/60 transition-colors">
                           <Copy className="h-3 w-3" />
                         </button>
@@ -872,6 +890,8 @@ export function ScheduleGrid({
                 ))}
                 <td className="bg-slate-50 border-slate-200" />
                 <td className="bg-slate-50 border-slate-200" />
+                <td className="bg-slate-50 border-slate-200" />
+                <td className="bg-slate-50 border-slate-200" />
               </tr>
             )}
           </tbody>
@@ -880,15 +900,13 @@ export function ScheduleGrid({
 
       {/* Summary bar */}
       {entries.length > 0 && (
-        <div className="grid grid-cols-4 gap-3 sm:grid-cols-8 bg-white border border-slate-200 rounded-md px-3 py-2.5 shadow-sm">
+        <div className="grid grid-cols-3 gap-3 sm:grid-cols-6 bg-white border border-slate-200 rounded-md px-3 py-2.5 shadow-sm">
           <SummaryMetric label="Staff" value={totalStaff.toString()} />
           <SummaryMetric label="Person-Days" value={totalPersonDays.toString()} />
           <SummaryMetric label="Per Diem Days" value={totalPerDiemDays.toString()} />
           <SummaryMetric label="OT Hours" value={totalOtHours.toString()} />
-          <SummaryMetric label="Est. Revenue" value={fmt(totalRevenue)} />
-          <SummaryMetric label="Est. Cost" value={fmt(totalCost)} />
-          <SummaryMetric label="Gross Profit" value={fmt(totalGP)} />
-          <SummaryMetric label="GP%" value={`${gpPct.toFixed(1)}%`} color={gpPct >= 35 ? 'text-green-700' : gpPct >= 25 ? 'text-amber-600' : 'text-red-600'} />
+          <SummaryMetric label="Airfares" value={totalAirfares.toString()} />
+          <SummaryMetric label="Hotel Nights" value={totalHotelNights.toString()} />
         </div>
       )}
 
