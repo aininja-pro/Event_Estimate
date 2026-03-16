@@ -2074,9 +2074,6 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
   const activeSegmentStatus = (activeLog?.status || 'draft') as SegmentStatus
   const editRules: SegmentEditRules = getSegmentEditRules(activeSegmentStatus)
 
-  // Legacy isReadOnly kept for estimate-level locks (header, notes use editRules directly)
-  const _isReadOnly = !editRules.event_details
-
   // ── Render ──
 
   if (loading) {

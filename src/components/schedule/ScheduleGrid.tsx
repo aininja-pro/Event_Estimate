@@ -66,13 +66,6 @@ function formatDate(dateStr: string): { month: string; day: string; weekday: str
   }
 }
 
-/** Heat map opacity based on hours worked — varies the day-type color intensity. */
-function _cellOpacity(hours: number): string {
-  if (hours <= 0) return 'opacity-0'
-  if (hours <= 8) return 'opacity-30'
-  if (hours <= 10) return 'opacity-50'
-  return 'opacity-70'
-}
 
 // ── Add Staff Modal ────────────────────────────────────────────────────────────
 
@@ -498,8 +491,6 @@ export function ScheduleGrid({
 
   // ── Date columns sorted by date ──
   const sortedDates = [...dayTypes].sort((a, b) => a.work_date.localeCompare(b.work_date))
-  const _dateMap = new Map(sortedDates.map((dt) => [dt.work_date, dt]))
-
   // ── Helpers for cell data ──
   function getCellHours(entry: ScheduleEntry, date: string): number | null {
     const de = entry.day_entries?.find((d) => d.work_date === date)
