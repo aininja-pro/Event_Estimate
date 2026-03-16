@@ -731,7 +731,7 @@ function FeeTypesTab() {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [dialogMode, setDialogMode] = useState<'add' | 'edit'>('add')
   const [dialogItem, setDialogItem] = useState<FeeType | null>(null)
-  const [dialogSection, setDialogSection] = useState<string>(FEE_TYPE_SECTIONS[0])
+  const [dialogSection, setDialogSection] = useState<string>(FEE_TYPE_SECTIONS[0].key)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [deleteItem, setDeleteItem] = useState<FeeType | null>(null)
 
@@ -1102,6 +1102,10 @@ function BulkImportDialog({ open, onClose, clientId, clientName, onImportComplet
           overtime_rate: row.overtime_rate,
           overtime_unit_label: row.overtime_rate != null ? (ft.unit_label ?? null) : null,
           overtime_gl_code: null,
+          corporate_cost: null,
+          corporate_cost_is_percent: false,
+          office_cost: null,
+          office_cost_is_percent: false,
           notes: null,
           display_order: 0,
           is_active: true,

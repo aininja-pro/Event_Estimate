@@ -21,7 +21,7 @@ import {
   X,
   Calendar,
 } from 'lucide-react'
-import type { ScheduleEntry, ScheduleDayType, ScheduleDayEntry } from '@/types/schedule'
+import type { ScheduleEntry, ScheduleDayType } from '@/types/schedule'
 import type { RateCardItemsBySection } from '@/types/rate-card'
 import type { LaborLog, EstimateWithClient } from '@/types/estimate'
 import {
@@ -67,7 +67,7 @@ function formatDate(dateStr: string): { month: string; day: string; weekday: str
 }
 
 /** Heat map opacity based on hours worked — varies the day-type color intensity. */
-function cellOpacity(hours: number): string {
+function _cellOpacity(hours: number): string {
   if (hours <= 0) return 'opacity-0'
   if (hours <= 8) return 'opacity-30'
   if (hours <= 10) return 'opacity-50'
@@ -498,7 +498,7 @@ export function ScheduleGrid({
 
   // ── Date columns sorted by date ──
   const sortedDates = [...dayTypes].sort((a, b) => a.work_date.localeCompare(b.work_date))
-  const dateMap = new Map(sortedDates.map((dt) => [dt.work_date, dt]))
+  const _dateMap = new Map(sortedDates.map((dt) => [dt.work_date, dt]))
 
   // ── Helpers for cell data ──
   function getCellHours(entry: ScheduleEntry, date: string): number | null {
@@ -549,7 +549,7 @@ export function ScheduleGrid({
   }
 
   async function handleDuplicateRow(id: string) {
-    const newEntry = await duplicateScheduleEntry(id)
+    await duplicateScheduleEntry(id)
     // Reload to get nested day_entries
     const refreshed = await getScheduleEntries(laborLog.id)
     setEntries(refreshed)

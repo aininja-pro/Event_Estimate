@@ -45,7 +45,7 @@ import {
 } from '@/lib/workflow-service'
 import { transitionSegmentStatus, getSegmentEditRules } from '@/lib/segment-status-service'
 import { useUser } from '@/lib/auth'
-import type { EstimateStatus, ApprovalRequest, SegmentStatus, SegmentEditRules } from '@/types/workflow'
+import type { ApprovalRequest, SegmentStatus, SegmentEditRules } from '@/types/workflow'
 import type { ScheduleEntry, LaborRollupRow } from '@/types/schedule'
 import {
   getEstimate,
@@ -2075,7 +2075,7 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
   const editRules: SegmentEditRules = getSegmentEditRules(activeSegmentStatus)
 
   // Legacy isReadOnly kept for estimate-level locks (header, notes use editRules directly)
-  const isReadOnly = !editRules.event_details
+  const _isReadOnly = !editRules.event_details
 
   // ── Render ──
 
