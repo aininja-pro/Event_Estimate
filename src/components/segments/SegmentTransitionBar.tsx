@@ -34,7 +34,6 @@ function getSegmentActions(status: SegmentStatus): SegmentAction[] {
       ]
     case 'in_review':
       return [
-        { label: 'Approve & Activate', toStatus: 'active', variant: 'outline', className: 'border-emerald-300/60 text-emerald-700/80 bg-emerald-50/50 hover:bg-emerald-100/60 hover:border-emerald-400/60 hover:text-emerald-800' },
         { label: 'Send Back', toStatus: 'estimate', variant: 'outline', requiresReason: true, className: 'border-orange-300/60 text-orange-600/80 hover:bg-orange-50/60 hover:text-orange-700' },
         { label: 'Mark Lost', toStatus: 'lost', variant: 'outline', requiresReason: true, className: 'border-red-300/60 text-red-600/80 hover:bg-red-50/60 hover:text-red-700' },
         { label: 'Cancel', toStatus: 'cancelled', variant: 'outline', requiresReason: true, className: 'border-slate-300/60 text-slate-500/80 hover:bg-slate-50/60 hover:text-slate-600' },

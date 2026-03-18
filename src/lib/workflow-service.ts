@@ -13,6 +13,20 @@ import type {
   SegmentStatus,
 } from '../types/workflow'
 
+// ---- Approval Role Gating ----
+
+export const APPROVAL_THRESHOLD = 50_000
+export const THRESHOLD_ROLES = ['cfo', 'admin'] // roles that can approve $50K+
+export const STANDARD_ROLES = ['account_manager', 'admin', 'cfo'] // roles that can approve standard
+
+/** Check if a user's role allows them to approve a given approval request. */
+export function canUserApprove(approval: ApprovalRequest, userRole: string): boolean {
+  if (approval.threshold_triggered?.includes('$50K')) {
+    return THRESHOLD_ROLES.includes(userRole)
+  }
+  return STANDARD_ROLES.includes(userRole)
+}
+
 function requireSupabase() {
   if (!supabase) {
     throw new Error('Supabase is not configured. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.')
@@ -383,8 +397,13 @@ export async function rollbackToVersion(
       .eq('estimate_id', estimateId)
     const currentLogIds = (currentLogs || []).map((l: { id: string }) => l.id)
 
-    // Delete existing child data (cascade from labor logs handles entries)
+    // Delete existing child data before removing labor logs
     if (currentLogIds.length > 0) {
+      // Clean up tables that reference labor_log_id (including approval/activity tables)
+      await db.from('approval_requests').delete().in('labor_log_id', currentLogIds)
+      await db.from('segment_activities').delete().in('labor_log_id', currentLogIds)
+      await db.from('recap_actuals').delete().in('labor_log_id', currentLogIds)
+
       // Delete schedule day entries via schedule entries
       const { data: currentScheduleEntries } = await db
         .from('schedule_entries')
@@ -545,17 +564,19 @@ export function determineApprovalThreshold(estimateTotal: number): string {
 
 export async function submitForApproval(
   estimateId: string,
-  userId: string
+  userId: string,
+  laborLogId: string
 ): Promise<{ approvalId: string; threshold: string; error?: string }> {
   const db = requireSupabase()
 
-  // Transition to in_review
-  const result = await transitionStatus(estimateId, 'in_review', userId)
+  // Transition the segment to in_review via segment-status-service
+  const { transitionSegmentStatus: transitionSeg } = await import('./segment-status-service')
+  const result = await transitionSeg(laborLogId, 'in_review', undefined, userId)
   if (!result.success) {
     return { approvalId: '', threshold: '', error: result.error }
   }
 
-  // Get the version that was just created by transitionStatus
+  // Get the version that was just created by transitionSegmentStatus
   const { data: latestVersion, error: vErr } = await db
     .from('estimate_versions')
     .select('*')
@@ -565,12 +586,12 @@ export async function submitForApproval(
     .single()
   if (vErr) return { approvalId: '', threshold: '', error: vErr.message }
 
-  // Calculate threshold from snapshot totals
+  // Calculate threshold from segment revenue (not full estimate)
   const snapshot = latestVersion.snapshot_json as EstimateSnapshot
-  const total = snapshot.totals?.total_revenue ?? 0
-  const threshold = determineApprovalThreshold(total)
+  const segmentRevenue = computeSegmentRevenue(snapshot, laborLogId)
+  const threshold = determineApprovalThreshold(segmentRevenue)
 
-  // Create approval request
+  // Create approval request with segment reference
   const { data, error } = await db
     .from('approval_requests')
     .insert({
@@ -578,6 +599,8 @@ export async function submitForApproval(
       version_id: latestVersion.id,
       requested_by: userId,
       threshold_triggered: threshold,
+      labor_log_id: laborLogId,
+      approval_phase: 'internal',
     })
     .select()
     .single()
@@ -586,16 +609,66 @@ export async function submitForApproval(
   return { approvalId: data.id, threshold }
 }
 
+/** Compute revenue for a single segment from a snapshot. */
+function computeSegmentRevenue(snapshot: EstimateSnapshot, laborLogId: string): number {
+  let revenue = 0
+
+  // Schedule-based labor revenue
+  const segScheduleEntries = (snapshot.schedule_entries || []).filter(
+    (se) => se.labor_log_id === laborLogId
+  )
+  if (segScheduleEntries.length > 0) {
+    // Sum day_rate * hours for each day entry
+    for (const se of segScheduleEntries) {
+      const dayEntries = (snapshot.schedule_day_entries || []).filter(
+        (de) => de.schedule_entry_id === se.id
+      )
+      const dayRate = Number(se.day_rate) || 0
+      for (const de of dayEntries) {
+        const hours = Number(de.hours) || 0
+        if (hours > 0) revenue += dayRate // day rate per worked day
+      }
+    }
+  } else {
+    // Manual labor entries
+    const segLog = (snapshot.labor_logs || []).find(
+      (ll) => ll.id === laborLogId
+    )
+    if (segLog) {
+      for (const entry of (segLog.entries || [])) {
+        const qty = Number(entry.quantity) || 0
+        const days = Number(entry.days) || 0
+        const rate = Number(entry.unit_rate) || 0
+        revenue += qty * days * rate
+      }
+    }
+  }
+
+  // Non-labor line items for this segment
+  const segLineItems = (snapshot.line_items || []).filter(
+    (li) => li.labor_log_id === laborLogId
+  )
+  for (const item of segLineItems) {
+    const qty = Number(item.quantity) || 0
+    const unitCost = Number(item.unit_cost) || 0
+    const markupPct = Number(item.markup_pct) || 0
+    revenue += qty * unitCost * (1 + markupPct / 100)
+  }
+
+  return revenue
+}
+
 export async function reviewApproval(
   approvalId: string,
   decision: 'approved' | 'rejected',
   reviewerId: string,
+  reviewerRole: string,
   notes?: string
 ): Promise<{ success: boolean; error?: string }> {
   const db = requireSupabase()
 
   if (decision === 'rejected' && !notes) {
-    return { success: false, error: 'Notes are required when rejecting an estimate' }
+    return { success: false, error: 'Notes are required when sending back a segment' }
   }
 
   // Get the approval request
@@ -610,6 +683,11 @@ export async function reviewApproval(
     return { success: false, error: `This approval has already been ${approval.status}` }
   }
 
+  // Role gating: check if this user's role is authorized to approve
+  if (!canUserApprove(approval as ApprovalRequest, reviewerRole)) {
+    return { success: false, error: `Your role (${reviewerRole}) is not authorized to approve this request` }
+  }
+
   // Update the approval request
   const { error: updateErr } = await db
     .from('approval_requests')
@@ -618,15 +696,25 @@ export async function reviewApproval(
       reviewed_by: reviewerId,
       reviewed_at: new Date().toISOString(),
       notes: notes || null,
+      approval_role: reviewerRole,
     })
     .eq('id', approvalId)
 
   if (updateErr) return { success: false, error: updateErr.message }
 
-  // Transition the estimate status
+  // Transition the segment (not the estimate — computeEstimateStatus handles rollup)
   const toStatus = decision === 'approved' ? 'active' : 'estimate'
   const reason = decision === 'rejected' ? notes : undefined
-  const result = await transitionStatus(approval.estimate_id, toStatus, reviewerId, reason)
+
+  let result: { success: boolean; error?: string }
+  if (approval.labor_log_id) {
+    // Per-segment approval: transition the segment
+    const { transitionSegmentStatus: transitionSeg } = await import('./segment-status-service')
+    result = await transitionSeg(approval.labor_log_id, toStatus as SegmentStatus, reason, reviewerId)
+  } else {
+    // Legacy estimate-level approval (backward compat)
+    result = await transitionStatus(approval.estimate_id, toStatus, reviewerId, reason)
+  }
 
   // Notify the original submitter of the decision
   if (result.success && approval.requested_by) {
@@ -635,12 +723,13 @@ export async function reviewApproval(
     createNotification({
       user_id: targetUserId,
       type: 'approval_decision',
-      title: decision === 'approved' ? 'Estimate approved' : 'Estimate sent back',
+      title: decision === 'approved' ? 'Segment approved' : 'Segment sent back',
       body: decision === 'approved'
-        ? `Your estimate was approved by ${reviewerId}.`
-        : `Your estimate was sent back by ${reviewerId}. Reason: ${notes}`,
+        ? `Your segment was approved by ${reviewerId}.`
+        : `Your segment was sent back by ${reviewerId}. Reason: ${notes}`,
       estimate_id: approval.estimate_id,
-      metadata: { decision, reviewer: reviewerId },
+      labor_log_id: approval.labor_log_id,
+      metadata: { decision, reviewer: reviewerId, approval_role: reviewerRole },
     }).catch((err) => console.error('Notification dispatch failed:', err))
   }
 
@@ -658,6 +747,22 @@ export async function getApprovalHistory(estimateId: string): Promise<ApprovalRe
   return data
 }
 
+/** Get the pending approval for a specific segment. */
+export async function getPendingSegmentApproval(laborLogId: string): Promise<ApprovalRequest | null> {
+  const db = requireSupabase()
+  const { data, error } = await db
+    .from('approval_requests')
+    .select('*')
+    .eq('labor_log_id', laborLogId)
+    .eq('status', 'pending')
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  if (error) throw error
+  return data
+}
+
+/** Backward-compat: get the first pending approval across all segments for an estimate. */
 export async function getPendingApproval(estimateId: string): Promise<ApprovalRequest | null> {
   const db = requireSupabase()
   const { data, error } = await db
@@ -668,6 +773,18 @@ export async function getPendingApproval(estimateId: string): Promise<ApprovalRe
     .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle()
+  if (error) throw error
+  return data
+}
+
+/** Get all approval requests for a specific segment. */
+export async function getSegmentApprovalHistory(laborLogId: string): Promise<ApprovalRequest[]> {
+  const db = requireSupabase()
+  const { data, error } = await db
+    .from('approval_requests')
+    .select('*')
+    .eq('labor_log_id', laborLogId)
+    .order('created_at', { ascending: false })
   if (error) throw error
   return data
 }

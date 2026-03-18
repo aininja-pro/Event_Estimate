@@ -23,6 +23,9 @@ export interface ApprovalRequest {
   status: 'pending' | 'approved' | 'rejected' | 'recalled'
   threshold_triggered: string | null
   notes: string | null
+  labor_log_id: string | null
+  approval_phase: 'internal' | 'client'
+  approval_role: string | null
   created_at: string
   updated_at: string
 }

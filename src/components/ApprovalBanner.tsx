@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { AlertCircle, Check, Undo2 } from 'lucide-react'
+import { AlertCircle, Check, Undo2, ShieldCheck } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -11,16 +11,18 @@ import {
 } from '@/components/ui/dialog'
 import { Textarea } from '@/components/ui/textarea'
 import type { ApprovalRequest } from '@/types/workflow'
+import { canUserApprove } from '@/lib/workflow-service'
 
 // ── Component ───────────────────────────────────────────────────────────────
 
 interface ApprovalBannerProps {
   approval: ApprovalRequest
+  userRole: string
   onApprove: (approvalId: string) => Promise<{ success: boolean; error?: string }>
   onReject: (approvalId: string, notes: string) => Promise<{ success: boolean; error?: string }>
 }
 
-export function ApprovalBanner({ approval, onApprove, onReject }: ApprovalBannerProps) {
+export function ApprovalBanner({ approval, userRole, onApprove, onReject }: ApprovalBannerProps) {
   const [action, setAction] = useState<'approve' | 'reject' | null>(null)
   const [notes, setNotes] = useState('')
   const [submitting, setSubmitting] = useState(false)
@@ -29,6 +31,9 @@ export function ApprovalBanner({ approval, onApprove, onReject }: ApprovalBanner
   const requestedDate = new Date(approval.requested_at).toLocaleDateString('en-US', {
     month: 'short', day: 'numeric', year: 'numeric',
   })
+
+  const canApprove = canUserApprove(approval, userRole)
+  const isThreshold = approval.threshold_triggered?.includes('$50K')
 
   async function handleConfirm() {
     if (!action) return
@@ -54,7 +59,7 @@ export function ApprovalBanner({ approval, onApprove, onReject }: ApprovalBanner
         <AlertCircle className="h-4 w-4 text-amber-600 shrink-0" />
         <div className="flex-1 min-w-0">
           <span className="text-amber-900">
-            This estimate is awaiting review. Submitted by{' '}
+            Awaiting review. Submitted by{' '}
             <span className="font-medium">{approval.requested_by}</span> on {requestedDate}.
           </span>
           {approval.threshold_triggered && (
@@ -62,26 +67,37 @@ export function ApprovalBanner({ approval, onApprove, onReject }: ApprovalBanner
               {approval.threshold_triggered}
             </span>
           )}
+          <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 font-medium">
+            {approval.approval_phase === 'client' ? 'Client Approval' : 'Internal Approval'}
+          </span>
         </div>
-        <div className="flex items-center gap-1.5 shrink-0">
-          <Button
-            size="sm"
-            className="h-7 text-[11px] gap-1 bg-emerald-600 hover:bg-emerald-700"
-            onClick={() => { setAction('approve'); setNotes(''); setError(null) }}
-          >
-            <Check className="h-3 w-3" />
-            Approve
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-7 text-[11px] gap-1 border-orange-300 text-orange-700 hover:bg-orange-50"
-            onClick={() => { setAction('reject'); setNotes(''); setError(null) }}
-          >
-            <Undo2 className="h-3 w-3" />
-            Send Back
-          </Button>
-        </div>
+
+        {canApprove ? (
+          <div className="flex items-center gap-1.5 shrink-0">
+            <Button
+              size="sm"
+              className="h-7 text-[11px] gap-1 bg-emerald-600 hover:bg-emerald-700"
+              onClick={() => { setAction('approve'); setNotes(''); setError(null) }}
+            >
+              <Check className="h-3 w-3" />
+              Approve
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 text-[11px] gap-1 border-orange-300 text-orange-700 hover:bg-orange-50"
+              onClick={() => { setAction('reject'); setNotes(''); setError(null) }}
+            >
+              <Undo2 className="h-3 w-3" />
+              Send Back
+            </Button>
+          </div>
+        ) : (
+          <div className="flex items-center gap-1.5 shrink-0 text-[11px] text-amber-700">
+            <ShieldCheck className="h-3.5 w-3.5" />
+            <span>{isThreshold ? 'Awaiting CFO / Admin approval' : 'Awaiting approval'}</span>
+          </div>
+        )}
       </div>
 
       {/* Confirmation dialog */}
@@ -89,12 +105,12 @@ export function ApprovalBanner({ approval, onApprove, onReject }: ApprovalBanner
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="text-sm">
-              {action === 'approve' ? 'Approve Estimate' : 'Send Back for Revision'}
+              {action === 'approve' ? 'Approve Segment' : 'Send Back for Revision'}
             </DialogTitle>
             <DialogDescription className="text-xs text-muted-foreground">
               {action === 'approve'
-                ? 'This will approve the estimate and move it to Active status.'
-                : 'Please explain what needs to change. The estimate will return to Estimate status for editing.'}
+                ? 'This will approve the segment and move it to Active status.'
+                : 'Please explain what needs to change. The segment will return to Estimate status for editing.'}
             </DialogDescription>
           </DialogHeader>
 

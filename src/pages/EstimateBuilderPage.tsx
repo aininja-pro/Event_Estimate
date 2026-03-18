@@ -40,7 +40,8 @@ import { ApprovalBanner } from '@/components/ApprovalBanner'
 import { SegmentTransitionBar } from '@/components/segments/SegmentTransitionBar'
 import { getScheduleEntries, computeScheduleRollup } from '@/lib/schedule-service'
 import {
-  getPendingApproval,
+  getPendingSegmentApproval,
+  submitForApproval,
   reviewApproval,
 } from '@/lib/workflow-service'
 import { transitionSegmentStatus, getSegmentEditRules } from '@/lib/segment-status-service'
@@ -1793,7 +1794,8 @@ function SummaryTab({
 // ── Main Page ────────────────────────────────────────────────────────────────
 
 function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
-  const { displayName } = useUser()
+  const { displayName, profile } = useUser()
+  const userRole = profile?.role || 'account_manager'
   const [estimate, setEstimate] = useState<EstimateWithClient | null>(null)
   const [laborLogs, setLaborLogs] = useState<LaborLog[]>([])
   const [activeLocationId, setActiveLocationId] = useState<string | null>(null)
@@ -1804,21 +1806,13 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
   const [activeTab, setActiveTab] = useState('schedule')
   const [aiPanelOpen, setAiPanelOpen] = useState(false)
   const [historyOpen, setHistoryOpen] = useState(false)
-  const [pendingApproval, setPendingApproval] = useState<ApprovalRequest | null>(null)
+  const [segmentApprovals, setSegmentApprovals] = useState<Record<string, ApprovalRequest | null>>({})
   const [loading, setLoading] = useState(true)
 
   const loadData = useCallback(async () => {
     try {
       const est = await getEstimate(estimateId)
       setEstimate(est)
-
-      // Load pending approval if in review status
-      if (est.status === 'in_review') {
-        const approval = await getPendingApproval(estimateId)
-        setPendingApproval(approval)
-      } else {
-        setPendingApproval(null)
-      }
 
       const [logs, rcData] = await Promise.all([
         getLaborLogs(estimateId),
@@ -1845,6 +1839,15 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
       setLaborEntriesMap(entriesMap)
       setLineItemsMap(itemsMap)
       setScheduleEntriesMap(schedMap)
+
+      // Load pending approvals for segments in in_review status
+      const approvalsMap: Record<string, ApprovalRequest | null> = {}
+      await Promise.all(logs.map(async (log) => {
+        if (log.status === 'in_review') {
+          approvalsMap[log.id] = await getPendingSegmentApproval(log.id)
+        }
+      }))
+      setSegmentApprovals(approvalsMap)
 
       // Set active location (preserve current selection if still valid)
       if (logs.length > 0) {
@@ -2056,19 +2059,28 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
 
   async function handleSegmentTransition(toStatus: SegmentStatus, comment?: string) {
     if (!activeLocationId) return { success: false, error: 'No segment selected' }
+
+    // "Submit for Review" goes through the approval workflow
+    if (toStatus === 'in_review') {
+      const result = await submitForApproval(estimateId, displayName, activeLocationId)
+      if (result.error) return { success: false, error: result.error }
+      await loadData()
+      return { success: true }
+    }
+
     const result = await transitionSegmentStatus(activeLocationId, toStatus, comment, displayName)
     if (result.success) await loadData()
     return result
   }
 
   async function handleApprove(approvalId: string) {
-    const result = await reviewApproval(approvalId, 'approved', displayName)
+    const result = await reviewApproval(approvalId, 'approved', displayName, userRole)
     if (result.success) await loadData()
     return result
   }
 
   async function handleReject(approvalId: string, notes: string) {
-    const result = await reviewApproval(approvalId, 'rejected', displayName, notes)
+    const result = await reviewApproval(approvalId, 'rejected', displayName, userRole, notes)
     if (result.success) await loadData()
     return result
   }
@@ -2120,9 +2132,10 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
 
       <EstimateStatusBar status={activeSegmentStatus} />
 
-      {pendingApproval && estimate.status === 'in_review' && (
+      {activeLocationId && segmentApprovals[activeLocationId] && activeSegmentStatus === 'in_review' && (
         <ApprovalBanner
-          approval={pendingApproval}
+          approval={segmentApprovals[activeLocationId]!}
+          userRole={userRole}
           onApprove={handleApprove}
           onReject={handleReject}
         />
