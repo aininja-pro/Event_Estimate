@@ -58,6 +58,8 @@ import {
   updateFeeType,
   deleteFeeType,
 } from '@/lib/rate-card-service'
+import { useUser } from '@/lib/auth'
+import { hasPermission } from '@/lib/permissions'
 import type { ClientUpdate } from '@/types/rate-card'
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -423,9 +425,10 @@ interface SectionTableProps {
   onToggle: () => void
   onAddRate: (section: RateCardSection) => void
   onEditRate: (item: RateCardItem) => void
+  readOnly?: boolean
 }
 
-function SectionTable({ section, items, search, thirdPartyMarkup, collapsed, onToggle, onAddRate, onEditRate }: SectionTableProps) {
+function SectionTable({ section, items, search, thirdPartyMarkup, collapsed, onToggle, onAddRate, onEditRate, readOnly }: SectionTableProps) {
   const isPassThrough = section.cost_type === 'pass_through'
   const term = search.toLowerCase()
   const filtered = items.filter((item) => item.name.toLowerCase().includes(term))
@@ -444,12 +447,14 @@ function SectionTable({ section, items, search, thirdPartyMarkup, collapsed, onT
           </span>
           <span className="text-[11px] text-muted-foreground">{filtered.length} items</span>
         </div>
-        <button
-          className="text-[11px] text-muted-foreground hover:text-foreground transition-colors font-medium"
-          onClick={(e) => { e.stopPropagation(); onAddRate(section) }}
-        >
-          + Add Rate
-        </button>
+        {!readOnly && (
+          <button
+            className="text-[11px] text-muted-foreground hover:text-foreground transition-colors font-medium"
+            onClick={(e) => { e.stopPropagation(); onAddRate(section) }}
+          >
+            + Add Rate
+          </button>
+        )}
       </div>
       {!collapsed && (
         <div>
@@ -514,10 +519,12 @@ function SectionTable({ section, items, search, thirdPartyMarkup, collapsed, onT
                     )}
                   </TableCell>
                   <TableCell className="py-1">
-                    <Pencil
-                      className="h-3 w-3 opacity-0 group-hover:opacity-50 hover:!opacity-100 transition-opacity cursor-pointer text-foreground/60"
-                      onClick={() => onEditRate(item)}
-                    />
+                    {!readOnly && (
+                      <Pencil
+                        className="h-3 w-3 opacity-0 group-hover:opacity-50 hover:!opacity-100 transition-opacity cursor-pointer text-foreground/60"
+                        onClick={() => onEditRate(item)}
+                      />
+                    )}
                   </TableCell>
                 </TableRow>
               ))}
@@ -720,7 +727,7 @@ function DeleteConfirmDialog({ open, onClose, onConfirm, itemName }: DeleteConfi
 
 // ── Fee Types Tab ────────────────────────────────────────────────────────────
 
-function FeeTypesTab() {
+function FeeTypesTab({ readOnly }: { readOnly?: boolean }) {
   const [feeTypes, setFeeTypes] = useState<FeeType[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -844,14 +851,16 @@ function FeeTypesTab() {
             className="h-8 pl-8 text-[13px] border-border/50 focus-visible:ring-1 focus-visible:ring-ring/30 rounded-md transition-colors"
           />
         </div>
-        <Button
-          size="sm"
-          onClick={() => handleAdd(FEE_TYPE_SECTIONS[0].key)}
-          className="h-8 text-[13px] bg-white hover:bg-green-800/10 text-foreground border border-border/50 hover:border-green-800/30 hover:text-green-800/80 shadow-sm"
-        >
-          <Plus className="h-3.5 w-3.5 mr-1.5" />
-          Add Fee Type
-        </Button>
+        {!readOnly && (
+          <Button
+            size="sm"
+            onClick={() => handleAdd(FEE_TYPE_SECTIONS[0].key)}
+            className="h-8 text-[13px] bg-white hover:bg-green-800/10 text-foreground border border-border/50 hover:border-green-800/30 hover:text-green-800/80 shadow-sm"
+          >
+            <Plus className="h-3.5 w-3.5 mr-1.5" />
+            Add Fee Type
+          </Button>
+        )}
       </div>
 
       {/* Summary */}
@@ -880,12 +889,14 @@ function FeeTypesTab() {
                   <span className="text-[12px] uppercase tracking-widest font-semibold text-foreground/90">{label}</span>
                   <span className="text-[11px] text-muted-foreground">{filtered.length} items</span>
                 </div>
-                <button
-                  className="text-[11px] text-muted-foreground hover:text-foreground transition-colors font-medium"
-                  onClick={(e) => { e.stopPropagation(); handleAdd(key) }}
-                >
-                  + Add Fee Type
-                </button>
+                {!readOnly && (
+                  <button
+                    className="text-[11px] text-muted-foreground hover:text-foreground transition-colors font-medium"
+                    onClick={(e) => { e.stopPropagation(); handleAdd(key) }}
+                  >
+                    + Add Fee Type
+                  </button>
+                )}
               </div>
 
               {!collapsed && (
@@ -915,16 +926,18 @@ function FeeTypesTab() {
                           <span className="text-[13px] text-muted-foreground">{ft.unit_label ?? '—'}</span>
                         </TableCell>
                         <TableCell className="py-1 text-right">
-                          <div className="flex items-center justify-end gap-2">
-                            <Pencil
-                              className="h-3 w-3 opacity-0 group-hover:opacity-50 hover:!opacity-100 transition-opacity cursor-pointer text-foreground/60"
-                              onClick={() => handleEdit(ft)}
-                            />
-                            <Trash2
-                              className="h-3 w-3 opacity-0 group-hover:opacity-50 hover:!opacity-100 transition-opacity cursor-pointer text-red-600/60"
-                              onClick={() => handleDeleteClick(ft)}
-                            />
-                          </div>
+                          {!readOnly && (
+                            <div className="flex items-center justify-end gap-2">
+                              <Pencil
+                                className="h-3 w-3 opacity-0 group-hover:opacity-50 hover:!opacity-100 transition-opacity cursor-pointer text-foreground/60"
+                                onClick={() => handleEdit(ft)}
+                              />
+                              <Trash2
+                                className="h-3 w-3 opacity-0 group-hover:opacity-50 hover:!opacity-100 transition-opacity cursor-pointer text-red-600/60"
+                                onClick={() => handleDeleteClick(ft)}
+                              />
+                            </div>
+                          )}
                         </TableCell>
                       </TableRow>
                     ))}
@@ -1265,6 +1278,8 @@ function BulkImportDialog({ open, onClose, clientId, clientName, onImportComplet
 // ── Main Page ────────────────────────────────────────────────────────────────
 
 export function RateCardManagementPage() {
+  const { profile } = useUser()
+  const canEditRateCards = hasPermission(profile?.role || '', 'edit_rate_cards')
   const [activeTab, setActiveTab] = useState<'rate-cards' | 'fee-types'>('rate-cards')
   const [clients, setClients] = useState<Client[]>([])
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null)
@@ -1475,7 +1490,7 @@ export function RateCardManagementPage() {
 
       {/* Tab content */}
       {activeTab === 'fee-types' ? (
-        <FeeTypesTab />
+        <FeeTypesTab readOnly={!canEditRateCards} />
       ) : (
         <>
           {/* Client selector + contact info + search row */}
@@ -1565,14 +1580,16 @@ export function RateCardManagementPage() {
                 <span className="text-muted-foreground">·</span>
                 <span className="text-muted-foreground mx-1">{customItems} custom)</span>
               </p>
-              <Button
-                size="sm"
-                onClick={() => setBulkImportOpen(true)}
-                className="h-7 text-[12px] bg-white hover:bg-green-800/10 text-foreground border border-border/50 hover:border-green-800/30 hover:text-green-800/80 shadow-sm"
-              >
-                <Upload className="h-3 w-3 mr-1.5" />
-                Bulk Import
-              </Button>
+              {canEditRateCards && (
+                <Button
+                  size="sm"
+                  onClick={() => setBulkImportOpen(true)}
+                  className="h-7 text-[12px] bg-white hover:bg-green-800/10 text-foreground border border-border/50 hover:border-green-800/30 hover:text-green-800/80 shadow-sm"
+                >
+                  <Upload className="h-3 w-3 mr-1.5" />
+                  Bulk Import
+                </Button>
+              )}
             </div>
           )}
 
@@ -1595,6 +1612,7 @@ export function RateCardManagementPage() {
                   onToggle={() => toggleSection(section.id)}
                   onAddRate={handleAddRate}
                   onEditRate={handleEditRate}
+                  readOnly={!canEditRateCards}
                 />
               ))}
             </div>

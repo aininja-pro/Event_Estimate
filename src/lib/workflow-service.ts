@@ -5,6 +5,7 @@ import {
   getEstimateCreatorId,
 } from './notification-service'
 import type { ScheduleEntry } from '../types/schedule'
+import { hasPermission } from './permissions'
 import type {
   EstimateVersion,
   ApprovalRequest,
@@ -16,15 +17,13 @@ import type {
 // ---- Approval Role Gating ----
 
 export const APPROVAL_THRESHOLD = 50_000
-export const THRESHOLD_ROLES = ['cfo', 'admin'] // roles that can approve $50K+
-export const STANDARD_ROLES = ['account_manager', 'admin', 'cfo'] // roles that can approve standard
 
 /** Check if a user's role allows them to approve a given approval request. */
 export function canUserApprove(approval: ApprovalRequest, userRole: string): boolean {
   if (approval.threshold_triggered?.includes('$50K')) {
-    return THRESHOLD_ROLES.includes(userRole)
+    return hasPermission(userRole, 'approve_threshold')
   }
-  return STANDARD_ROLES.includes(userRole)
+  return hasPermission(userRole, 'approve_standard')
 }
 
 function requireSupabase() {

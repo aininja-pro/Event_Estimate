@@ -46,6 +46,7 @@ import {
 } from '@/lib/workflow-service'
 import { transitionSegmentStatus, getSegmentEditRules } from '@/lib/segment-status-service'
 import { useUser } from '@/lib/auth'
+import { hasPermission } from '@/lib/permissions'
 import type { ApprovalRequest, SegmentStatus, SegmentEditRules } from '@/types/workflow'
 import type { ScheduleEntry, LaborRollupRow } from '@/types/schedule'
 import {
@@ -576,6 +577,7 @@ function LocationSelector({
   onDeleteLocation,
   onRenameLocation,
   readOnly,
+  canDelete,
 }: {
   laborLogs: LaborLog[]
   activeLocationId: string | null
@@ -584,6 +586,7 @@ function LocationSelector({
   onDeleteLocation: (id: string) => void
   onRenameLocation: (id: string, name: string) => void
   readOnly?: boolean
+  canDelete?: boolean
 }) {
   const [showAddLocation, setShowAddLocation] = useState(false)
   const [newLocationName, setNewLocationName] = useState('')
@@ -641,7 +644,7 @@ function LocationSelector({
         <button onClick={() => setShowAddLocation(true)} className="text-[11px] px-1 py-1.5 text-muted-foreground/50 hover:text-foreground/60 transition-colors">
           + Add Segment
         </button>
-        {activeLocationId && laborLogs.length > 1 && (() => {
+        {canDelete && activeLocationId && laborLogs.length > 1 && (() => {
           const activeLog = laborLogs.find((l) => l.id === activeLocationId)
           return activeLog && !activeLog.is_primary && (!activeLog.status || activeLog.status === 'pipeline' || activeLog.status === 'estimate')
         })() && (
@@ -697,6 +700,7 @@ function LaborLogTab({
   onDeleteEntry,
   onSwitchToSchedule,
   readOnly,
+  canDelete,
 }: {
   estimate: EstimateWithClient
   laborLogs: LaborLog[]
@@ -714,6 +718,7 @@ function LaborLogTab({
   onDeleteEntry: (id: string) => void
   onSwitchToSchedule: () => void
   readOnly?: boolean
+  canDelete?: boolean
 }) {
   const [showAddRole, setShowAddRole] = useState(false)
 
@@ -770,6 +775,7 @@ function LaborLogTab({
         onDeleteLocation={onDeleteLocation}
         onRenameLocation={onRenameLocation}
         readOnly={readOnly}
+        canDelete={canDelete}
       />
 
       {/* Schedule-driven banner */}
@@ -1096,6 +1102,7 @@ function LineItemTab({
   onUpdate,
   onDelete,
   readOnly,
+  canDelete,
 }: {
   items: EstimateLineItem[]
   section: string
@@ -1113,6 +1120,7 @@ function LineItemTab({
   onUpdate: (id: string, updates: Partial<EstimateLineItem>) => void
   onDelete: (id: string) => void
   readOnly?: boolean
+  canDelete?: boolean
 }) {
   const [showModal, setShowModal] = useState(false)
 
@@ -1126,6 +1134,7 @@ function LineItemTab({
         onDeleteLocation={onDeleteLocation}
         onRenameLocation={onRenameLocation}
         readOnly={readOnly}
+        canDelete={canDelete}
       />
 
       <div>
@@ -2145,6 +2154,7 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
         <SegmentTransitionBar
           segmentName={activeLog.location_name}
           status={activeSegmentStatus}
+          userRole={userRole}
           onTransition={handleSegmentTransition}
         />
       )}
@@ -2185,6 +2195,7 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
                   onDeleteLocation={handleDeleteLocation}
                   onRenameLocation={handleRenameLocation}
                   readOnly={!editRules.schedule_add_remove}
+                  canDelete={hasPermission(userRole, 'delete_estimate')}
                 />
                 {activeLocationId && laborLogs.find((l) => l.id === activeLocationId) && (
                   <ScheduleGrid
@@ -2219,6 +2230,7 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
                 onDeleteEntry={handleDeleteEntry}
                 onSwitchToSchedule={() => setActiveTab('schedule')}
                 readOnly={!editRules.labor_log}
+                canDelete={hasPermission(userRole, 'delete_estimate')}
               />
             </TabsContent>
 
@@ -2241,6 +2253,7 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
                   onUpdate={handleUpdateLineItem}
                   onDelete={handleDeleteLineItem}
                   readOnly={!editRules.line_items}
+                  canDelete={hasPermission(userRole, 'delete_estimate')}
                 />
               </TabsContent>
             ))}

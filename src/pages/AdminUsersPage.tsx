@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { supabase } from '@/lib/supabase'
+import { supabase, createIsolatedClient } from '@/lib/supabase'
 import type { Profile } from '@/lib/auth'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -20,7 +20,7 @@ import {
   TableRow,
   TableCell,
 } from '@/components/ui/table'
-import { UserPlus, Shield, ShieldOff } from 'lucide-react'
+import { UserPlus, Shield, ShieldOff, Trash2 } from 'lucide-react'
 
 const ROLE_OPTIONS = [
   { value: 'admin', label: 'Admin' },
@@ -48,6 +48,8 @@ export function AdminUsersPage() {
   const [invitePassword, setInvitePassword] = useState('')
   const [inviting, setInviting] = useState(false)
   const [inviteError, setInviteError] = useState<string | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<Profile | null>(null)
+  const [deleting, setDeleting] = useState(false)
 
   async function loadProfiles() {
     if (!supabase) return
@@ -62,13 +64,19 @@ export function AdminUsersPage() {
   useEffect(() => { loadProfiles() }, []) // eslint-disable-line react-hooks/set-state-in-effect
 
   async function handleInvite() {
-    if (!supabase || !inviteEmail || !inviteName || !invitePassword) return
+    if (!inviteEmail || !inviteName || !invitePassword) return
     setInviting(true)
     setInviteError(null)
 
-    // Create user via Supabase Auth admin API (service role needed in production)
-    // For now, use signUp which works with the anon key
-    const { error } = await supabase.auth.signUp({
+    // Use an isolated Supabase client so signUp doesn't swap the admin's session
+    const isolated = createIsolatedClient()
+    if (!isolated) {
+      setInviteError('Supabase is not configured')
+      setInviting(false)
+      return
+    }
+
+    const { data: signUpData, error } = await isolated.auth.signUp({
       email: inviteEmail,
       password: invitePassword,
       options: {
@@ -79,12 +87,49 @@ export function AdminUsersPage() {
       },
     })
 
-    setInviting(false)
+    if (error?.message === 'User already registered') {
+      // Auth user exists but profile was deleted — sign in to get user ID, then re-create profile
+      const { data: signInData, error: signInError } = await isolated.auth.signInWithPassword({
+        email: inviteEmail,
+        password: invitePassword,
+      })
 
-    if (error) {
+      if (signInError) {
+        setInviteError('User exists in auth with a different password. Delete them from the Supabase Auth dashboard first.')
+        setInviting(false)
+        return
+      }
+
+      if (signInData.user && supabase) {
+        const { error: profileError } = await supabase.from('profiles').upsert({
+          id: signInData.user.id,
+          email: inviteEmail,
+          full_name: inviteName,
+          role: inviteRole,
+          is_active: true,
+        })
+        if (profileError) {
+          setInviteError(profileError.message)
+          setInviting(false)
+          return
+        }
+      }
+    } else if (error) {
       setInviteError(error.message)
+      setInviting(false)
       return
+    } else if (signUpData.user && supabase) {
+      // New user — ensure profile exists (trigger may handle this, but upsert is safe)
+      await supabase.from('profiles').upsert({
+        id: signUpData.user.id,
+        email: inviteEmail,
+        full_name: inviteName,
+        role: inviteRole,
+        is_active: true,
+      })
     }
+
+    setInviting(false)
 
     setInviteOpen(false)
     setInviteEmail('')
@@ -109,6 +154,21 @@ export function AdminUsersPage() {
       .from('profiles')
       .update({ role: newRole })
       .eq('id', profileId)
+    await loadProfiles()
+  }
+
+  async function handleDelete() {
+    if (!supabase || !deleteTarget) return
+    setDeleting(true)
+    const { error } = await supabase
+      .from('profiles')
+      .delete()
+      .eq('id', deleteTarget.id)
+    if (error) {
+      console.error('Delete profile failed:', error)
+    }
+    setDeleteTarget(null)
+    setDeleting(false)
     await loadProfiles()
   }
 
@@ -170,23 +230,57 @@ export function AdminUsersPage() {
                   </span>
                 </TableCell>
                 <TableCell className="text-right">
-                  <button
-                    onClick={() => toggleActive(p)}
-                    className="inline-flex items-center gap-1 rounded px-2 py-1 text-[11px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-                    title={p.is_active ? 'Deactivate user' : 'Activate user'}
-                  >
-                    {p.is_active ? (
-                      <><ShieldOff className="h-3 w-3" /> Deactivate</>
-                    ) : (
-                      <><Shield className="h-3 w-3" /> Activate</>
-                    )}
-                  </button>
+                  <div className="flex items-center justify-end gap-1">
+                    <button
+                      onClick={() => toggleActive(p)}
+                      className="inline-flex items-center gap-1 rounded px-2 py-1 text-[11px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                      title={p.is_active ? 'Deactivate user' : 'Activate user'}
+                    >
+                      {p.is_active ? (
+                        <><ShieldOff className="h-3 w-3" /> Deactivate</>
+                      ) : (
+                        <><Shield className="h-3 w-3" /> Activate</>
+                      )}
+                    </button>
+                    <button
+                      onClick={() => setDeleteTarget(p)}
+                      className="inline-flex items-center gap-1 rounded px-2 py-1 text-[11px] text-red-600 transition-colors hover:bg-red-50 hover:text-red-700"
+                      title="Delete user"
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </button>
+                  </div>
                 </TableCell>
               </TableRow>
             ))}
           </TableBody>
         </Table>
       </div>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={!!deleteTarget} onOpenChange={(open) => { if (!open) setDeleteTarget(null) }}>
+        <DialogContent className="sm:max-w-[400px]">
+          <DialogHeader>
+            <DialogTitle className="text-sm font-semibold">Delete User</DialogTitle>
+            <DialogDescription className="text-[13px] text-muted-foreground">
+              Are you sure you want to delete <span className="font-medium text-foreground">{deleteTarget?.full_name}</span> ({deleteTarget?.email})? This removes their profile from the application.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={() => setDeleteTarget(null)} className="text-[13px]">
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              onClick={handleDelete}
+              disabled={deleting}
+              className="text-[13px] bg-red-600 hover:bg-red-700 text-white"
+            >
+              {deleting ? 'Deleting...' : 'Delete User'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Invite User Dialog */}
       <Dialog open={inviteOpen} onOpenChange={setInviteOpen}>

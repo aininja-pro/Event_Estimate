@@ -7,3 +7,17 @@ export const supabase =
   supabaseUrl && supabaseAnonKey
     ? createClient(supabaseUrl, supabaseAnonKey)
     : null
+
+/**
+ * Create a throwaway Supabase client that uses its own storage.
+ * Used for admin invite (signUp) so the main client's session is never swapped.
+ */
+export function createIsolatedClient() {
+  if (!supabaseUrl || !supabaseAnonKey) return null
+  return createClient(supabaseUrl, supabaseAnonKey, {
+    auth: {
+      storageKey: 'sb-invite-temp',
+      persistSession: false,
+    },
+  })
+}

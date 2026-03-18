@@ -10,6 +10,8 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog'
 import { Textarea } from '@/components/ui/textarea'
+import { hasPermission } from '@/lib/permissions'
+import type { Permission } from '@/lib/permissions'
 import type { SegmentStatus } from '@/types/workflow'
 
 // -- Action configs per segment status --
@@ -20,34 +22,35 @@ interface SegmentAction {
   variant: 'default' | 'outline'
   requiresReason?: boolean
   className?: string
+  permission: Permission
 }
 
 function getSegmentActions(status: SegmentStatus): SegmentAction[] {
   switch (status) {
     case 'pipeline':
-      return [{ label: 'Begin Estimating', toStatus: 'estimate', variant: 'outline', className: 'border-zinc-300/60 text-zinc-600/80 bg-zinc-50/50 hover:bg-zinc-100/60 hover:border-zinc-400/60 hover:text-zinc-800' }]
+      return [{ label: 'Begin Estimating', toStatus: 'estimate', variant: 'outline', permission: 'transition_segment', className: 'border-zinc-300/60 text-zinc-600/80 bg-zinc-50/50 hover:bg-zinc-100/60 hover:border-zinc-400/60 hover:text-zinc-800' }]
     case 'estimate':
       return [
-        { label: 'Submit for Review', toStatus: 'in_review', variant: 'outline', className: 'border-amber-300/60 text-amber-700/80 bg-amber-50/50 hover:bg-amber-100/60 hover:border-amber-400/60 hover:text-amber-800' },
-        { label: 'Mark Lost', toStatus: 'lost', variant: 'outline', requiresReason: true, className: 'border-red-300/60 text-red-600/80 hover:bg-red-50/60 hover:text-red-700' },
-        { label: 'Cancel', toStatus: 'cancelled', variant: 'outline', requiresReason: true, className: 'border-slate-300/60 text-slate-500/80 hover:bg-slate-50/60 hover:text-slate-600' },
+        { label: 'Submit for Review', toStatus: 'in_review', variant: 'outline', permission: 'submit_for_review', className: 'border-amber-300/60 text-amber-700/80 bg-amber-50/50 hover:bg-amber-100/60 hover:border-amber-400/60 hover:text-amber-800' },
+        { label: 'Mark Lost', toStatus: 'lost', variant: 'outline', requiresReason: true, permission: 'transition_segment', className: 'border-red-300/60 text-red-600/80 hover:bg-red-50/60 hover:text-red-700' },
+        { label: 'Cancel', toStatus: 'cancelled', variant: 'outline', requiresReason: true, permission: 'transition_segment', className: 'border-slate-300/60 text-slate-500/80 hover:bg-slate-50/60 hover:text-slate-600' },
       ]
     case 'in_review':
       return [
-        { label: 'Send Back', toStatus: 'estimate', variant: 'outline', requiresReason: true, className: 'border-orange-300/60 text-orange-600/80 hover:bg-orange-50/60 hover:text-orange-700' },
-        { label: 'Mark Lost', toStatus: 'lost', variant: 'outline', requiresReason: true, className: 'border-red-300/60 text-red-600/80 hover:bg-red-50/60 hover:text-red-700' },
-        { label: 'Cancel', toStatus: 'cancelled', variant: 'outline', requiresReason: true, className: 'border-slate-300/60 text-slate-500/80 hover:bg-slate-50/60 hover:text-slate-600' },
+        { label: 'Send Back', toStatus: 'estimate', variant: 'outline', requiresReason: true, permission: 'transition_segment', className: 'border-orange-300/60 text-orange-600/80 hover:bg-orange-50/60 hover:text-orange-700' },
+        { label: 'Mark Lost', toStatus: 'lost', variant: 'outline', requiresReason: true, permission: 'transition_segment', className: 'border-red-300/60 text-red-600/80 hover:bg-red-50/60 hover:text-red-700' },
+        { label: 'Cancel', toStatus: 'cancelled', variant: 'outline', requiresReason: true, permission: 'transition_segment', className: 'border-slate-300/60 text-slate-500/80 hover:bg-slate-50/60 hover:text-slate-600' },
       ]
     case 'active':
-      return [{ label: 'Begin Recap', toStatus: 'recap', variant: 'outline', className: 'border-violet-300/60 text-violet-700/80 bg-violet-50/50 hover:bg-violet-100/60 hover:border-violet-400/60 hover:text-violet-800' }]
+      return [{ label: 'Begin Recap', toStatus: 'recap', variant: 'outline', permission: 'transition_segment', className: 'border-violet-300/60 text-violet-700/80 bg-violet-50/50 hover:bg-violet-100/60 hover:border-violet-400/60 hover:text-violet-800' }]
     case 'recap':
-      return [{ label: 'Mark Invoiced', toStatus: 'invoiced', variant: 'outline', className: 'border-teal-300/60 text-teal-700/80 bg-teal-50/50 hover:bg-teal-100/60 hover:border-teal-400/60 hover:text-teal-800' }]
+      return [{ label: 'Mark Invoiced', toStatus: 'invoiced', variant: 'outline', permission: 'mark_invoiced', className: 'border-teal-300/60 text-teal-700/80 bg-teal-50/50 hover:bg-teal-100/60 hover:border-teal-400/60 hover:text-teal-800' }]
     case 'invoiced':
-      return [{ label: 'Reopen to Recap', toStatus: 'recap', variant: 'outline', requiresReason: true, className: 'border-orange-300/60 text-orange-600/80 hover:bg-orange-50/60 hover:text-orange-700' }]
+      return [{ label: 'Reopen to Recap', toStatus: 'recap', variant: 'outline', requiresReason: true, permission: 'transition_segment', className: 'border-orange-300/60 text-orange-600/80 hover:bg-orange-50/60 hover:text-orange-700' }]
     case 'lost':
-      return [{ label: 'Reopen', toStatus: 'estimate', variant: 'outline', requiresReason: true, className: 'border-orange-300/60 text-orange-600/80 hover:bg-orange-50/60 hover:text-orange-700' }]
+      return [{ label: 'Reopen', toStatus: 'estimate', variant: 'outline', requiresReason: true, permission: 'transition_segment', className: 'border-orange-300/60 text-orange-600/80 hover:bg-orange-50/60 hover:text-orange-700' }]
     case 'cancelled':
-      return [{ label: 'Reopen', toStatus: 'estimate', variant: 'outline', requiresReason: true, className: 'border-orange-300/60 text-orange-600/80 hover:bg-orange-50/60 hover:text-orange-700' }]
+      return [{ label: 'Reopen', toStatus: 'estimate', variant: 'outline', requiresReason: true, permission: 'transition_segment', className: 'border-orange-300/60 text-orange-600/80 hover:bg-orange-50/60 hover:text-orange-700' }]
     default:
       return []
   }
@@ -69,17 +72,20 @@ const LOCK_MESSAGES: Partial<Record<SegmentStatus, string>> = {
 interface SegmentTransitionBarProps {
   segmentName: string
   status: SegmentStatus
+  userRole: string
   onTransition: (toStatus: SegmentStatus, comment?: string) => Promise<{ success: boolean; error?: string }>
   disabled?: boolean
 }
 
-export function SegmentTransitionBar({ segmentName, status, onTransition, disabled }: SegmentTransitionBarProps) {
+export function SegmentTransitionBar({ segmentName, status, userRole, onTransition, disabled }: SegmentTransitionBarProps) {
   const [confirmAction, setConfirmAction] = useState<SegmentAction | null>(null)
   const [reason, setReason] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const actions = getSegmentActions(status)
+  const actions = getSegmentActions(status).filter(
+    (action) => hasPermission(userRole, action.permission)
+  )
   const lockMessage = LOCK_MESSAGES[status]
 
   async function handleAction(action: SegmentAction) {

@@ -28,6 +28,8 @@ import { Label } from '@/components/ui/label'
 import { FileSpreadsheet, MoreVertical, ChevronUp, ChevronDown, Search, X } from 'lucide-react'
 import { getEstimates, createEstimate, createLaborLog, updateEstimate, deleteEstimate } from '@/lib/estimate-service'
 import { getClients } from '@/lib/rate-card-service'
+import { useUser } from '@/lib/auth'
+import { hasPermission } from '@/lib/permissions'
 import type { EstimateWithSegments } from '@/types/estimate'
 import type { Client } from '@/types/rate-card'
 
@@ -123,6 +125,8 @@ function formatDateRange(start: string | null, end: string | null): string {
 
 export function EstimatesListPage() {
   const navigate = useNavigate()
+  const { profile } = useUser()
+  const userRole = profile?.role || 'account_manager'
   const [estimates, setEstimates] = useState<EstimateWithSegments[]>([])
   const [clients, setClients] = useState<Client[]>([])
   const [loading, setLoading] = useState(true)
@@ -367,9 +371,11 @@ export function EstimatesListPage() {
               {showArchived ? 'Hide archived' : `Show archived (${archivedCount})`}
             </button>
           )}
-          <Button size="sm" onClick={() => setShowModal(true)} className="text-[13px] bg-white hover:bg-green-800/10 text-foreground border border-border/50 hover:border-green-800/30 hover:text-green-800/80 shadow-sm">
-            + New Estimate
-          </Button>
+          {hasPermission(userRole, 'create_estimate') && (
+            <Button size="sm" onClick={() => setShowModal(true)} className="text-[13px] bg-white hover:bg-green-800/10 text-foreground border border-border/50 hover:border-green-800/30 hover:text-green-800/80 shadow-sm">
+              + New Estimate
+            </Button>
+          )}
         </div>
       </div>
 
@@ -412,9 +418,11 @@ export function EstimatesListPage() {
           <FileSpreadsheet className="h-10 w-10 text-muted-foreground/60 mb-3" />
           <p className="text-sm font-medium text-muted-foreground">No estimates yet</p>
           <p className="text-[13px] text-muted-foreground/70 mt-1">Create your first estimate to get started.</p>
-          <Button size="sm" onClick={() => setShowModal(true)} className="mt-4">
-            + New Estimate
-          </Button>
+          {hasPermission(userRole, 'create_estimate') && (
+            <Button size="sm" onClick={() => setShowModal(true)} className="mt-4">
+              + New Estimate
+            </Button>
+          )}
         </div>
       ) : (
         <div className="border border-border/40 rounded-md overflow-hidden">
@@ -516,12 +524,14 @@ export function EstimatesListPage() {
                                 Archive
                               </button>
                             )}
-                            <button
-                              onClick={(e) => { e.stopPropagation(); setDeleteTarget(est); setOpenMenuId(null) }}
-                              className="block w-full text-left px-3 py-1.5 text-[13px] text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors"
-                            >
-                              Delete
-                            </button>
+                            {hasPermission(userRole, 'delete_estimate') && (
+                              <button
+                                onClick={(e) => { e.stopPropagation(); setDeleteTarget(est); setOpenMenuId(null) }}
+                                className="block w-full text-left px-3 py-1.5 text-[13px] text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors"
+                              >
+                                Delete
+                              </button>
+                            )}
                           </div>
                         )}
                       </div>
