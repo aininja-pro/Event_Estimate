@@ -1,29 +1,26 @@
 import { Check } from 'lucide-react'
 import type { EstimateStatus, SegmentStatus } from '@/types/workflow'
 
-// ── Status definitions ──────────────────────────────────────────────────────
+// -- Status definitions (linear track — lost/cancelled are side exits, not shown) --
 
 const STATUSES: { key: EstimateStatus; label: string; accent: string }[] = [
   { key: 'pipeline', label: 'Pipeline', accent: 'bg-zinc-400' },
-  { key: 'draft', label: 'Draft', accent: 'bg-zinc-500' },
-  { key: 'review', label: 'Review', accent: 'bg-amber-500' },
-  { key: 'approved', label: 'Approved', accent: 'bg-blue-500' },
+  { key: 'estimate', label: 'Estimate', accent: 'bg-zinc-500' },
+  { key: 'in_review', label: 'In Review', accent: 'bg-amber-500' },
   { key: 'active', label: 'Active', accent: 'bg-fuchsia-500' },
   { key: 'recap', label: 'Recap', accent: 'bg-violet-500' },
-  { key: 'complete', label: 'Complete', accent: 'bg-green-800' },
+  { key: 'invoiced', label: 'Invoiced', accent: 'bg-teal-500' },
 ]
 
 const STATUS_INDEX = Object.fromEntries(STATUSES.map((s, i) => [s.key, i]))
 
-// ── Component ───────────────────────────────────────────────────────────────
+// -- Component --
 
 interface EstimateStatusBarProps {
   status: EstimateStatus | SegmentStatus
 }
 
-export function EstimateStatusBar({ status: rawStatus }: EstimateStatusBarProps) {
-  // Map segment-only 'invoiced' status to 'complete' for the breadcrumb track
-  const status: EstimateStatus = rawStatus === 'invoiced' ? 'complete' : rawStatus as EstimateStatus
+export function EstimateStatusBar({ status }: EstimateStatusBarProps) {
   const currentIndex = STATUS_INDEX[status] ?? 0
   const currentAccent = STATUSES[currentIndex]?.accent ?? 'bg-zinc-400'
 

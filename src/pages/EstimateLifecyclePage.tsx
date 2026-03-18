@@ -31,8 +31,8 @@ const lifecycleStates: { id: string; label: string; detail: StateDetail }[] = [
     },
   },
   {
-    id: 'draft',
-    label: 'Draft',
+    id: 'estimate',
+    label: 'Estimate',
     detail: {
       whatHappens: [
         'Estimator builds line-item estimate',
@@ -51,8 +51,8 @@ const lifecycleStates: { id: string; label: string; detail: StateDetail }[] = [
     },
   },
   {
-    id: 'pending',
-    label: 'Pending Review',
+    id: 'in_review',
+    label: 'In Review',
     detail: {
       whatHappens: [
         'Estimate submitted for approval',
@@ -67,26 +67,6 @@ const lifecycleStates: { id: string; label: string; detail: StateDetail }[] = [
         'Assigned approver',
         'Review comments',
         'Approval/rejection decision',
-      ],
-    },
-  },
-  {
-    id: 'approved',
-    label: 'Approved',
-    detail: {
-      whatHappens: [
-        'Estimate locked as approved version',
-        'Client-facing PDF generated',
-        'Estimate sent to client for signature',
-        'Version snapshot stored for audit trail',
-      ],
-      whoActs: ['System (automatic)', 'Account Manager'],
-      triggers: ['Approver marks estimate as approved'],
-      dataCaptured: [
-        'Approved version snapshot',
-        'Approver name and timestamp',
-        'Generated PDF reference',
-        'Client delivery timestamp',
       ],
     },
   },
@@ -131,8 +111,8 @@ const lifecycleStates: { id: string; label: string; detail: StateDetail }[] = [
     },
   },
   {
-    id: 'complete',
-    label: 'Complete',
+    id: 'invoiced',
+    label: 'Invoiced',
     detail: {
       whatHappens: [
         'Event record finalized and archived',
@@ -140,8 +120,8 @@ const lifecycleStates: { id: string; label: string; detail: StateDetail }[] = [
         'Rate card statistics updated',
         'Event available for future similarity matching',
       ],
-      whoActs: ['System (automatic)'],
-      triggers: ['Finance team marks reconciliation complete'],
+      whoActs: ['System (automatic)', 'Finance Team'],
+      triggers: ['Finance team marks reconciliation complete and invoiced'],
       dataCaptured: [
         'Final P&L summary',
         'Normalized role rates for rate card',
@@ -174,12 +154,11 @@ const lifecycleStates: { id: string; label: string; detail: StateDetail }[] = [
 
 const stateColor: Record<string, string> = {
   new: 'blue',
-  draft: 'slate',
-  pending: 'amber',
-  approved: 'emerald',
+  estimate: 'slate',
+  in_review: 'amber',
   active: 'indigo',
   recap: 'violet',
-  complete: 'green',
+  invoiced: 'green',
   intacct: 'slate',
 }
 

@@ -1,23 +1,25 @@
 import type { SegmentStatus } from '@/types/workflow'
 
 const BADGE_STYLES: Record<SegmentStatus, string> = {
-  draft: 'bg-zinc-200 text-zinc-700 border-zinc-300',
-  review: 'bg-amber-100 text-amber-800 border-amber-300',
-  approved: 'bg-blue-100 text-blue-800 border-blue-300',
+  pipeline: 'bg-zinc-100 text-zinc-600 border-zinc-200',
+  estimate: 'bg-zinc-200 text-zinc-700 border-zinc-300',
+  in_review: 'bg-amber-100 text-amber-800 border-amber-300',
   active: 'bg-fuchsia-100 text-fuchsia-800 border-fuchsia-300',
   recap: 'bg-violet-100 text-violet-800 border-violet-300',
   invoiced: 'bg-teal-100 text-teal-800 border-teal-300',
-  complete: 'bg-green-100 text-green-800 border-green-300',
+  lost: 'bg-red-100 text-red-800 border-red-300',
+  cancelled: 'bg-slate-100 text-slate-600 border-slate-300',
 }
 
 const BADGE_LABELS: Record<SegmentStatus, string> = {
-  draft: 'Draft',
-  review: 'Review',
-  approved: 'Approved',
+  pipeline: 'Pipeline',
+  estimate: 'Estimate',
+  in_review: 'In Review',
   active: 'Active',
   recap: 'Recap',
   invoiced: 'Invoiced',
-  complete: 'Complete',
+  lost: 'Lost',
+  cancelled: 'Cancelled',
 }
 
 export function SegmentStatusBadge({ status }: { status: SegmentStatus }) {

@@ -552,18 +552,19 @@ function AddRoleModal({
 // ── Segment Selector (shared across Labor Log + Line Item tabs) ──────────────
 
 const SEGMENT_TAB_STYLES: Record<string, { dot: string; selected: string; unselected: string; underline: string }> = {
-  draft:    { dot: 'bg-zinc-400',    selected: 'text-zinc-700',    unselected: 'text-zinc-400',    underline: 'bg-zinc-400' },
-  review:   { dot: 'bg-amber-500',   selected: 'text-amber-700',   unselected: 'text-amber-400/70', underline: 'bg-amber-500' },
-  approved: { dot: 'bg-blue-500',    selected: 'text-blue-700',    unselected: 'text-blue-400/70',  underline: 'bg-blue-500' },
-  active:   { dot: 'bg-fuchsia-500', selected: 'text-fuchsia-700', unselected: 'text-fuchsia-400/70', underline: 'bg-fuchsia-500' },
-  recap:    { dot: 'bg-violet-500',  selected: 'text-violet-700',  unselected: 'text-violet-400/70', underline: 'bg-violet-500' },
-  invoiced: { dot: 'bg-teal-500',   selected: 'text-teal-700',    unselected: 'text-teal-400/70',  underline: 'bg-teal-500' },
-  complete: { dot: 'bg-green-800',   selected: 'text-green-800',   unselected: 'text-green-600/60', underline: 'bg-green-800' },
+  pipeline:  { dot: 'bg-zinc-300',    selected: 'text-zinc-600',    unselected: 'text-zinc-300',    underline: 'bg-zinc-300' },
+  estimate:  { dot: 'bg-zinc-400',    selected: 'text-zinc-700',    unselected: 'text-zinc-400',    underline: 'bg-zinc-400' },
+  in_review: { dot: 'bg-amber-500',   selected: 'text-amber-700',   unselected: 'text-amber-400/70', underline: 'bg-amber-500' },
+  active:    { dot: 'bg-fuchsia-500', selected: 'text-fuchsia-700', unselected: 'text-fuchsia-400/70', underline: 'bg-fuchsia-500' },
+  recap:     { dot: 'bg-violet-500',  selected: 'text-violet-700',  unselected: 'text-violet-400/70', underline: 'bg-violet-500' },
+  invoiced:  { dot: 'bg-teal-500',   selected: 'text-teal-700',    unselected: 'text-teal-400/70',  underline: 'bg-teal-500' },
+  lost:      { dot: 'bg-red-500',     selected: 'text-red-700',     unselected: 'text-red-400/70',   underline: 'bg-red-500' },
+  cancelled: { dot: 'bg-slate-400',   selected: 'text-slate-600',   unselected: 'text-slate-400/60', underline: 'bg-slate-400' },
 }
 
 const SEGMENT_BADGE_LABELS: Record<string, string> = {
-  draft: 'DRAFT', review: 'REVIEW', approved: 'APPROVED', active: 'ACTIVE',
-  recap: 'RECAP', invoiced: 'INVOICED', complete: 'COMPLETE',
+  pipeline: 'PIPELINE', estimate: 'ESTIMATE', in_review: 'IN REVIEW', active: 'ACTIVE',
+  recap: 'RECAP', invoiced: 'INVOICED', lost: 'LOST', cancelled: 'CANCELLED',
 }
 
 function LocationSelector({
@@ -605,8 +606,8 @@ function LocationSelector({
     <>
       <div className="flex items-center gap-4 flex-wrap border-b border-border/30">
         {laborLogs.map((log) => {
-          const status = (log.status || 'draft') as string
-          const style = SEGMENT_TAB_STYLES[status] || SEGMENT_TAB_STYLES.draft
+          const status = (log.status || 'estimate') as string
+          const style = SEGMENT_TAB_STYLES[status] || SEGMENT_TAB_STYLES.estimate
           const isActive = log.id === activeLocationId
           return editingId === log.id ? (
             <input
@@ -630,7 +631,7 @@ function LocationSelector({
               <span className="flex items-center gap-1.5">
                 <span className={`inline-block h-1.5 w-1.5 rounded-full ${style.dot} ${isActive ? '' : 'opacity-60'}`} />
                 {log.location_name}{log.is_primary ? ' (Primary)' : ''}
-                <span className="text-[9px] uppercase tracking-wider opacity-70">{SEGMENT_BADGE_LABELS[status] || 'DRAFT'}</span>
+                <span className="text-[9px] uppercase tracking-wider opacity-70">{SEGMENT_BADGE_LABELS[status] || 'ESTIMATE'}</span>
               </span>
               {isActive && <span className={`absolute bottom-0 left-0 right-0 h-[2px] ${style.underline} rounded-full`} />}
             </button>
@@ -641,7 +642,7 @@ function LocationSelector({
         </button>
         {activeLocationId && laborLogs.length > 1 && (() => {
           const activeLog = laborLogs.find((l) => l.id === activeLocationId)
-          return activeLog && !activeLog.is_primary && (!activeLog.status || activeLog.status === 'draft')
+          return activeLog && !activeLog.is_primary && (!activeLog.status || activeLog.status === 'pipeline' || activeLog.status === 'estimate')
         })() && (
           <button
             className="text-[11px] px-1 py-1.5 text-red-400 hover:text-red-600 transition-colors"
@@ -1812,7 +1813,7 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
       setEstimate(est)
 
       // Load pending approval if in review status
-      if (est.status === 'review') {
+      if (est.status === 'in_review') {
         const approval = await getPendingApproval(estimateId)
         setPendingApproval(approval)
       } else {
@@ -1845,10 +1846,13 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
       setLineItemsMap(itemsMap)
       setScheduleEntriesMap(schedMap)
 
-      // Set active location
+      // Set active location (preserve current selection if still valid)
       if (logs.length > 0) {
-        const primary = logs.find((l) => l.is_primary)
-        setActiveLocationId(primary?.id ?? logs[0].id)
+        setActiveLocationId((prev) => {
+          if (prev && logs.some((l) => l.id === prev)) return prev
+          const primary = logs.find((l) => l.is_primary)
+          return primary?.id ?? logs[0].id
+        })
       }
     } catch (err) {
       console.error('Failed to load estimate:', err)
@@ -2071,7 +2075,7 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
 
   // Segment-aware edit rules: derive from the active segment's status
   const activeLog = laborLogs.find((l) => l.id === activeLocationId)
-  const activeSegmentStatus = (activeLog?.status || 'draft') as SegmentStatus
+  const activeSegmentStatus = (activeLog?.status || 'estimate') as SegmentStatus
   const editRules: SegmentEditRules = getSegmentEditRules(activeSegmentStatus)
 
   // ── Render ──
@@ -2116,7 +2120,7 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
 
       <EstimateStatusBar status={activeSegmentStatus} />
 
-      {pendingApproval && estimate.status === 'review' && (
+      {pendingApproval && estimate.status === 'in_review' && (
         <ApprovalBanner
           approval={pendingApproval}
           onApprove={handleApprove}

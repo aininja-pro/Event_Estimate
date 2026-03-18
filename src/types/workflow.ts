@@ -38,7 +38,7 @@ export interface StatusTransition {
   created_at: string
 }
 
-export type SegmentStatus = 'draft' | 'review' | 'approved' | 'active' | 'recap' | 'invoiced' | 'complete'
+export type SegmentStatus = 'pipeline' | 'estimate' | 'in_review' | 'active' | 'recap' | 'invoiced' | 'lost' | 'cancelled'
 
 // ---- Segment Status types ----
 
@@ -94,7 +94,7 @@ export interface VarianceRow {
   variance_pct: number
 }
 
-export type EstimateStatus = 'pipeline' | 'draft' | 'review' | 'approved' | 'active' | 'recap' | 'complete'
+export type EstimateStatus = 'pipeline' | 'estimate' | 'in_review' | 'active' | 'recap' | 'invoiced' | 'lost' | 'cancelled'
 
 // ---- Snapshot shape ----
 

@@ -15,7 +15,7 @@ export interface Estimate {
   cost_structure: 'corporate' | 'office'
   internal_notes: string | null
   published_notes: string | null
-  status: 'pipeline' | 'draft' | 'review' | 'approved' | 'active' | 'recap' | 'complete' | 'archived'
+  status: 'pipeline' | 'estimate' | 'in_review' | 'active' | 'recap' | 'invoiced' | 'lost' | 'cancelled' | 'archived'
   created_by: string | null
   created_at: string
   updated_at: string
@@ -42,7 +42,7 @@ export interface LaborLog {
   start_date: string | null
   end_date: string | null
   notes: string | null
-  status: 'draft' | 'review' | 'approved' | 'active' | 'recap' | 'invoiced' | 'complete'
+  status: 'pipeline' | 'estimate' | 'in_review' | 'active' | 'recap' | 'invoiced' | 'lost' | 'cancelled'
   created_at: string
   updated_at: string
 }

@@ -93,8 +93,8 @@ export function ApprovalBanner({ approval, onApprove, onReject }: ApprovalBanner
             </DialogTitle>
             <DialogDescription className="text-xs text-muted-foreground">
               {action === 'approve'
-                ? 'This will approve the estimate and lock it from further editing until unlocked.'
-                : 'Please explain what needs to change. The estimate will return to Draft status for editing.'}
+                ? 'This will approve the estimate and move it to Active status.'
+                : 'Please explain what needs to change. The estimate will return to Estimate status for editing.'}
             </DialogDescription>
           </DialogHeader>
 

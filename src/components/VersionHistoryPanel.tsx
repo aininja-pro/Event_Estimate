@@ -29,12 +29,19 @@ function formatDate(iso: string): string {
 }
 
 const STATUS_COLOR: Record<string, string> = {
-  pipeline: 'bg-zinc-200 text-zinc-600',
+  // Current statuses
+  pipeline: 'bg-zinc-100 text-zinc-600',
+  estimate: 'bg-zinc-200 text-zinc-600',
+  in_review: 'bg-amber-100 text-amber-700',
+  active: 'bg-fuchsia-100 text-fuchsia-700',
+  recap: 'bg-violet-100 text-violet-700',
+  invoiced: 'bg-teal-100 text-teal-700',
+  lost: 'bg-red-100 text-red-700',
+  cancelled: 'bg-slate-100 text-slate-600',
+  // Legacy keys for backward compat with historical snapshots
   draft: 'bg-zinc-200 text-zinc-600',
   review: 'bg-amber-100 text-amber-700',
   approved: 'bg-blue-100 text-blue-700',
-  active: 'bg-fuchsia-100 text-fuchsia-700',
-  recap: 'bg-violet-100 text-violet-700',
   complete: 'bg-green-100 text-green-800',
   // Approval statuses
   pending: 'bg-amber-100 text-amber-700',

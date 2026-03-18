@@ -12,7 +12,7 @@ import {
 import { Textarea } from '@/components/ui/textarea'
 import type { SegmentStatus } from '@/types/workflow'
 
-// ── Action configs per segment status ─────────────────────────────────────
+// -- Action configs per segment status --
 
 interface SegmentAction {
   label: string
@@ -24,44 +24,48 @@ interface SegmentAction {
 
 function getSegmentActions(status: SegmentStatus): SegmentAction[] {
   switch (status) {
-    case 'draft':
-      return [{ label: 'Submit for Review', toStatus: 'review', variant: 'outline', className: 'border-amber-300/60 text-amber-700/80 bg-amber-50/50 hover:bg-amber-100/60 hover:border-amber-400/60 hover:text-amber-800' }]
-    case 'review':
+    case 'pipeline':
+      return [{ label: 'Begin Estimating', toStatus: 'estimate', variant: 'outline', className: 'border-zinc-300/60 text-zinc-600/80 bg-zinc-50/50 hover:bg-zinc-100/60 hover:border-zinc-400/60 hover:text-zinc-800' }]
+    case 'estimate':
       return [
-        { label: 'Approve', toStatus: 'approved', variant: 'outline', className: 'border-blue-300/60 text-blue-700/80 bg-blue-50/50 hover:bg-blue-100/60 hover:border-blue-400/60 hover:text-blue-800' },
-        { label: 'Send Back', toStatus: 'draft', variant: 'outline', requiresReason: true, className: 'border-orange-300/60 text-orange-600/80 hover:bg-orange-50/60 hover:text-orange-700' },
+        { label: 'Submit for Review', toStatus: 'in_review', variant: 'outline', className: 'border-amber-300/60 text-amber-700/80 bg-amber-50/50 hover:bg-amber-100/60 hover:border-amber-400/60 hover:text-amber-800' },
+        { label: 'Mark Lost', toStatus: 'lost', variant: 'outline', requiresReason: true, className: 'border-red-300/60 text-red-600/80 hover:bg-red-50/60 hover:text-red-700' },
+        { label: 'Cancel', toStatus: 'cancelled', variant: 'outline', requiresReason: true, className: 'border-slate-300/60 text-slate-500/80 hover:bg-slate-50/60 hover:text-slate-600' },
       ]
-    case 'approved':
+    case 'in_review':
       return [
-        { label: 'Mark Active', toStatus: 'active', variant: 'outline', className: 'border-emerald-300/60 text-emerald-700/80 bg-emerald-50/50 hover:bg-emerald-100/60 hover:border-emerald-400/60 hover:text-emerald-800' },
-        { label: 'Reopen', toStatus: 'draft', variant: 'outline', requiresReason: true, className: 'hover:text-foreground' },
+        { label: 'Approve & Activate', toStatus: 'active', variant: 'outline', className: 'border-emerald-300/60 text-emerald-700/80 bg-emerald-50/50 hover:bg-emerald-100/60 hover:border-emerald-400/60 hover:text-emerald-800' },
+        { label: 'Send Back', toStatus: 'estimate', variant: 'outline', requiresReason: true, className: 'border-orange-300/60 text-orange-600/80 hover:bg-orange-50/60 hover:text-orange-700' },
+        { label: 'Mark Lost', toStatus: 'lost', variant: 'outline', requiresReason: true, className: 'border-red-300/60 text-red-600/80 hover:bg-red-50/60 hover:text-red-700' },
+        { label: 'Cancel', toStatus: 'cancelled', variant: 'outline', requiresReason: true, className: 'border-slate-300/60 text-slate-500/80 hover:bg-slate-50/60 hover:text-slate-600' },
       ]
     case 'active':
       return [{ label: 'Begin Recap', toStatus: 'recap', variant: 'outline', className: 'border-violet-300/60 text-violet-700/80 bg-violet-50/50 hover:bg-violet-100/60 hover:border-violet-400/60 hover:text-violet-800' }]
     case 'recap':
-      return [
-        { label: 'Mark Invoiced', toStatus: 'invoiced', variant: 'outline', className: 'border-teal-300/60 text-teal-700/80 bg-teal-50/50 hover:bg-teal-100/60 hover:border-teal-400/60 hover:text-teal-800' },
-        { label: 'Reopen Active', toStatus: 'active', variant: 'outline', className: 'hover:text-foreground' },
-      ]
+      return [{ label: 'Mark Invoiced', toStatus: 'invoiced', variant: 'outline', className: 'border-teal-300/60 text-teal-700/80 bg-teal-50/50 hover:bg-teal-100/60 hover:border-teal-400/60 hover:text-teal-800' }]
     case 'invoiced':
-      return [{ label: 'Mark Complete', toStatus: 'complete', variant: 'outline', className: 'border-slate-300/60 text-slate-600/80 bg-slate-50/50 hover:bg-slate-100/60 hover:border-slate-400/60 hover:text-slate-700' }]
+      return [{ label: 'Reopen to Recap', toStatus: 'recap', variant: 'outline', requiresReason: true, className: 'border-orange-300/60 text-orange-600/80 hover:bg-orange-50/60 hover:text-orange-700' }]
+    case 'lost':
+      return [{ label: 'Reopen', toStatus: 'estimate', variant: 'outline', requiresReason: true, className: 'border-orange-300/60 text-orange-600/80 hover:bg-orange-50/60 hover:text-orange-700' }]
+    case 'cancelled':
+      return [{ label: 'Reopen', toStatus: 'estimate', variant: 'outline', requiresReason: true, className: 'border-orange-300/60 text-orange-600/80 hover:bg-orange-50/60 hover:text-orange-700' }]
     default:
       return []
   }
 }
 
-// ── Lock banner messages ──────────────────────────────────────────────────
+// -- Lock banner messages --
 
 const LOCK_MESSAGES: Partial<Record<SegmentStatus, string>> = {
-  review: 'This segment is under review. Editing is disabled.',
-  approved: 'This segment is approved and locked. Reopen to modify.',
+  in_review: 'This segment is under review. Editing is disabled.',
   active: 'This segment is active. Staff names can be updated. Other fields are locked.',
   recap: 'This segment is in recap. Enter actual costs and assign staff names.',
   invoiced: 'This segment is invoiced and locked.',
-  complete: 'This segment is complete and locked.',
+  lost: 'This segment is marked as lost and locked.',
+  cancelled: 'This segment is cancelled and locked.',
 }
 
-// ── Component ─────────────────────────────────────────────────────────────
+// -- Component --
 
 interface SegmentTransitionBarProps {
   segmentName: string
@@ -80,13 +84,6 @@ export function SegmentTransitionBar({ segmentName, status, onTransition, disabl
   const lockMessage = LOCK_MESSAGES[status]
 
   async function handleAction(action: SegmentAction) {
-    if (action.requiresReason) {
-      setConfirmAction(action)
-      setReason('')
-      setError(null)
-      return
-    }
-
     // Show confirmation for all transitions
     setConfirmAction(action)
     setReason('')
@@ -158,7 +155,7 @@ export function SegmentTransitionBar({ segmentName, status, onTransition, disabl
             <DialogDescription className="text-xs text-muted-foreground">
               {confirmAction?.requiresReason
                 ? `Please provide a reason for this change to "${segmentName}".`
-                : `Confirm: transition "${segmentName}" to ${confirmAction?.toStatus}.`
+                : `Confirm: transition "${segmentName}" to ${confirmAction?.toStatus === 'in_review' ? 'In Review' : confirmAction?.toStatus}.`
               }
             </DialogDescription>
           </DialogHeader>

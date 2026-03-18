@@ -33,12 +33,14 @@ function stripSystemCols(obj: Record<string, unknown>, extra: string[] = []): Re
 // ---- Status State Machine ----
 
 const VALID_TRANSITIONS: Record<string, string[]> = {
-  pipeline: ['draft'],
-  draft: ['review'],
-  review: ['approved', 'draft'],
-  approved: ['active', 'draft'],
+  pipeline: ['estimate', 'lost', 'cancelled'],
+  estimate: ['in_review', 'lost', 'cancelled'],
+  in_review: ['active', 'estimate', 'lost', 'cancelled'],
   active: ['recap'],
-  recap: ['complete'],
+  recap: ['invoiced'],
+  invoiced: ['recap'],
+  lost: ['estimate'],
+  cancelled: ['estimate'],
 }
 
 export function canTransition(from: string, to: string): boolean {
@@ -75,9 +77,9 @@ export async function transitionStatus(
     return { success: false, error: `Cannot transition from "${fromStatus}" to "${toStatus}"` }
   }
 
-  // Require reason for rejections (review → draft) and unlock (approved → draft)
-  if (toStatus === 'draft' && (fromStatus === 'review' || fromStatus === 'approved') && !reason) {
-    return { success: false, error: 'Reason is required when sending back or unlocking an estimate' }
+  // Require reason for send-back (in_review → estimate)
+  if (toStatus === 'estimate' && fromStatus === 'in_review' && !reason) {
+    return { success: false, error: 'Reason is required when sending back an estimate' }
   }
 
   // Create version snapshot before transitioning
@@ -547,8 +549,8 @@ export async function submitForApproval(
 ): Promise<{ approvalId: string; threshold: string; error?: string }> {
   const db = requireSupabase()
 
-  // Transition to review
-  const result = await transitionStatus(estimateId, 'review', userId)
+  // Transition to in_review
+  const result = await transitionStatus(estimateId, 'in_review', userId)
   if (!result.success) {
     return { approvalId: '', threshold: '', error: result.error }
   }
@@ -622,7 +624,7 @@ export async function reviewApproval(
   if (updateErr) return { success: false, error: updateErr.message }
 
   // Transition the estimate status
-  const toStatus = decision === 'approved' ? 'approved' : 'draft'
+  const toStatus = decision === 'approved' ? 'active' : 'estimate'
   const reason = decision === 'rejected' ? notes : undefined
   const result = await transitionStatus(approval.estimate_id, toStatus, reviewerId, reason)
 
@@ -686,12 +688,14 @@ export async function getStatusTransitions(estimateId: string): Promise<StatusTr
 // ---- Segment Status ----
 
 const VALID_SEGMENT_TRANSITIONS: Record<string, string[]> = {
-  draft: ['review'],
-  review: ['approved', 'draft'],
-  approved: ['active', 'draft'],
+  pipeline: ['estimate', 'lost', 'cancelled'],
+  estimate: ['in_review', 'lost', 'cancelled'],
+  in_review: ['active', 'estimate', 'lost', 'cancelled'],
   active: ['recap'],
-  recap: ['invoiced', 'active'],
-  invoiced: ['complete'],
+  recap: ['invoiced'],
+  invoiced: ['recap'],
+  lost: ['estimate'],
+  cancelled: ['estimate'],
 }
 
 export function canTransitionSegment(from: string, to: string): boolean {
@@ -712,7 +716,7 @@ export async function updateSegmentStatus(
     .single()
   if (fetchErr) return { success: false, error: fetchErr.message }
 
-  const fromStatus = log.status || 'draft'
+  const fromStatus = log.status || 'estimate'
   if (!canTransitionSegment(fromStatus, toStatus)) {
     return { success: false, error: `Cannot transition segment from "${fromStatus}" to "${toStatus}"` }
   }

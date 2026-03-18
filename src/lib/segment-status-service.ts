@@ -23,12 +23,14 @@ function requireSupabase() {
 // ---- Segment Status Transitions ----
 
 const VALID_SEGMENT_TRANSITIONS: Record<string, string[]> = {
-  draft: ['review'],
-  review: ['approved', 'draft'],
-  approved: ['active', 'draft'],
+  pipeline: ['estimate', 'lost', 'cancelled'],
+  estimate: ['in_review', 'lost', 'cancelled'],
+  in_review: ['active', 'estimate', 'lost', 'cancelled'],
   active: ['recap'],
-  recap: ['invoiced', 'active'],
-  invoiced: ['complete'],
+  recap: ['invoiced'],
+  invoiced: ['recap'],
+  lost: ['estimate'],
+  cancelled: ['estimate'],
 }
 
 export function canTransitionSegment(from: string, to: string): boolean {
@@ -47,7 +49,7 @@ export async function getSegmentStatus(laborLogId: string): Promise<SegmentStatu
     .eq('id', laborLogId)
     .single()
   if (error) throw error
-  return (data.status || 'draft') as SegmentStatus
+  return (data.status || 'estimate') as SegmentStatus
 }
 
 export async function transitionSegmentStatus(
@@ -66,16 +68,19 @@ export async function transitionSegmentStatus(
     .single()
   if (fetchErr) return { success: false, error: fetchErr.message }
 
-  const fromStatus = (log.status || 'draft') as string
+  const fromStatus = (log.status || 'estimate') as string
 
   // Validate transition
   if (!canTransitionSegment(fromStatus, toStatus)) {
     return { success: false, error: `Cannot transition segment from "${fromStatus}" to "${toStatus}"` }
   }
 
-  // Require reason for send-back transitions
-  if (toStatus === 'draft' && (fromStatus === 'review' || fromStatus === 'approved') && !comment) {
+  // Require reason for send-back transitions and lost/cancelled
+  if (toStatus === 'estimate' && fromStatus === 'in_review' && !comment) {
     return { success: false, error: 'A reason is required when sending back a segment' }
+  }
+  if ((toStatus === 'lost' || toStatus === 'cancelled') && !comment) {
+    return { success: false, error: 'A reason is required when marking a segment as lost or cancelled' }
   }
 
   // Update the segment status
@@ -139,7 +144,7 @@ async function dispatchSegmentNotifications(
     metadata: { from_status: fromStatus, to_status: toStatus, changed_by: changedBy },
   }
 
-  if (toStatus === 'review') {
+  if (toStatus === 'in_review') {
     // Notify CFO for $50K+ or account_manager lead for standard
     await notifyByRole('cfo', {
       ...base,
@@ -147,18 +152,7 @@ async function dispatchSegmentNotifications(
       title: `Review requested: ${segmentName}`,
       body: `${changedBy} submitted "${segmentName}" for review.`,
     })
-  } else if (toStatus === 'approved') {
-    // Notify estimate creator
-    const creatorId = await getEstimateCreatorId(estimateId)
-    if (creatorId) {
-      await createNotification({
-        ...base,
-        user_id: creatorId,
-        title: `Segment approved: ${segmentName}`,
-        body: `"${segmentName}" has been approved by ${changedBy}.`,
-      })
-    }
-  } else if (toStatus === 'draft' && (fromStatus === 'review' || fromStatus === 'approved')) {
+  } else if (toStatus === 'estimate' && fromStatus === 'in_review') {
     // Segment sent back — notify creator
     const creatorId = await getEstimateCreatorId(estimateId)
     if (creatorId) {
@@ -170,12 +164,32 @@ async function dispatchSegmentNotifications(
       })
     }
   } else if (toStatus === 'active') {
-    // Notify production team
+    // Notify estimate creator and production team
+    const creatorId = await getEstimateCreatorId(estimateId)
+    if (creatorId) {
+      await createNotification({
+        ...base,
+        user_id: creatorId,
+        title: `Segment approved & activated: ${segmentName}`,
+        body: `"${segmentName}" has been approved and activated by ${changedBy}.`,
+      })
+    }
     await notifyByRole('production_manager', {
       ...base,
       title: `Segment active: ${segmentName}`,
       body: `"${segmentName}" is now active. ${changedBy} marked it ready for execution.`,
     })
+  } else if (toStatus === 'lost' || toStatus === 'cancelled') {
+    // Notify estimate creator
+    const creatorId = await getEstimateCreatorId(estimateId)
+    if (creatorId) {
+      await createNotification({
+        ...base,
+        user_id: creatorId,
+        title: `Segment ${toStatus}: ${segmentName}`,
+        body: `"${segmentName}" was marked ${toStatus} by ${changedBy}.${comment ? ` Reason: ${comment}` : ''}`,
+      })
+    }
   }
 }
 
@@ -223,30 +237,30 @@ export async function computeEstimateStatus(estimateId: string): Promise<string>
     .eq('estimate_id', estimateId)
   if (error) throw error
 
-  const statuses = (segments || []).map((s: { status: string | null }) => s.status || 'draft')
+  const statuses = (segments || []).map((s: { status: string | null }) => s.status || 'estimate')
 
   // Single-segment: estimate status matches segment status directly
   if (statuses.length <= 1) {
-    const segStatus = statuses[0] || 'draft'
-    // Map segment statuses to estimate statuses
-    const mapped = segStatus === 'invoiced' ? 'complete' : segStatus
-    await db.from('estimates').update({ status: mapped }).eq('id', estimateId)
-    return mapped
+    const segStatus = statuses[0] || 'estimate'
+    await db.from('estimates').update({ status: segStatus }).eq('id', estimateId)
+    return segStatus
   }
 
-  // Multi-segment computation rules (from kickoff doc):
+  // Multi-segment computation rules:
   let computedStatus: string
 
-  if (statuses.every((s: string) => s === 'complete' || s === 'invoiced')) {
-    computedStatus = 'complete'
+  if (statuses.every((s: string) => s === 'invoiced')) {
+    computedStatus = 'invoiced'
+  } else if (statuses.every((s: string) => s === 'lost' || s === 'cancelled')) {
+    computedStatus = 'lost'
   } else if (statuses.some((s: string) => s === 'active' || s === 'recap' || s === 'invoiced')) {
     computedStatus = 'active'
-  } else if (statuses.every((s: string) => s === 'approved')) {
-    computedStatus = 'approved'
-  } else if (statuses.some((s: string) => s === 'review')) {
-    computedStatus = 'review'
+  } else if (statuses.some((s: string) => s === 'in_review')) {
+    computedStatus = 'in_review'
+  } else if (statuses.some((s: string) => s === 'estimate')) {
+    computedStatus = 'estimate'
   } else {
-    computedStatus = 'draft'
+    computedStatus = 'pipeline'
   }
 
   // Update estimate status if changed
@@ -266,17 +280,18 @@ export async function computeEstimateStatus(estimateId: string): Promise<string>
 // ---- Edit Permission Rules ----
 
 const SEGMENT_EDIT_RULES: Record<string, SegmentEditRules> = {
-  draft:    { schedule_hours: true,  schedule_names: true,  schedule_add_remove: true,  schedule_dates: true,  labor_log: true,  line_items: true,  event_details: true,  notes: true,  actuals: false, names_required: false },
-  review:   { schedule_hours: false, schedule_names: false, schedule_add_remove: false, schedule_dates: false, labor_log: false, line_items: false, event_details: false, notes: false, actuals: false, names_required: false },
-  approved: { schedule_hours: false, schedule_names: false, schedule_add_remove: false, schedule_dates: false, labor_log: false, line_items: false, event_details: false, notes: true,  actuals: false, names_required: false },
-  active:   { schedule_hours: false, schedule_names: true,  schedule_add_remove: false, schedule_dates: false, labor_log: false, line_items: false, event_details: false, notes: true,  actuals: false, names_required: false },
-  recap:    { schedule_hours: false, schedule_names: true,  schedule_add_remove: false, schedule_dates: false, labor_log: false, line_items: false, event_details: false, notes: true,  actuals: true,  names_required: true },
-  invoiced: { schedule_hours: false, schedule_names: false, schedule_add_remove: false, schedule_dates: false, labor_log: false, line_items: false, event_details: false, notes: false, actuals: false, names_required: false },
-  complete: { schedule_hours: false, schedule_names: false, schedule_add_remove: false, schedule_dates: false, labor_log: false, line_items: false, event_details: false, notes: false, actuals: false, names_required: false },
+  pipeline:   { schedule_hours: false, schedule_names: false, schedule_add_remove: false, schedule_dates: false, labor_log: false, line_items: false, event_details: true,  notes: true,  actuals: false, names_required: false },
+  estimate:   { schedule_hours: true,  schedule_names: true,  schedule_add_remove: true,  schedule_dates: true,  labor_log: true,  line_items: true,  event_details: true,  notes: true,  actuals: false, names_required: false },
+  in_review:  { schedule_hours: false, schedule_names: false, schedule_add_remove: false, schedule_dates: false, labor_log: false, line_items: false, event_details: false, notes: false, actuals: false, names_required: false },
+  active:     { schedule_hours: false, schedule_names: true,  schedule_add_remove: false, schedule_dates: false, labor_log: false, line_items: false, event_details: false, notes: true,  actuals: false, names_required: false },
+  recap:      { schedule_hours: false, schedule_names: true,  schedule_add_remove: false, schedule_dates: false, labor_log: false, line_items: false, event_details: false, notes: true,  actuals: true,  names_required: true },
+  invoiced:   { schedule_hours: false, schedule_names: false, schedule_add_remove: false, schedule_dates: false, labor_log: false, line_items: false, event_details: false, notes: false, actuals: false, names_required: false },
+  lost:       { schedule_hours: false, schedule_names: false, schedule_add_remove: false, schedule_dates: false, labor_log: false, line_items: false, event_details: false, notes: false, actuals: false, names_required: false },
+  cancelled:  { schedule_hours: false, schedule_names: false, schedule_add_remove: false, schedule_dates: false, labor_log: false, line_items: false, event_details: false, notes: false, actuals: false, names_required: false },
 }
 
 export function getSegmentEditRules(segmentStatus: string): SegmentEditRules {
-  return SEGMENT_EDIT_RULES[segmentStatus] || SEGMENT_EDIT_RULES.draft
+  return SEGMENT_EDIT_RULES[segmentStatus] || SEGMENT_EDIT_RULES.estimate
 }
 
 // ---- Recap Actuals ----
