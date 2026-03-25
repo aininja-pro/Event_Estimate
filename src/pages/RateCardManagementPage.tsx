@@ -36,6 +36,7 @@ import {
   Download,
   CheckCircle2,
   AlertCircle,
+  Lock,
 } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import type {
@@ -151,9 +152,10 @@ interface RateFormDialogProps {
   mode: 'add' | 'edit'
   sectionKey?: string
   onSwitchToFeeTypes?: () => void
+  isRateLocked?: boolean
 }
 
-function RateFormDialog({ open, onClose, onSave, onDelete, title, description, initial, isPassThrough, mode, sectionKey, onSwitchToFeeTypes }: RateFormDialogProps) {
+function RateFormDialog({ open, onClose, onSave, onDelete, title, description, initial, isPassThrough, mode, sectionKey, onSwitchToFeeTypes, isRateLocked }: RateFormDialogProps) {
   const [form, setForm] = useState<RateFormState>(initial)
   const [saving, setSaving] = useState(false)
   const [allFeeTypes, setAllFeeTypes] = useState<FeeType[]>([])
@@ -303,8 +305,8 @@ function RateFormDialog({ open, onClose, onSave, onDelete, title, description, i
             <>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
-                  <Label className="text-xs">Unit Rate ($)</Label>
-                  <Input id="rate-amount" type="number" step="0.01" value={form.unit_rate} onChange={(e) => setForm({ ...form, unit_rate: e.target.value })} placeholder="0.00" className="h-8 text-sm border-border/50" />
+                  <Label className="text-xs">Unit Rate ($) {isRateLocked && <Lock className="inline h-3 w-3 ml-1 text-muted-foreground/40" />}</Label>
+                  <Input id="rate-amount" type="number" step="0.01" value={form.unit_rate} onChange={(e) => setForm({ ...form, unit_rate: e.target.value })} placeholder="0.00" className="h-8 text-sm border-border/50" disabled={isRateLocked} />
                 </div>
                 <div className="space-y-1">
                   <Label className="text-xs">Unit Label</Label>
@@ -492,7 +494,10 @@ function SectionTable({ section, items, search, thirdPartyMarkup, collapsed, onT
                   </TableCell>
                   {!isPassThrough && (
                     <TableCell className="text-right py-1">
-                      <span className="text-[13px] font-medium tabular-nums text-foreground">{fmt(item.unit_rate)}</span>
+                      <span className="text-[13px] font-medium tabular-nums text-foreground">
+                        {fmt(item.unit_rate)}
+                        {item.is_rate_locked && <Lock className="inline h-3 w-3 ml-1 text-muted-foreground/40" />}
+                      </span>
                     </TableCell>
                   )}
                   {!isPassThrough && (
@@ -1398,6 +1403,7 @@ export function RateCardManagementPage() {
       notes: null,
       display_order: 0,
       is_active: true,
+      is_rate_locked: false,
       created_by: null,
       fee_type_id: form.fee_type_id,
     })
@@ -1635,6 +1641,7 @@ export function RateCardManagementPage() {
             mode={dialogMode}
             sectionKey={dialogSection ? SECTION_TO_FEE_TYPE_KEY[dialogSection.name] : undefined}
             onSwitchToFeeTypes={() => setActiveTab('fee-types')}
+            isRateLocked={dialogMode === 'edit' && dialogItem?.is_rate_locked}
           />
 
           {/* Bulk Import dialog */}

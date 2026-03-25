@@ -51,6 +51,7 @@ export interface RateCardItem {
   notes: string | null
   display_order: number
   is_active: boolean
+  is_rate_locked: boolean
   created_at: string
   updated_at: string
   created_by: string | null
