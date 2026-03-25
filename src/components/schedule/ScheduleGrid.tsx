@@ -725,6 +725,7 @@ export function ScheduleGrid({
               >
                 Role {sortField === 'role' ? (sortDir === 'asc' ? '▲' : '▼') : ''}
               </th>
+              <th className="sticky left-[220px] z-20 bg-slate-100 text-left px-1 py-1.5 text-[10px] uppercase tracking-widest text-muted-foreground font-medium w-[70px] border-b border-r border-slate-200">Type</th>
               {sortedDates.map((dt) => {
                 const d = formatDate(dt.work_date)
                 return (
@@ -765,7 +766,6 @@ export function ScheduleGrid({
                 )
               })}
               <th className="px-2 py-1.5 border-b border-slate-200 bg-slate-50 text-[10px] uppercase tracking-widest text-muted-foreground font-medium min-w-[50px] text-center">Days</th>
-              <th className="px-1 py-1.5 border-b border-slate-200 bg-slate-50 text-[10px] uppercase tracking-widest text-muted-foreground font-medium min-w-[70px] text-center">Type</th>
               <th className="px-0 py-1.5 border-b border-slate-200 bg-slate-50 w-[36px] text-center" title="Airfare">
                 <Plane className="h-3 w-3 mx-auto text-muted-foreground/50" />
               </th>
@@ -781,7 +781,7 @@ export function ScheduleGrid({
           <tbody>
             {entries.length === 0 ? (
               <tr>
-                <td colSpan={sortedDates.length + 8} className="text-center py-8 text-xs text-muted-foreground/50 border-dashed border-2 border-slate-200">
+                <td colSpan={sortedDates.length + 8} /* Name + Role + Type + dates + Days + 3 travel + actions */ className="text-center py-8 text-xs text-muted-foreground/50 border-dashed border-2 border-slate-200">
                   Click <span className="font-medium">+ Add Staff</span> to start building your schedule
                 </td>
               </tr>
@@ -803,6 +803,26 @@ export function ScheduleGrid({
                   <td className={`sticky left-[120px] z-10 border-b border-r border-slate-200 px-2 py-1.5 ${rowIdx % 2 === 1 ? 'bg-slate-50/50' : 'bg-white'}`}>
                     <span className="text-[12px] font-medium text-foreground/80 truncate block">{entry.role_name}</span>
                   </td>
+                  {/* Resource type (frozen) */}
+                  <td className={`sticky left-[220px] z-10 border-b border-r border-slate-200 px-1 py-1 ${rowIdx % 2 === 1 ? 'bg-slate-50/50' : 'bg-white'}`}>
+                    {readOnly ? (
+                      <span className="text-[11px] text-muted-foreground/70 capitalize">{entry.resource_type}</span>
+                    ) : (
+                      <select
+                        value={entry.resource_type}
+                        onChange={(e) => {
+                          const val = e.target.value as 'internal' | 'external' | 'vendor'
+                          setEntries((prev) => prev.map((en) => en.id === entry.id ? { ...en, resource_type: val } : en))
+                          updateScheduleEntry(entry.id, { resource_type: val })
+                        }}
+                        className="text-[11px] bg-transparent border-0 cursor-pointer text-muted-foreground/70 hover:text-foreground focus:outline-none w-full"
+                      >
+                        <option value="internal">Internal</option>
+                        <option value="external">External</option>
+                        <option value="vendor">Vendor</option>
+                      </select>
+                    )}
+                  </td>
                   {/* Hour cells */}
                   {sortedDates.map((dt) => (
                     <GridCell
@@ -817,26 +837,6 @@ export function ScheduleGrid({
                   {/* Total days */}
                   <td className="border-b border-slate-200 bg-slate-50 text-center text-sm font-semibold tabular-nums py-1.5">
                     {getRowTotalDays(entry)}
-                  </td>
-                  {/* Resource type */}
-                  <td className="border-b border-slate-200 bg-slate-50 text-center px-1 py-1">
-                    {readOnly ? (
-                      <span className="text-[11px] text-muted-foreground/70 capitalize">{entry.resource_type}</span>
-                    ) : (
-                      <select
-                        value={entry.resource_type}
-                        onChange={(e) => {
-                          const val = e.target.value as 'internal' | 'external' | 'vendor'
-                          setEntries((prev) => prev.map((en) => en.id === entry.id ? { ...en, resource_type: val } : en))
-                          updateScheduleEntry(entry.id, { resource_type: val })
-                        }}
-                        className="text-[11px] bg-transparent border-0 text-center cursor-pointer text-muted-foreground/70 hover:text-foreground focus:outline-none"
-                      >
-                        <option value="internal">Internal</option>
-                        <option value="external">External</option>
-                        <option value="vendor">Vendor</option>
-                      </select>
-                    )}
                   </td>
                   {/* Travel indicators — always visible */}
                   <td className="border-b border-slate-200 bg-slate-50 text-center px-0 py-1">
