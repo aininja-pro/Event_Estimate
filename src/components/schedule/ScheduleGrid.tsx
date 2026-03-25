@@ -363,9 +363,9 @@ function GridCell({
 
 // ── Segment Date Picker (empty state) ─────────────────────────────────────────
 
-function SegmentDatePicker({ onUpdateDates }: { onUpdateDates?: (startDate: string, endDate: string) => Promise<void> }) {
-  const [startDate, setStartDate] = useState('')
-  const [endDate, setEndDate] = useState('')
+function SegmentDatePicker({ onUpdateDates, initialStartDate, initialEndDate }: { onUpdateDates?: (startDate: string, endDate: string) => Promise<void>; initialStartDate?: string | null; initialEndDate?: string | null }) {
+  const [startDate, setStartDate] = useState(initialStartDate ?? '')
+  const [endDate, setEndDate] = useState(initialEndDate ?? '')
   const [saving, setSaving] = useState(false)
 
   async function handleGenerate() {
@@ -410,12 +410,14 @@ export function ScheduleGrid({
   rateCardData,
   onUpdateDates,
   readOnly,
+  namesEditable,
 }: {
   laborLog: LaborLog
   estimate: EstimateWithClient
   rateCardData: RateCardItemsBySection[]
   onUpdateDates?: (startDate: string, endDate: string) => Promise<void>
   readOnly?: boolean
+  namesEditable?: boolean
 }) {
   const [entries, setEntries] = useState<ScheduleEntry[]>([])
   const [dayTypes, setDayTypes] = useState<ScheduleDayType[]>([])
@@ -683,7 +685,7 @@ export function ScheduleGrid({
     return readOnly ? (
       <div className="text-xs text-muted-foreground/50 text-center py-8">No schedule dates configured</div>
     ) : (
-      <SegmentDatePicker onUpdateDates={onUpdateDates} />
+      <SegmentDatePicker onUpdateDates={onUpdateDates} initialStartDate={laborLog.start_date} initialEndDate={laborLog.end_date} />
     )
   }
 
@@ -790,9 +792,9 @@ export function ScheduleGrid({
                       value={entry.person_name ?? ''}
                       onChange={(e) => setEntries((prev) => prev.map((en) => en.id === entry.id ? { ...en, person_name: e.target.value } : en))}
                       onBlur={(e) => handleUpdatePersonName(entry.id, e.target.value)}
-                      placeholder={readOnly ? '' : 'Name...'}
+                      placeholder={readOnly && !namesEditable ? '' : 'Name...'}
                       className="w-full text-[13px] bg-transparent border-0 outline-none placeholder:text-muted-foreground/30 px-1 py-1.5"
-                      readOnly={readOnly}
+                      readOnly={readOnly && !namesEditable}
                     />
                   </td>
                   {/* Role (frozen) */}

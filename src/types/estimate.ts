@@ -47,7 +47,7 @@ export interface LaborLog {
   updated_at: string
 }
 
-export type LaborLogInsert = Pick<LaborLog, 'estimate_id' | 'location_name' | 'is_primary'> & Partial<Pick<LaborLog, 'location_order' | 'start_date' | 'end_date' | 'notes'>>
+export type LaborLogInsert = Pick<LaborLog, 'estimate_id' | 'location_name' | 'is_primary'> & Partial<Pick<LaborLog, 'location_order' | 'start_date' | 'end_date' | 'notes' | 'status'>>
 
 export type LaborLogUpdate = Partial<Omit<LaborLog, 'id' | 'estimate_id' | 'created_at' | 'updated_at'>>
 
@@ -89,6 +89,8 @@ export interface EstimateLineItem {
   markup_pct: number
   gl_code: string | null
   notes: string | null
+  is_auto_generated: boolean
+  fee_basis: string | null
   display_order: number
   created_at: string
   updated_at: string

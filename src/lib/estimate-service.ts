@@ -230,3 +230,31 @@ export async function deleteLineItem(id: string): Promise<void> {
     .eq('id', id)
   if (error) throw error
 }
+
+// ---- Auto-generated Fee Lines ----
+
+/** Create agency fee line item on the primary labor log if client has agency_fee > 0 */
+export async function createAutoFeeLines(
+  estimateId: string,
+  laborLogId: string,
+  agencyFee: number,
+): Promise<EstimateLineItem | null> {
+  if (!agencyFee || agencyFee <= 0) return null
+
+  return createLineItem({
+    estimate_id: estimateId,
+    labor_log_id: laborLogId,
+    section: 'fees',
+    rate_card_item_id: null,
+    item_name: 'Agency Fee',
+    description: null,
+    quantity: 1,
+    unit_cost: 0,
+    markup_pct: agencyFee * 100,
+    gl_code: null,
+    notes: null,
+    is_auto_generated: true,
+    fee_basis: 'total_estimate',
+    display_order: 0,
+  })
+}

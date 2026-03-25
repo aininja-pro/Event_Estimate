@@ -239,10 +239,12 @@ function EventHeader({
   estimate,
   onUpdate,
   readOnly,
+  notesEditable,
 }: {
   estimate: EstimateWithClient
   onUpdate: (updates: EstimateUpdate) => void
   readOnly?: boolean
+  notesEditable?: boolean
 }) {
   const [eventName, setEventName] = useState(estimate.event_name)
   const [eventType, setEventType] = useState(estimate.event_type ?? '')
@@ -323,18 +325,18 @@ function EventHeader({
         </div>
       </div>
       {!showNotes ? (
-        !readOnly && <button onClick={() => setShowNotes(true)} className="mt-2.5 text-[10px] uppercase tracking-widest text-muted-foreground/60 hover:text-muted-foreground/60 transition-colors font-medium">
+        (!readOnly || notesEditable) && <button onClick={() => setShowNotes(true)} className="mt-2.5 text-[10px] uppercase tracking-widest text-muted-foreground/60 hover:text-muted-foreground/60 transition-colors font-medium">
           + Add notes
         </button>
       ) : (
         <div className="mt-2.5 grid grid-cols-2 gap-3">
           <div>
             <p className={fieldLabel}>Internal Notes <span className="text-muted-foreground/40 normal-case tracking-normal">(not shown to client)</span></p>
-            <Textarea value={internalNotes} onChange={(e) => setInternalNotes(e.target.value)} onBlur={() => saveField('internal_notes', internalNotes)} className="min-h-[40px] text-[13px] border-border/40 bg-transparent resize-none focus-visible:ring-0 focus-visible:border-border/40" placeholder="Internal team notes..." readOnly={readOnly} />
+            <Textarea value={internalNotes} onChange={(e) => setInternalNotes(e.target.value)} onBlur={() => saveField('internal_notes', internalNotes)} className="min-h-[40px] text-[13px] border-border/40 bg-transparent resize-none focus-visible:ring-0 focus-visible:border-border/40" placeholder="Internal team notes..." readOnly={readOnly && !notesEditable} />
           </div>
           <div>
             <p className={fieldLabel}>Published Notes <span className="text-muted-foreground/40 normal-case tracking-normal">(shown on estimate)</span></p>
-            <Textarea value={publishedNotes} onChange={(e) => setPublishedNotes(e.target.value)} onBlur={() => saveField('published_notes', publishedNotes)} className="min-h-[40px] text-[13px] border-border/40 bg-transparent resize-none focus-visible:ring-0 focus-visible:border-border/40" placeholder="Notes visible to client..." readOnly={readOnly} />
+            <Textarea value={publishedNotes} onChange={(e) => setPublishedNotes(e.target.value)} onBlur={() => saveField('published_notes', publishedNotes)} className="min-h-[40px] text-[13px] border-border/40 bg-transparent resize-none focus-visible:ring-0 focus-visible:border-border/40" placeholder="Notes visible to client..." readOnly={readOnly && !notesEditable} />
           </div>
         </div>
       )}
@@ -1214,7 +1216,12 @@ function LineItemRow({
 
   return (
     <TableRow className="group border-b border-border/30 hover:bg-muted/30">
-      <TableCell className="text-[13px] text-foreground py-1">{item.item_name}</TableCell>
+      <TableCell className="text-[13px] text-foreground py-1">
+        {item.item_name}
+        {item.is_auto_generated && (
+          <span className="ml-1.5 text-[9px] uppercase tracking-widest font-medium text-blue-600/70 bg-blue-50 px-1 py-0.5 rounded">Auto</span>
+        )}
+      </TableCell>
       <TableCell className="py-1">
         <Input
           value={desc}
@@ -1244,7 +1251,7 @@ function LineItemRow({
         <span className="text-[13px] font-medium tabular-nums text-foreground">{fmt(clientTotal)}</span>
       </TableCell>
       <TableCell className="py-1">
-        {!readOnly && (
+        {!readOnly && !item.is_auto_generated && (
           <Trash2 className="h-3 w-3 opacity-0 group-hover:opacity-50 hover:!opacity-100 transition-opacity cursor-pointer text-foreground/60" onClick={() => onDelete(item.id)} />
         )}
       </TableCell>
@@ -1560,6 +1567,7 @@ const SUMMARY_SECTIONS = [
   { name: 'Production Expenses', type: 'line_item', lineItemKey: 'production', passThrough: true },
   { name: 'Logistics Expenses', type: 'line_item', lineItemKey: 'access', passThrough: false },
   { name: 'Misc', type: 'line_item', lineItemKey: 'misc', passThrough: false },
+  { name: 'Fees & Markups', type: 'line_item', lineItemKey: 'fees', passThrough: false },
 ] as const
 
 function SummaryTab({
@@ -1681,6 +1689,11 @@ function SummaryTab({
         }
       }
     } else {
+      // For fee lines with fee_basis, compute revenue as % of total estimate subtotal
+      const priorTotalRevenue = sec.lineItemKey === 'fees'
+        ? blocks.reduce((s, b) => s + b.total.revenue, 0)
+        : 0
+
       for (const log of laborLogs) {
         const items = (lineItemsMap[log.id] ?? []).filter((i) => i.section === sec.lineItemKey)
         if (items.length === 0) continue
@@ -1690,14 +1703,22 @@ function SummaryTab({
         }
 
         for (const i of items) {
-          const cost = i.quantity * i.unit_cost
-          const rev = cost * (1 + i.markup_pct / 100)
-          details.push({
-            label: i.item_name,
-            detail: i.quantity === 1 ? fmt(i.unit_cost) : `${i.quantity} × ${fmt(i.unit_cost)}`,
-            revenue: rev,
-            cost,
-          })
+          let cost: number
+          let rev: number
+          let detail: string
+
+          if (i.fee_basis === 'total_estimate') {
+            // Dynamic fee: revenue = total estimate subtotal × percentage
+            cost = 0
+            rev = priorTotalRevenue * (i.markup_pct / 100)
+            detail = `${i.markup_pct}% of ${fmt(priorTotalRevenue)}`
+          } else {
+            cost = i.quantity * i.unit_cost
+            rev = cost * (1 + i.markup_pct / 100)
+            detail = i.quantity === 1 ? fmt(i.unit_cost) : `${i.quantity} × ${fmt(i.unit_cost)}`
+          }
+
+          details.push({ label: i.item_name, detail, revenue: rev, cost })
           totalRevenue += rev
           totalCost += cost
         }
@@ -1900,7 +1921,8 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
 
   async function handleAddLocation(name: string) {
     try {
-      const log = await createLaborLog({ estimate_id: estimateId, location_name: name, is_primary: false })
+      const nextOrder = laborLogs.length > 0 ? Math.max(...laborLogs.map(l => l.location_order ?? 0)) + 1 : 1
+      const log = await createLaborLog({ estimate_id: estimateId, location_name: name, is_primary: false, status: 'estimate', location_order: nextOrder })
       setLaborLogs((prev) => [...prev, log])
       setLaborEntriesMap((prev) => ({ ...prev, [log.id]: [] }))
       setLineItemsMap((prev) => ({ ...prev, [log.id]: [] }))
@@ -2025,6 +2047,8 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
             gl_code: data.gl_code,
             rate_card_item_id: data.rate_card_item_id,
             notes: null,
+            is_auto_generated: false,
+            fee_basis: null,
             display_order: baseOrder + idx,
           })
         )
@@ -2066,30 +2090,32 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
 
   // ── Workflow handlers ──
 
+  const userId = profile?.id || displayName
+
   async function handleSegmentTransition(toStatus: SegmentStatus, comment?: string) {
     if (!activeLocationId) return { success: false, error: 'No segment selected' }
 
     // "Submit for Review" goes through the approval workflow
     if (toStatus === 'in_review') {
-      const result = await submitForApproval(estimateId, displayName, activeLocationId)
+      const result = await submitForApproval(estimateId, userId, activeLocationId)
       if (result.error) return { success: false, error: result.error }
       await loadData()
       return { success: true }
     }
 
-    const result = await transitionSegmentStatus(activeLocationId, toStatus, comment, displayName)
+    const result = await transitionSegmentStatus(activeLocationId, toStatus, comment, userId)
     if (result.success) await loadData()
     return result
   }
 
   async function handleApprove(approvalId: string) {
-    const result = await reviewApproval(approvalId, 'approved', displayName, userRole)
+    const result = await reviewApproval(approvalId, 'approved', userId, userRole)
     if (result.success) await loadData()
     return result
   }
 
   async function handleReject(approvalId: string, notes: string) {
-    const result = await reviewApproval(approvalId, 'rejected', displayName, userRole, notes)
+    const result = await reviewApproval(approvalId, 'rejected', userId, userRole, notes)
     if (result.success) await loadData()
     return result
   }
@@ -2127,6 +2153,7 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
     { key: 'creative', label: 'Creative', pt: false },
     { key: 'access', label: 'Access Fees & Insurance', pt: false },
     { key: 'misc', label: 'Misc', pt: false },
+    { key: 'fees', label: 'Fees & Markups', pt: false },
   ]
 
   return (
@@ -2163,7 +2190,7 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
       <div className="flex gap-0">
         {/* Left Panel — Estimate Working Area */}
         <div className={`min-w-0 space-y-2.5 transition-all duration-200 ${aiPanelOpen ? 'flex-[7]' : 'flex-1'}`}>
-          <EventHeader estimate={estimate} onUpdate={handleUpdateEstimate} readOnly={!editRules.event_details} />
+          <EventHeader estimate={estimate} onUpdate={handleUpdateEstimate} readOnly={!editRules.event_details} notesEditable={editRules.notes} />
 
           <Tabs value={activeTab} onValueChange={async (tab) => {
             setActiveTab(tab)
@@ -2185,6 +2212,19 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
               <TabsTrigger value="summary" className="text-[13px]">Summary</TabsTrigger>
             </TabsList>
 
+            {activeSegmentStatus === 'pipeline' && activeTab !== 'header' ? (
+              <div className="flex flex-col items-center justify-center py-16 text-center">
+                <div className="rounded-lg border border-zinc-200/60 bg-zinc-50/50 px-8 py-10 max-w-md">
+                  <p className="text-[13px] text-muted-foreground">
+                    This segment is in <span className="font-medium text-foreground">Pipeline</span> status. Click{' '}
+                    <span className="font-medium text-foreground">"Begin Estimating"</span> above to start building
+                    the labor plan and line items.
+                  </p>
+                </div>
+              </div>
+            ) : (
+            <>
+
             <TabsContent value="schedule">
               <div className="space-y-2">
                 <LocationSelector
@@ -2203,6 +2243,7 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
                     estimate={estimate}
                     rateCardData={rateCardData}
                     readOnly={!editRules.schedule_hours}
+                    namesEditable={editRules.schedule_names}
                     onUpdateDates={async (startDate, endDate) => {
                       const updated = await updateLaborLog(activeLocationId, { start_date: startDate, end_date: endDate })
                       setLaborLogs((prev) => prev.map((l) => l.id === activeLocationId ? updated : l))
@@ -2261,6 +2302,9 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
             <TabsContent value="summary">
               <SummaryTab laborLogs={laborLogs} allEntriesMap={laborEntriesMap} lineItemsMap={lineItemsMap} rateCardData={rateCardData} scheduleEntriesMap={scheduleEntriesMap} />
             </TabsContent>
+
+            </>
+            )}
           </Tabs>
         </div>
 

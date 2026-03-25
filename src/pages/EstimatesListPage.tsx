@@ -26,10 +26,11 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { FileSpreadsheet, MoreVertical, ChevronUp, ChevronDown, Search, X } from 'lucide-react'
-import { getEstimates, createEstimate, createLaborLog, updateEstimate, deleteEstimate } from '@/lib/estimate-service'
+import { getEstimates, createEstimate, createLaborLog, createAutoFeeLines, updateEstimate, deleteEstimate } from '@/lib/estimate-service'
 import { getClients } from '@/lib/rate-card-service'
 import { useUser } from '@/lib/auth'
 import { hasPermission } from '@/lib/permissions'
+import { createNotification, notifyByRole } from '@/lib/notification-service'
 import type { EstimateWithSegments } from '@/types/estimate'
 import type { Client } from '@/types/rate-card'
 
@@ -225,19 +226,44 @@ export function EstimatesListPage() {
         internal_notes: null,
         published_notes: null,
         status: 'pipeline',
-        created_by: null,
+        created_by: profile?.id || null,
       })
 
       // Auto-create primary labor log
       if (formLocation) {
-        await createLaborLog({
+        const primaryLog = await createLaborLog({
           estimate_id: estimate.id,
           location_name: formLocation,
           is_primary: true,
           start_date: formStartDate || null,
           end_date: formEndDate || null,
+          status: 'pipeline',
         })
+
+        // Auto-create agency fee line if client has agency_fee > 0
+        const client = clients.find(c => c.id === formClientId)
+        if (client && client.agency_fee > 0) {
+          await createAutoFeeLines(estimate.id, primaryLog.id, client.agency_fee)
+        }
       }
+
+      // Dispatch pipeline creation notifications
+      const clientName = clients.find(c => c.id === formClientId)?.name || 'Unknown'
+      if (profile?.id) {
+        createNotification({
+          user_id: profile.id,
+          type: 'segment_status_changed',
+          title: 'New event created',
+          body: `New event created: ${formEventName}`,
+          estimate_id: estimate.id,
+        }).catch((err) => console.error('Notification failed:', err))
+      }
+      notifyByRole('account_manager', {
+        type: 'segment_status_changed',
+        title: 'New pipeline event',
+        body: `New pipeline event: ${formEventName} for ${clientName}`,
+        estimate_id: estimate.id,
+      }).catch((err) => console.error('Notification failed:', err))
 
       setShowModal(false)
       resetForm()
