@@ -47,6 +47,7 @@ import {
 import { transitionSegmentStatus, getSegmentEditRules } from '@/lib/segment-status-service'
 import { useUser } from '@/lib/auth'
 import { hasPermission } from '@/lib/permissions'
+import { getGPThreshold } from '@/lib/system-settings-service'
 import type { ApprovalRequest, SegmentStatus, SegmentEditRules } from '@/types/workflow'
 import type { ScheduleEntry, LaborRollupRow } from '@/types/schedule'
 import {
@@ -1576,12 +1577,14 @@ function SummaryTab({
   lineItemsMap,
   rateCardData,
   scheduleEntriesMap,
+  gpThreshold,
 }: {
   laborLogs: LaborLog[]
   allEntriesMap: Record<string, LaborEntry[]>
   lineItemsMap: Record<string, EstimateLineItem[]>
   rateCardData: RateCardItemsBySection[]
   scheduleEntriesMap: Record<string, ScheduleEntry[]>
+  gpThreshold: number
 }) {
   // Build lookup: rate_card_item_id → rate_card_section name
   const itemSectionMap = new Map<string, string>()
@@ -1846,6 +1849,16 @@ function SummaryTab({
             </TableBody>
           </Table>
         )}
+        {blocks.length > 0 && grandRevenue > 0 && (() => {
+          const gpPct = (grandGP / grandRevenue) * 100
+          return gpPct < gpThreshold ? (
+            <div className="mt-3 px-4 py-2.5 rounded-md border border-amber-300/60 bg-amber-50/50">
+              <p className="text-[12px] text-amber-800 font-medium">
+                GP is {gpPct.toFixed(1)}% — below the {gpThreshold}% minimum threshold. This estimate may require additional review.
+              </p>
+            </div>
+          ) : null
+        })()}
       </div>
     </div>
   )
@@ -1867,7 +1880,10 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
   const [aiPanelOpen, setAiPanelOpen] = useState(false)
   const [historyOpen, setHistoryOpen] = useState(false)
   const [segmentApprovals, setSegmentApprovals] = useState<Record<string, ApprovalRequest | null>>({})
+  const [gpThreshold, setGpThreshold] = useState(20)
   const [loading, setLoading] = useState(true)
+
+  useEffect(() => { getGPThreshold().then(setGpThreshold) }, [])
 
   const loadData = useCallback(async () => {
     try {
@@ -2331,7 +2347,7 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
             ))}
 
             <TabsContent value="summary">
-              <SummaryTab laborLogs={laborLogs} allEntriesMap={laborEntriesMap} lineItemsMap={lineItemsMap} rateCardData={rateCardData} scheduleEntriesMap={scheduleEntriesMap} />
+              <SummaryTab laborLogs={laborLogs} allEntriesMap={laborEntriesMap} lineItemsMap={lineItemsMap} rateCardData={rateCardData} scheduleEntriesMap={scheduleEntriesMap} gpThreshold={gpThreshold} />
             </TabsContent>
 
             </>
