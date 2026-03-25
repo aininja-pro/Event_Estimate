@@ -1624,11 +1624,14 @@ function SummaryTab({
     isSegmentHeader?: boolean
   }
 
+  type ResourceBreakdown = { internal: number; external: number; vendor: number }
+
   type SectionBlock = {
     name: string
     details: DetailRow[]
     total: { revenue: number; cost: number }
     passThrough: boolean
+    resourceBreakdown: ResourceBreakdown | null
   }
 
   const blocks: SectionBlock[] = []
@@ -1637,6 +1640,8 @@ function SummaryTab({
     const details: DetailRow[] = []
     let totalRevenue = 0
     let totalCost = 0
+    const resByType: ResourceBreakdown = { internal: 0, external: 0, vendor: 0 }
+    let hasResourceData = false
 
     if (sec.type === 'labor') {
       for (const log of laborLogs) {
@@ -1661,6 +1666,16 @@ function SummaryTab({
             })
             totalRevenue += r.revenue_total
             totalCost += r.cost_total
+
+            // Accumulate resource type breakdown from schedule entries matching this role
+            const matchingEntries = schedEntries.filter((e) => e.role_name === r.role_name)
+            for (const me of matchingEntries) {
+              const rt = me.resource_type ?? 'external'
+              const entryDays = me.day_entries?.filter((d) => d.hours > 0).length ?? 0
+              const entryRev = entryDays * me.day_rate
+              resByType[rt] += entryRev
+              hasResourceData = true
+            }
           }
         } else {
           // Manual labor entries (backward compat)
@@ -1685,6 +1700,11 @@ function SummaryTab({
             })
             totalRevenue += rev
             totalCost += cost
+
+            // Accumulate resource type from labor entries
+            const rt = e.resource_type ?? 'external'
+            resByType[rt] += rev
+            hasResourceData = true
           }
         }
       }
@@ -1726,7 +1746,7 @@ function SummaryTab({
     }
 
     if (details.length > 0) {
-      blocks.push({ name: sec.name, details, total: { revenue: totalRevenue, cost: totalCost }, passThrough: sec.passThrough })
+      blocks.push({ name: sec.name, details, total: { revenue: totalRevenue, cost: totalCost }, passThrough: sec.passThrough, resourceBreakdown: hasResourceData ? resByType : null })
     }
   }
 
@@ -1789,7 +1809,17 @@ function SummaryTab({
                       )
                     })}
                     <TableRow className="border-b border-border/40 hover:bg-transparent">
-                      <TableCell colSpan={2} className="py-1 pl-5 text-[11px] font-medium text-muted-foreground/50">{block.name} Subtotal</TableCell>
+                      <TableCell colSpan={2} className="py-1 pl-5">
+                        <span className="text-[11px] font-medium text-muted-foreground/50">{block.name} Subtotal</span>
+                        {block.resourceBreakdown && (
+                          <span className="ml-2 text-[10px] text-muted-foreground/40">
+                            {(['internal', 'external', 'vendor'] as const)
+                              .filter((t) => block.resourceBreakdown![t] > 0)
+                              .map((t) => `${t.charAt(0).toUpperCase() + t.slice(1)}: ${fmt(block.resourceBreakdown![t])}`)
+                              .join(' · ')}
+                          </span>
+                        )}
+                      </TableCell>
                       <TableCell className="py-1 text-[12px] text-right font-medium tabular-nums text-foreground/90">{fmt(block.total.revenue)}</TableCell>
                       <TableCell className="py-1 text-[12px] text-right font-medium tabular-nums text-foreground/90">{fmt(block.total.cost)}</TableCell>
                       <TableCell className="py-1 text-[12px] text-right font-medium tabular-nums text-green-800/60">{fmt(blockGP)}</TableCell>
