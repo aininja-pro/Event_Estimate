@@ -1989,6 +1989,7 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
             overtime_rate: null,
             overtime_hours: null,
             notes: null,
+            resource_type: 'external',
             display_order: currentCount + i,
           })
         )

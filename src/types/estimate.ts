@@ -67,6 +67,7 @@ export interface LaborEntry {
   overtime_hours: number | null
   gl_code: string | null
   notes: string | null
+  resource_type: 'internal' | 'external' | 'vendor'
   display_order: number
   created_at: string
   updated_at: string

@@ -17,6 +17,7 @@ export interface ScheduleEntry {
   ot_cost_rate: number
   gl_code: string | null
   notes: string | null
+  resource_type: 'internal' | 'external' | 'vendor'
   created_at: string
   updated_at: string
   // Nested day entries (loaded via separate query)
