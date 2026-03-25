@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useParams, Navigate } from 'react-router-dom'
 import {
   Table,
@@ -32,6 +32,10 @@ import {
   Calendar,
   Sparkles,
   PanelRightClose,
+  X,
+  RefreshCw,
+  CheckCircle,
+  AlertTriangle,
 } from 'lucide-react'
 import { ScheduleGrid } from '@/components/schedule/ScheduleGrid'
 import { EstimateStatusBar } from '@/components/EstimateStatusBar'
@@ -69,6 +73,8 @@ import {
 import { getRateCardItemsBySection } from '@/lib/rate-card-service'
 import type { EstimateWithClient, EstimateUpdate, LaborLog, LaborEntry, EstimateLineItem } from '@/types/estimate'
 import type { RateCardItemsBySection } from '@/types/rate-card'
+import type { Nudge } from '@/types/nudge'
+import { fetchNudges, dismissNudge, getDismissedNudges } from '@/lib/ai-nudge-service'
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -113,39 +119,128 @@ function computeDuration(start: string | null, end: string | null): number | nul
   return d > 0 ? d : null
 }
 
-// ── AI Panel (Static Mockup — wired up in Weeks 8-10) ──────────────────────
+// ── AI Intelligence Panel ────────────────────────────────────────────────────
 
-const nudges = [
-  { type: 'suggestion' as const, icon: '💡', label: 'STAFFING SUGGESTION', message: 'For Mazda ride & drives with 5,000 attendees, you typically staff 2 In-Vehicle Hosts per 500 attendees. Your current plan has 8 — consider scaling to 10.', footer: 'Based on 14 similar Mazda events' },
-  { type: 'warning' as const, icon: '⚠️', label: 'COST ALERT', message: 'LA logistics costs have come in 20% over budget on the last 6 LA-based ride & drive events. Consider adding a 15-20% buffer to your logistics line items.', footer: 'Based on 6 LA ride & drive events' },
-  { type: 'validation' as const, icon: '✅', label: 'VALIDATION', message: 'Insurance line item detected. ✓ 94% of ride & drive events in this revenue range include General Liability + Auto coverage.', footer: 'Validated against 342 ride & drive events' },
-  { type: 'insight' as const, icon: '📊', label: 'MARGIN INSIGHT', message: 'Your current blended GP is 20.5%. The average for Mazda events in this revenue range is 28.3%. Labor margins look healthy — check production and travel markups.', footer: 'Based on 23 Mazda events ($75K-$150K range)' },
-  { type: 'suggestion' as const, icon: '💡', label: 'MISSING ITEM CHECK', message: "You haven't included a Vehicle Detailing line item. 87% of ride & drive events include detailing services ($150-$300/vehicle/day).", footer: 'Based on 342 ride & drive events' },
-]
-
-const nudgeColors = {
-  suggestion: { accent: 'border-l-zinc-400/60', label: 'text-zinc-500' },
-  warning: { accent: 'border-l-amber-400/50', label: 'text-amber-600' },
-  validation: { accent: 'border-l-green-700/30', label: 'text-green-800/50' },
-  insight: { accent: 'border-l-violet-400/50', label: 'text-violet-500/70' },
+const NUDGE_TYPE_COLORS: Record<Nudge['type'], { accent: string; label: string }> = {
+  staffing: { accent: 'border-l-indigo-400/60', label: 'text-indigo-600' },
+  cost: { accent: 'border-l-amber-400/50', label: 'text-amber-600' },
+  validation: { accent: 'border-l-green-700/40', label: 'text-green-700' },
+  missing: { accent: 'border-l-purple-400/50', label: 'text-purple-600' },
+  margin: { accent: 'border-l-rose-400/50', label: 'text-rose-600' },
 }
 
-function AINudgePanel() {
+const SEVERITY_STYLES: Record<Nudge['severity'], string> = {
+  critical: 'border-l-[3px] bg-muted/10',
+  warning: 'border-l-2 bg-muted/5',
+  info: 'border-l-2 bg-muted/3 opacity-80',
+}
+
+function AINudgePanel({
+  nudges,
+  loading,
+  error,
+  autoRefresh,
+  onToggleAutoRefresh,
+  onDismiss,
+  onRetry,
+  onClose,
+}: {
+  nudges: Nudge[]
+  loading: boolean
+  error: string | null
+  autoRefresh: boolean
+  onToggleAutoRefresh: () => void
+  onDismiss: (nudgeId: string) => void
+  onRetry: () => void
+  onClose: () => void
+}) {
   return (
     <div className="flex h-full flex-col">
-      <p className="text-[10px] font-medium uppercase tracking-widest text-muted-foreground/50 mb-3">Intelligence</p>
-      <div className="flex-1 space-y-1.5 overflow-y-auto pr-1">
-        {nudges.map((nudge, i) => {
-          const colors = nudgeColors[nudge.type]
+      <div className="flex items-center justify-between mb-3">
+        <p className="text-[10px] font-medium uppercase tracking-widest text-muted-foreground/50">Intelligence</p>
+        <div className="flex items-center gap-1">
+          <button
+            onClick={onRetry}
+            className="p-1 rounded hover:bg-muted text-muted-foreground/50 hover:text-muted-foreground transition-colors"
+            title="Refresh nudges"
+          >
+            <RefreshCw className={`w-3 h-3 ${loading ? 'animate-spin' : ''}`} />
+          </button>
+          <button
+            onClick={onToggleAutoRefresh}
+            className={`px-1.5 py-0.5 rounded text-[9px] font-medium transition-colors ${autoRefresh ? 'bg-indigo-100 text-indigo-700' : 'bg-muted/50 text-muted-foreground/50'}`}
+            title={autoRefresh ? 'Auto-refresh on — click to disable' : 'Auto-refresh off — click to enable'}
+          >
+            Auto
+          </button>
+          <button
+            onClick={onClose}
+            className="p-1 rounded hover:bg-muted text-muted-foreground/50 hover:text-muted-foreground transition-colors"
+            title="Collapse panel"
+          >
+            <PanelRightClose className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      </div>
+
+      <div className="flex-1 space-y-1.5 overflow-y-auto pr-1 relative">
+        {loading && nudges.length > 0 && (
+          <div className="absolute inset-0 bg-background/50 z-10 flex items-start justify-center pt-8">
+            <RefreshCw className="w-4 h-4 animate-spin text-muted-foreground/50" />
+          </div>
+        )}
+        {loading && nudges.length === 0 && (
+          <>
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="rounded-sm border-l-2 border-l-muted/30 bg-muted/5 px-3 py-3 animate-pulse">
+                <div className="h-2 w-16 bg-muted/30 rounded mb-2" />
+                <div className="h-3 w-full bg-muted/20 rounded mb-1" />
+                <div className="h-3 w-3/4 bg-muted/20 rounded" />
+              </div>
+            ))}
+          </>
+        )}
+
+        {error && !loading && nudges.length === 0 && (
+          <div className="rounded-sm border border-muted/30 bg-muted/5 px-3 py-3 text-center">
+            <AlertTriangle className="w-4 h-4 mx-auto mb-1.5 text-muted-foreground/40" />
+            <p className="text-[12px] text-muted-foreground/70">{error}</p>
+            <button onClick={onRetry} className="mt-2 text-[11px] text-indigo-600 hover:underline">
+              Click to retry
+            </button>
+          </div>
+        )}
+
+        {!loading && !error && nudges.length === 0 && (
+          <div className="rounded-sm border border-green-200/50 bg-green-50/30 px-3 py-3 text-center">
+            <CheckCircle className="w-4 h-4 mx-auto mb-1.5 text-green-600/60" />
+            <p className="text-[12px] text-green-800/70">Estimate looks good. No issues detected.</p>
+          </div>
+        )}
+
+        {nudges.map((nudge) => {
+          const colors = NUDGE_TYPE_COLORS[nudge.type] || NUDGE_TYPE_COLORS.validation
+          const severity = SEVERITY_STYLES[nudge.severity] || SEVERITY_STYLES.warning
           return (
-            <div key={i} className={`rounded-sm border-l-2 ${colors.accent} bg-muted/5 px-3 py-2`}>
-              <span className={`text-[9px] font-medium tracking-widest uppercase ${colors.label}`}>{nudge.label}</span>
-              <p className="mt-0.5 text-[12px] leading-relaxed text-foreground/90">{nudge.message}</p>
-              <p className="mt-1 text-[10px] text-muted-foreground/70">{nudge.footer}</p>
+            <div key={nudge.id} className={`group relative rounded-sm ${severity} ${colors.accent} px-3 py-2`}>
+              <button
+                onClick={() => onDismiss(nudge.id)}
+                className="absolute top-1.5 right-1.5 p-0.5 rounded opacity-0 group-hover:opacity-100 hover:bg-muted text-muted-foreground/40 hover:text-muted-foreground transition-all"
+                title="Dismiss"
+              >
+                <X className="w-3 h-3" />
+              </button>
+              <span className={`text-[9px] font-medium tracking-widest uppercase ${colors.label}`}>{nudge.type.toUpperCase()}</span>
+              <p className="mt-0.5 text-[12px] font-medium leading-snug text-foreground/90">{nudge.title}</p>
+              <p className="mt-0.5 text-[11px] leading-relaxed text-foreground/70">{nudge.message}</p>
+              {nudge.suggested_action && (
+                <p className="mt-1 text-[10px] text-muted-foreground/60 italic">{nudge.suggested_action}</p>
+              )}
             </div>
           )
         })}
       </div>
+
       <div className="mt-3 pt-2.5 border-t border-border/40">
         <div className="flex gap-1.5">
           <Textarea placeholder="Ask about this estimate..." className="min-h-[40px] resize-none text-xs border-border/40 bg-transparent focus-visible:ring-0 placeholder:text-muted-foreground/60" readOnly />
@@ -1942,6 +2037,146 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
 
   useEffect(() => { loadData() }, [loadData])
 
+  // ── AI Nudge State ──
+  const [aiNudges, setAiNudges] = useState<Nudge[]>([])
+  const [aiLoading, setAiLoading] = useState(false)
+  const [aiError, setAiError] = useState<string | null>(null)
+  const [dismissedNudgeIds, setDismissedNudgeIds] = useState<string[]>([])
+  const [aiAutoRefresh, setAiAutoRefresh] = useState(() => {
+    const stored = localStorage.getItem('ai_auto_refresh')
+    return stored !== null ? stored === 'true' : true
+  })
+  const nudgeDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Load dismissed nudges on mount
+  useEffect(() => { getDismissedNudges(estimateId).then(setDismissedNudgeIds) }, [estimateId])
+
+  // Serialize current estimate state for the AI endpoint
+  const estimateStateForAI = useMemo(() => {
+    if (!estimate) return null
+
+    // Compute simple summary totals across all segments
+    let totalRevenue = 0
+    let totalCost = 0
+    for (const log of laborLogs) {
+      for (const entry of laborEntriesMap[log.id] || []) {
+        totalRevenue += entry.quantity * entry.days * entry.unit_rate
+        totalCost += entry.quantity * entry.days * (entry.cost_rate || 0)
+      }
+      for (const item of lineItemsMap[log.id] || []) {
+        const rev = item.quantity * item.unit_cost * (1 + item.markup_pct / 100)
+        totalRevenue += rev
+        totalCost += item.quantity * item.unit_cost
+      }
+    }
+    const grossProfit = totalRevenue - totalCost
+    const gpPercent = totalRevenue > 0 ? (grossProfit / totalRevenue) * 100 : 0
+
+    return {
+      client_name: estimate.clients?.name || null,
+      event_type: estimate.event_type,
+      event_name: estimate.event_name,
+      location: estimate.location,
+      start_date: estimate.start_date,
+      end_date: estimate.end_date,
+      cost_structure: estimate.cost_structure,
+      attendance: estimate.expected_attendance ? parseInt(estimate.expected_attendance) || null : null,
+      segments: laborLogs.map((log) => ({
+        name: log.location_name,
+        status: log.status,
+        labor_entries: (laborEntriesMap[log.id] || []).map((e) => ({
+          role_name: e.role_name,
+          quantity: e.quantity,
+          days: e.days,
+          unit_rate: e.unit_rate,
+          cost_rate: e.cost_rate,
+          resource_type: e.resource_type,
+          gl_code: e.gl_code,
+          rate_card_item_id: e.rate_card_item_id,
+        })),
+        schedule_entries: (scheduleEntriesMap[log.id] || []).map((s) => ({
+          role_name: s.role_name,
+          resource_type: s.resource_type,
+        })),
+        line_items: (lineItemsMap[log.id] || []).map((li) => ({
+          section: li.section,
+          item_name: li.item_name,
+          quantity: li.quantity,
+          unit_cost: li.unit_cost,
+          markup_pct: li.markup_pct,
+          gl_code: li.gl_code,
+          rate_card_item_id: li.rate_card_item_id,
+          is_auto_generated: li.is_auto_generated,
+          fee_basis: li.fee_basis,
+        })),
+      })),
+      summary: {
+        total_revenue: Math.round(totalRevenue * 100) / 100,
+        total_cost: Math.round(totalCost * 100) / 100,
+        gross_profit: Math.round(grossProfit * 100) / 100,
+        gp_percent: Math.round(gpPercent * 10) / 10,
+      },
+    }
+  }, [estimate, laborLogs, laborEntriesMap, lineItemsMap, scheduleEntriesMap])
+
+  const triggerNudgeFetch = useCallback(async (bypassCache = false) => {
+    if (!estimateStateForAI) return
+    setAiLoading(true)
+    setAiError(null)
+    const payload = bypassCache
+      ? { ...estimateStateForAI, _refresh: Date.now() }
+      : estimateStateForAI
+    const [response] = await Promise.all([
+      fetchNudges(estimateId, payload),
+      new Promise((r) => setTimeout(r, 800)), // minimum visible loading time
+    ])
+    if (response.error) {
+      setAiError(response.error)
+    }
+    setAiNudges(response.nudges.filter((n) => !dismissedNudgeIds.includes(n.id)))
+    setAiLoading(false)
+  }, [estimateId, estimateStateForAI, dismissedNudgeIds])
+
+  // Serialize estimate state to a stable string for change detection
+  const estimateStateHash = useMemo(
+    () => estimateStateForAI ? JSON.stringify(estimateStateForAI) : '',
+    [estimateStateForAI]
+  )
+
+  // Track whether initial fetch has happened
+  const initialFetchDone = useRef(false)
+
+  // Debounced auto-refresh when estimate state changes (not on first render)
+  useEffect(() => {
+    if (!aiAutoRefresh || !aiPanelOpen || !estimateStateHash) return
+    if (!initialFetchDone.current) return // skip debounce on first load
+    if (nudgeDebounceRef.current) clearTimeout(nudgeDebounceRef.current)
+    nudgeDebounceRef.current = setTimeout(() => { triggerNudgeFetch() }, 5000)
+    return () => { if (nudgeDebounceRef.current) clearTimeout(nudgeDebounceRef.current) }
+  }, [estimateStateHash, aiAutoRefresh, aiPanelOpen]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Fetch on panel open (once)
+  useEffect(() => {
+    if (aiPanelOpen && !initialFetchDone.current && estimateStateForAI) {
+      initialFetchDone.current = true
+      triggerNudgeFetch()
+    }
+  }, [aiPanelOpen, estimateStateForAI]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  function handleDismissNudge(nudgeId: string) {
+    setAiNudges((prev) => prev.filter((n) => n.id !== nudgeId))
+    setDismissedNudgeIds((prev) => [...prev, nudgeId])
+    if (profile?.id) dismissNudge(estimateId, nudgeId, profile.id)
+  }
+
+  function handleToggleAutoRefresh() {
+    setAiAutoRefresh((prev) => {
+      const next = !prev
+      localStorage.setItem('ai_auto_refresh', String(next))
+      return next
+    })
+  }
+
   // ── Handlers ──
 
   async function handleUpdateEstimate(updates: EstimateUpdate) {
@@ -2357,15 +2592,17 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
 
         {/* Right Panel — Collapsible AI Intelligence */}
         {aiPanelOpen ? (
-          <div className="flex-[3] min-w-[260px] border-l border-border/40 pl-4 relative">
-            <button
-              onClick={() => setAiPanelOpen(false)}
-              className="absolute top-1 right-0 p-1 rounded hover:bg-muted text-muted-foreground/60 hover:text-muted-foreground transition-colors"
-              title="Collapse panel"
-            >
-              <PanelRightClose className="w-4 h-4" />
-            </button>
-            <AINudgePanel />
+          <div className="flex-[3] min-w-[260px] border-l border-border/40 pl-4">
+            <AINudgePanel
+              nudges={aiNudges}
+              loading={aiLoading}
+              error={aiError}
+              autoRefresh={aiAutoRefresh}
+              onToggleAutoRefresh={handleToggleAutoRefresh}
+              onDismiss={handleDismissNudge}
+              onRetry={() => triggerNudgeFetch(true)}
+              onClose={() => setAiPanelOpen(false)}
+            />
           </div>
         ) : (
           <div className="w-9 border-l border-border/40 flex flex-col items-center pt-3 shrink-0">
