@@ -121,6 +121,39 @@ function computeDuration(start: string | null, end: string | null): number | nul
 
 // ── AI Intelligence Panel ────────────────────────────────────────────────────
 
+const LOADING_STEPS = [
+  'Reading estimate data...',
+  'Loading client rate card...',
+  'Checking staffing levels...',
+  'Reviewing financial margins...',
+  'Scanning for missing items...',
+  'Validating rates against MSA...',
+  'Generating recommendations...',
+]
+
+function LoadingNarration() {
+  const [step, setStep] = useState(0)
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setStep((prev) => (prev + 1) % LOADING_STEPS.length)
+    }, 1200)
+    return () => clearInterval(interval)
+  }, [])
+  return (
+    <div className="flex flex-col items-center gap-3 py-6">
+      <div className="relative w-8 h-8">
+        <Sparkles className="w-8 h-8 text-indigo-400/40 animate-pulse" />
+      </div>
+      <p className="text-[11px] text-muted-foreground/70 transition-opacity duration-300">{LOADING_STEPS[step]}</p>
+      <div className="flex gap-1 mt-1">
+        {LOADING_STEPS.map((_, i) => (
+          <div key={i} className={`w-1 h-1 rounded-full transition-colors duration-300 ${i <= step ? 'bg-indigo-400/60' : 'bg-muted/30'}`} />
+        ))}
+      </div>
+    </div>
+  )
+}
+
 const NUDGE_TYPE_COLORS: Record<Nudge['type'], { accent: string; label: string }> = {
   staffing: { accent: 'border-l-indigo-400/60', label: 'text-indigo-600' },
   cost: { accent: 'border-l-amber-400/50', label: 'text-amber-600' },
@@ -190,15 +223,7 @@ function AINudgePanel({
           </div>
         )}
         {loading && nudges.length === 0 && (
-          <>
-            {[1, 2, 3].map((i) => (
-              <div key={i} className="rounded-sm border-l-2 border-l-muted/30 bg-muted/5 px-3 py-3 animate-pulse">
-                <div className="h-2 w-16 bg-muted/30 rounded mb-2" />
-                <div className="h-3 w-full bg-muted/20 rounded mb-1" />
-                <div className="h-3 w-3/4 bg-muted/20 rounded" />
-              </div>
-            ))}
-          </>
+          <LoadingNarration />
         )}
 
         {error && !loading && nudges.length === 0 && (
