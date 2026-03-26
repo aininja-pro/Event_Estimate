@@ -130,7 +130,7 @@ Current mode: Directed
   - Step 1: FastAPI backend (/api) with health check, CORS, Claude API integration
   - Step 2: Nudge rules document (api/prompts/nudge_rules.md) — 20+ plain-English validation rules
   - Step 3: System prompt template (api/prompts/nudge_system_prompt.md) with placeholders
-  - Step 4: Frontend integration — live Intelligence panel replacing hardcoded placeholders, dismiss persistence, debounced auto-refresh, loading/error/empty states
+  - Step 4: Frontend integration — live Intelligence panel replacing hardcoded placeholders, dismiss persistence, debounced auto-refresh, narrated loading animation, loading/error/empty states
 - **Previously completed:** Financial Controls (all 5 steps) and all prior sprints.
 - **Deferred:** Admin Settings UI for GP/approval thresholds (GitHub issue captured).
 - **Next:** Step 5 (deployment config for Render) and Step 6 (already done — this update). Then historical data pipeline.
