@@ -1,256 +1,239 @@
-# Claude Code Guidelines
+# DriveShop Event Estimate Engine
 
-1. **Think through the problem first.** Read the codebase for relevant files before making changes.
+A web application replacing DriveShop's spreadsheet-based event estimation workflow with an intelligent, centralized platform. DriveShop is an automotive experiential marketing company managing vehicle programs (test drives, launches, fleet management) for OEM clients.
 
-2. **Check in before major changes.** Before making any major changes, verify the plan with the user.
-
-3. **Explain changes at a high level.** Every step of the way, provide a high-level explanation of what changes were made.
-
-4. **Keep it simple.** Make every task and code change as simple as possible. Avoid massive or complex changes. Every change should impact as little code as possible. Simplicity is paramount.
-
-5. **Maintain architecture documentation.** Keep `docs/ARCHITECTURE.md` updated when making structural changes.
-
-6. **Never speculate about unread code.** If the user references a specific file, read it before answering. Investigate and read relevant files BEFORE answering questions about the codebase. Never make claims about code before investigating unless certain of the correct answer. Provide grounded, hallucination-free answers.
-
----
-
-# Project: DriveShop Event Estimate Engine
-
-## What This Is
-
-A web application that replaces DriveShop's spreadsheet-based event estimation workflow with an intelligent, centralized platform. DriveShop is an automotive experiential marketing company that manages vehicle programs (test drives, launches, fleet management) for OEM clients like Mazda, Volvo, VW, Lucid, Genesis, Mercedes-Benz, JLR, Hankook, and others.
-
-## Current State
-
-Phase 2 is well underway. Completed features:
-
-- **Rate Card Management Engine** — Supabase schema deployed, all 8 client rate cards seeded from MSA data. Two-tab UI:
-  - **Client Rate Cards tab** — Section-grouped rate tables with collapsible sections (default collapsed), client dropdown selector, MSA vs Custom badge tracking. Add Rate modal uses a searchable fee type dropdown (filtered by section) that auto-fills name, GL code, and unit label from the `fee_types` table. Edit mode shows name read-only with rate-only editing. Inline editable client billing contact fields (name, phone, email, address) in the header row, saving to Supabase on blur. Bulk Import button for uploading CSV/Excel files with fee type matching preview.
-  - **Fee Types tab** — Full CRUD management of the master fee types table, grouped by section (Planning & Admin, Onsite Labor, Travel, Production, Logistics). Add/edit/delete with confirmation dialogs.
-- **fee_types Master Table** — Centralized GL codes based on Dave's feedback. GL codes live in `fee_types` and `rate_card_items` reference them via `fee_type_id`. This ensures GL code consistency across all clients. 127 fee types seeded across 5 sections.
-- **Estimate Builder** — Full estimate creation and editing with Supabase-backed CRUD. Includes:
-  - **Schedule tab** — Calendar-based staffing grid. Date columns auto-generated from segment start/end dates. Click cell to fill 10h, double-click to clear, click filled cell to edit hours. Day type badges per column (Event, Setup, Training, Travel, Off) with color-coded heat map. OT hours shown as `10+N`. Bulk "Fill All" per column. Add Staff modal (multi-select from rate card + custom roles). Add Date for extra columns. Sortable Name/Role column headers (click cycles asc/desc/default). Summary bar with Staff, Person-Days, Per Diem Days, OT Hours, Est. Revenue/Cost, GP, GP%. New segments get an inline date picker to set their own date range and generate the calendar.
-  - **Labor Log tab** — Read-only rollup view when schedule data exists (driven by Schedule tab). Falls back to manual role-based staffing (qty, days, day rate, cost rate, GP calculation) when no schedule. "Add Role from Rate Card" modal supports multi-select with checkboxes and batch add. "+ Add custom role" inline form for one-off entries. Schedule data auto-refreshes when switching tabs so rollup stays current.
-  - Non-labor tabs (Production, Travel & Logistics, Creative, Access Fees & Insurance, Misc) use the same multi-select modal pattern — checkboxes pulling from the client's rate card filtered to the appropriate section, with batch add and "+ Add custom item" for one-off entries. Misc tab uses a manual free-text form (no rate card section mapped).
-  - All add modals correctly propagate `gl_code` and `rate_card_item_id` from the rate card.
-  - Stepper arrows (up/down chevrons) on QTY and DAYS fields for quick increment/decrement.
-  - Multi-segment support ("Segments" replaces "Locations"). Segments are pill-selectable with double-click inline rename. Button reads "+ Add Segment". Each segment can have independent dates.
-  - Event Header with ComboInput dropdowns: Event Type (Ride & Drive, Static Display, Press Event, etc.) and Attendance (range presets: 1–25 through 5,000+). Both allow free-text entry.
-  - Split notes: Internal Notes (not shown to client) and Published Notes (shown on estimate output). Side-by-side layout.
-  - Summary tab with labor grouped by segment, line items grouped by section. Two footer rows: **GR (Gross Revenue)** and **NR (Net Revenue)**. NR = GR minus pass-through section totals (Travel, Production). GP% shown against both GR and NR. Column header uses "GR" instead of "Revenue".
-  - AI nudge panel (right sidebar) for scoping assistance
-- **Workflow Engine** — Full status lifecycle and version control:
-  - **Segment-level status** — Status now lives on individual segments (labor_logs), not the estimate. Each segment transitions independently: Draft → Review → Approved → Active → Recap → Invoiced → Complete. Estimate-level status is computed as the lowest segment status via `computeEstimateStatus()`.
-  - **SegmentTransitionBar** — Per-segment status progress bar with contextual action buttons (Submit for Review, Approve, Mark Active, etc.). Edit permissions gated per-segment based on status.
-  - **SegmentStatusBadge** — High-contrast colored pill badges (e.g. `bg-amber-100 text-amber-800 border-amber-300` for Review) used in both the builder and estimates list. Replaced earlier tiny dot+label design for better readability.
-  - **Status bar UI** — Linear-style progress track in Estimate Builder header showing rolled-up estimate status.
-  - **Version snapshots** — Full estimate snapshot captured on every status transition (including segment-level transitions). Snapshots include estimate header, labor logs with entries, schedule entries with day entries, line items, day types, and computed totals (revenue, cost, GP, GP%). Totals correctly use `computeScheduleRollup()` for schedule-based estimates. Segment transition summaries appear in the History panel.
-  - **Version history panel** — Slide-out History panel accessible from estimate header with Versions and Approvals tabs. Expandable version entries with change summaries. Read-only snapshot modal shows estimate header, totals bar, labor (manual or schedule rollup with "(from schedule)" label), and non-labor line items. Rollback to any previous version with confirmation dialog. Search input filters versions by summary, user, or version number. Segment filter chips extracted from version summaries for quick filtering. Dynamic tab count shows filtered vs total (e.g. "Versions (5 of 29)"). Updated status badge colors: approved=blue, active=fuchsia, recap=violet, complete=green.
-  - **Approval routing** — Threshold-based routing ($50K+ triggers executive review). ApprovalBanner component shown on Review status with submitter info, threshold display, and Approve/Send Back buttons with confirmation dialogs.
-  - **Read-only lockdown** — Interactive elements disabled per-segment based on segment status. Segments in review, approved, active, or complete status are locked. Segment removal gated on individual segment draft status.
-- **Estimates List Page** — Table view of all estimates with create flow via modal dialog, navigation to Estimate Builder. Status column shows per-segment colored pill badges (segment name + status label, e.g. amber for Review, blue for Approved, fuchsia for Active) using `EstimateWithSegments` type that joins `labor_logs` data. Segment status legend bar below filter tabs with larger dots and bolder text. Sortable column headers (Event Name, Client, Status, Last Updated) with asc/desc/default cycling and chevron indicators. Search input filters by event name, client, location, and segment names. Status filter tabs with counts (All/Draft/Review/Approved/Active/etc.). Three-dot context menu per row with Archive and Delete actions. Delete has confirmation dialog. "Show archived / Hide archived" toggle with count. Archived rows use muted text color.
-- **Collapsible Sidebar** — Linear/Notion-style sidebar toggle. Expanded (256px): full logo, section headers, icon + label nav items, user footer with name/role/sign-out. Collapsed (64px icon rail): DriveShop favicon, icon-only nav with native tooltips, user initial circle. Chevron toggle button persists state to `localStorage`. Smooth `transition-all duration-200` animation. `NavSection` helper component renders each section (header + items) to avoid repetition.
-- **UI Styling** — Professional density pass (Stripe/Linear aesthetic) across all pages. Muted hunter green accents, slate section backgrounds, consistent `text-[13px]` body / `text-[10px]` uppercase headers. High-contrast light-background color palette for all badges and pills (e.g. `bg-amber-100 text-amber-800 border-amber-300`) replacing earlier dark-theme-only colors.
-- **Authentication & User Management** — Supabase Auth with email/password login. No self-service signup — admins invite users. Five roles: admin, cfo, operations, production_manager, account_manager. Route guards (RequireAuth, RequireAdmin) protect all routes. Auth context provider (`useAuth`/`useUser` hooks) supplies user identity throughout the app. Admin > Users page for invite, role assignment, activate/deactivate. Sidebar shows user name/role and sign-out button.
-- **Notification System** — In-app notifications with Supabase Realtime. NotificationBell in header with unread count badge and dropdown. Notification dispatch wired into all workflow trigger points: segment status transitions notify CFO (review), creator (approved/sent back), production team (active). Approval decisions and rollbacks notify the original submitter/creator. `notification-service.ts` handles create, query, mark-read, and role-based dispatch respecting user preferences.
-
-All data persists to Supabase (estimates, labor_logs, labor_entries, estimate_line_items, rate_card_items, fee_types, clients, rate_card_sections, schedule_entries, schedule_day_entries, schedule_day_types, estimate_versions, approval_requests, status_transitions, profiles, notifications).
-
-**Completed Sprint:** Auth Foundation + Notification System — Supabase Auth integration, profiles table with roles, login page, route guards, admin users page, notification bell with Realtime, notification dispatch on all workflow transitions, replaced all hardcoded 'Current User' strings with real user identity.
-**Next Sprint (Weeks 8-10):** AI Intelligence (scoping assistant, historical data training).
+Client: DriveShop (Derek Drake, CEO)
+Phase: Assembly (Phase 2, Week 9)
+Started: February 2026
+Tool Ladder Level: 3 (VS Code + Claude Code)
 
 ## Tech Stack
 
-| Layer | Technology |
-|-------|-----------|
-| Frontend | React 19 + TypeScript, Vite 7, React Router v7 |
-| Styling | Tailwind CSS v4 + shadcn/ui |
-| Charts | Recharts |
-| File Parsing | SheetJS (xlsx) for CSV/Excel import |
-| Database | PostgreSQL via Supabase |
-| Backend | Python + FastAPI (to be added in Phase 2) |
-| AI | Claude API (Anthropic) |
-| PDF | WeasyPrint (to be added) |
-| Accounting | Sage Intacct API (to be added) |
-| Deployment | Render (static site with SPA rewrite) |
+- Frontend: React 19 + TypeScript, Vite 7, React Router v7
+- Styling: Tailwind CSS v4 + shadcn/ui
+- Charts: Recharts
+- File Parsing: SheetJS (xlsx) for CSV/Excel import
+- Database: PostgreSQL via Supabase
+- Backend: Python + FastAPI (/api directory)
+- AI: Claude API (Anthropic)
+- PDF: WeasyPrint (to be added)
+- Accounting: Sage Intacct API (to be added)
+- Deployment: Render (static site with SPA rewrite)
 
-## Key File Structure
+## Workspaces
 
-```
-/
-├── src/
-│   ├── App.tsx                    — Router and layout definitions
-│   ├── components/
-│   │   ├── layout/                — AppLayout, Sidebar, Header + Stakeholder variants
-│   │   ├── schedule/              — ScheduleGrid (calendar staffing grid component)
-│   │   ├── segments/              — SegmentStatusBadge, SegmentTransitionBar (per-segment workflow UI)
-│   │   ├── ApprovalBanner.tsx     — Approval actions for estimates in Review status
-│   │   ├── EstimateStatusBar.tsx  — Linear-style progress track with rolled-up estimate status
-│   │   ├── NotificationBell.tsx   — Header notification dropdown with unread count + Realtime
-│   │   ├── VersionHistoryPanel.tsx — Slide-out panel with versions and approvals tabs
-│   │   ├── VersionSnapshotModal.tsx — Read-only snapshot viewer with schedule rollup support
-│   │   └── ui/                    — shadcn/ui primitives (button, card, table, etc.)
-│   ├── data/                      — Pre-computed JSON for dashboard views
-│   ├── lib/
-│   │   ├── ai.ts                  — Anthropic API integration
-│   │   ├── auth.tsx               — AuthProvider, useAuth/useUser hooks (Supabase Auth)
-│   │   ├── data.ts                — Historical data helpers
-│   │   ├── estimate-service.ts    — Estimate/labor CRUD (Supabase)
-│   │   ├── notification-service.ts — Notification CRUD, role-based dispatch
-│   │   ├── rate-card-service.ts   — Rate card/client CRUD (Supabase)
-│   │   ├── schedule-service.ts    — Schedule entries, day types, rollup (Supabase)
-│   │   ├── segment-status-service.ts — Per-segment status transitions, edit rules, notification dispatch
-│   │   ├── workflow-service.ts    — Status machine, versioning, approvals, rollback (Supabase)
-│   │   ├── supabase.ts            — Supabase client (graceful null if env vars missing)
-│   │   └── utils.ts               — cn() helper
-│   ├── pages/                     — All page components (LoginPage, AdminUsersPage, EstimateBuilderPage, etc.)
-│   └── types/                     — TypeScript interfaces (estimate incl. EstimateWithSegments, rate-card, schedule, workflow incl. SegmentStatus)
-├── scripts/                       — Python data pipeline scripts
-├── historical_estimates/          — 1,700+ historical estimate spreadsheets
-├── docs/
-│   └── ARCHITECTURE.md            — Detailed architecture documentation
-├── *.json                         — Extracted/enriched data files (rate cards, scans, etc.)
-└── *.md                           — Build instruction files from Phase 1
-```
+- /.planning — Phase plans, roadmap, project state, codebase conventions, architecture docs
+- /src — Application code (React frontend)
+- /scripts — Python data pipeline, migrations, seed scripts
+- /docs — Architecture docs, phase kickoffs, screenshots
+- /data — Client data files, parsed JSON, historical template
+- /historical_estimates — 1,700+ historical estimate spreadsheets (reference data)
 
-## Dual Layout System
+## Routing
 
-The app has two independent layout trees under a single BrowserRouter, wrapped by `AuthProvider`:
+| Task | Go to | Read |
+|------|-------|------|
+| Understand project scope and phases | /.planning | PROJECT.md + ROADMAP.md + STATE.md |
+| Understand architecture and patterns | /.planning/codebase | ARCHITECTURE.md + CONVENTIONS.md + STACK.md |
+| Understand current concerns or risks | /.planning/codebase | CONCERNS.md |
+| See what was done in a specific phase | /.planning/phases/[phase] | PLAN.md + SUMMARY.md files |
+| Write application code | /src | This CLAUDE.md (conventions below) |
+| Write or run a migration | /scripts | Existing migration files as reference |
+| Review architecture docs | /docs | ARCHITECTURE.md |
+| Review phase kickoff docs | /docs/phase-kickoffs | Relevant kickoff MD |
+| Work with data files | /data | Existing JSON/XLSX files |
+| Debug or investigate | /src | Read the specific files first, then answer |
 
-- **`/login`** — Public login page (email/password, no self-service signup)
-- **AppLayout** (`/`) — Protected by `RequireAuth` route guard. Full internal app with collapsible sidebar (Discovery Intelligence, Phase 1 Deliverables, Production, UI Concepts, Admin sections). Sidebar collapses to 64px icon rail via chevron toggle (state persisted to localStorage). Header shows NotificationBell and "CONFIDENTIAL" badge. Sidebar footer shows signed-in user name/role/sign-out (or initial circle when collapsed). Admin section (Users, Feedback) only visible to admin role.
-  - **`/admin/users`** — Protected by `RequireAdmin` route guard. User management page.
-- **StakeholderLayout** (`/stakeholder`) — Protected by `RequireAuth`. Simplified review portal with its own sidebar, "REVIEW" badge. Shares page components via React Router Outlet.
+## Commands
 
-## Supabase Integration
+| Action | Command |
+|--------|---------|
+| Dev server (frontend) | npm run dev |
+| Dev server (backend) | cd api && uvicorn main:app --reload --port 8000 |
+| Build | npm run build |
+| Preview build | npm run preview |
+| Lint | npx eslint . |
+| Deploy | Push to main (Render auto-deploys) |
 
-Supabase is the primary data store. Client configured in `src/lib/supabase.ts` (graceful null if env vars missing). Key tables:
+## Working Modes
 
-- `clients` — OEM client records (Mazda, Volvo, VW, Lucid, etc.) with billing contact fields (name, email, phone, address)
-- `rate_card_sections` — Section groupings per client (Planning & Admin Labor, Onsite Labor, etc.)
-- `rate_card_items` — Individual rate entries with MSA/Custom tracking, references `fee_type_id`
-- `fee_types` — Master table of centralized GL codes and fee type names. Section values are snake_case keys: `planning_admin`, `onsite_labor`, `travel`, `production`, `logistics`
-- `profiles` — User profiles linked to `auth.users`. Fields: id (UUID FK), email, full_name, role (admin/cfo/operations/production_manager/account_manager), notification_prefs (JSONB), phone, is_active. Auto-created via trigger on user signup.
-- `notifications` — In-app notification records. Fields: id, user_id (FK → profiles), type, title, body, estimate_id, labor_log_id, metadata (JSONB), is_read. Realtime enabled.
-- `estimates` — Estimate header records (event name, client, dates, status, cost structure, internal_notes, published_notes). Status includes 'archived'. `expected_attendance` is text (stores range strings like "50–100"). `created_by` UUID FK → profiles.
-- `labor_logs` — Segments within an estimate (geographic or temporal divisions). Each segment owns its own `status` field (draft/review/approved/active/recap/invoiced/complete) for independent workflow progression. `assigned_to` UUID FK → profiles.
-- `labor_entries` — Individual labor roles staffed per segment (qty, days, rates)
-- `estimate_line_items` — Non-labor line items per segment per section (production, travel, etc.)
-- `schedule_entries` — Staff rows in the schedule grid (person_name, role_name, day_rate, cost_rate, flags for airfare/hotel/per_diem, staff_group_id for rollup grouping)
-- `schedule_day_entries` — Hours per staff per date (hours, per_diem_override)
-- `schedule_day_types` — Day type per date column per segment (event, setup, training, travel, off)
-- `estimate_versions` — Version snapshots with full JSON snapshot, version number, change summary, status at time of snapshot
-- `approval_requests` — Approval workflow records (requested_by, reviewed_by, status, threshold_triggered, notes)
-- `status_transitions` — Audit log of all status changes (from_status, to_status, transitioned_by, reason, version_id)
+- **Directed mode:** I tell you exactly what to build, file by file. Follow instructions precisely.
+- **Autonomous mode:** I give you the blueprint and say "build it." You make implementation decisions within the conventions. Ask before deviating from the blueprint.
 
-Service layers: `src/lib/rate-card-service.ts` (clients, rate cards, fee types CRUD), `src/lib/estimate-service.ts`, `src/lib/schedule-service.ts` (schedule grid CRUD + rollup computation), `src/lib/workflow-service.ts` (status machine, versioning, approvals, rollback), `src/lib/notification-service.ts` (notification CRUD + role-based dispatch), and `src/lib/auth.tsx` (AuthProvider, useAuth/useUser hooks).
+Current mode: Directed
+
+## Conventions
+
+- Functional React components only. No class components.
+- All Supabase queries go through service layers in src/lib/. No direct Supabase calls in components.
+- Role-permission checks use src/lib/permissions.ts hasPermission() function.
+- Status transitions use src/lib/segment-status-service.ts and src/lib/workflow-service.ts.
+- shadcn/ui primitives in src/components/ui/. Do not create custom primitives that duplicate existing ones.
+- Consistent text sizing: text-[13px] body, text-[10px] uppercase headers.
+- High-contrast light-background color palette for all badges/pills.
+- Segment-level workflow: status lives on labor_logs, not estimates. Estimate status computed via computeEstimateStatus().
+- fee_types is the master table for GL codes. rate_card_items reference fee_type_id.
+- All add modals propagate gl_code and rate_card_item_id from the rate card.
+- Version snapshots captured on every status transition including segment-level.
+- Notifications dispatched on all workflow trigger points via notification-service.ts.
+- Auth uses Supabase Auth with invite-only signup via isolated client. Five roles: admin, cfo, operations, production_manager, account_manager.
+- ComboInput pattern for dropdowns that also accept free text.
+- Agency fee auto-generated on estimate creation via createAutoFeeLines() in estimate-service.ts. Fee line stored as section='fees', fee_basis='total_estimate', is_auto_generated=true.
+- Resource type (internal/external/vendor) tracked on schedule_entries and labor_entries. Default 'external'.
+- Locked rates: rate_card_items.is_rate_locked disables unit_rate editing in the rate card management dialog.
+- GP threshold warning: system_settings key 'gp_threshold_pct' (default 20%). Summary tab shows amber banner when GP% is below threshold.
+- in_review segments always show "Send Back to Estimate" button (handles post-rollback stuck state).
+- AI nudge rules defined in api/prompts/nudge_rules.md. Edit rules in plain English — no code changes needed.
+- All Claude API calls route through FastAPI backend. Never call Anthropic API from the frontend.
+
+## Avoid
+
+- Do not use global state. Use React context or prop drilling.
+- Do not put Supabase queries directly in page components. Use service layers.
+- Do not hardcode user identity strings. Use useUser() hook.
+- Do not add new dependencies without checking if an existing one covers the need.
+- Do not modify Supabase schema without a migration script in /scripts.
+- Do not speculate about unread code. Read the file first, then answer.
+- Do not make major changes without checking in first.
+
+## Critical Rules
+
+1. Think through the problem first. Read the codebase for relevant files before making changes.
+2. Check in before major changes. Verify the plan with me.
+3. Explain changes at a high level every step of the way.
+4. Keep it simple. Every change should impact as little code as possible.
+5. Maintain docs/ARCHITECTURE.md when making structural changes.
+6. Never speculate about unread code. Read first, answer second.
+
+## Session Log
+
+| Date | What was built | What's next | Notes |
+|------|---------------|-------------|-------|
+| Wk 1-2 | Rate Card Management Engine, Supabase schema, 8 client rate cards seeded | Estimate Builder | Foundation complete |
+| Wk 3-5 | Estimate Builder UI, labor planning, calculations, multi-segment support | Schedule tab | Core build complete |
+| Wk 5 | Fee Types tab, fee-type-linked Add Rate, client contacts, bulk import | Schedule grid | Rate card refinements |
+| Wk 5-6 | Multi-select modals, custom items, steppers, combo dropdowns, split notes, NR summary, archive/delete | Schedule tab | Builder UX complete |
+| Wk 6 | Schedule tab (calendar staffing grid), Labor Log rollup, sortable columns, per-segment dates | Workflow engine | Schedule complete |
+| Wk 6-7 | Workflow engine: status machine, versioning, approvals, history panel, rollback, status bar, lockdown | Segment-level workflow | Workflow complete |
+| Wk 7 | Segment-level workflow: status on labor_logs, SegmentTransitionBar, SegmentStatusBadge, estimates list overhaul | Auth + notifications | Segment workflow complete |
+| Wk 7-8 | UX polish: version history search, segment filter, updated badge colors | Auth foundation | Polish pass done |
+| Wk 8 | Auth: Supabase Auth, profiles, login, route guards, admin users, notification bell + Realtime, dispatch on all transitions | Role-permission enforcement | Auth + notifications complete |
+| Wk 8 | Role-permission enforcement: permissions.ts, wired into all gated UI, admin invite fixes, RLS | Bug fixes + workflow refinement | Permissions complete |
+| Wk 9 | Bug fixes (Add Segment, ordering), three-gate approval chain, configurable threshold, pipeline as default status | Financial Controls sprint | Approval chain complete |
+| Wk 9 | Financial Controls: agency fee auto-populate, Fees & Markups tab, resource type tracking, locked rate cards, GP threshold, rollback bug fix | AI Intelligence sprint | Financial Controls complete |
+| Wk 9-10 | AI Intelligence Phase 1: FastAPI backend, Claude API integration, nudge rules engine, live Intelligence panel | Historical data pipeline | AI nudges live |
+
+## Current State
+
+- Phase 2, Week 9-10. AI Intelligence sprint.
+- **Completed this session:** AI Intelligence Phase 1 (Steps 1-4 of AI Nudges blueprint).
+  - Step 1: FastAPI backend (/api) with health check, CORS, Claude API integration
+  - Step 2: Nudge rules document (api/prompts/nudge_rules.md) — 20+ plain-English validation rules
+  - Step 3: System prompt template (api/prompts/nudge_system_prompt.md) with placeholders
+  - Step 4: Frontend integration — live Intelligence panel replacing hardcoded placeholders, dismiss persistence, debounced auto-refresh, loading/error/empty states
+- **Previously completed:** Financial Controls (all 5 steps) and all prior sprints.
+- **Deferred:** Admin Settings UI for GP/approval thresholds (GitHub issue captured).
+- **Next:** Step 5 (deployment config for Render) and Step 6 (already done — this update). Then historical data pipeline.
+
+### New Tables Added This Sprint
+- `estimate_nudge_dismissals` (estimate_id, nudge_id, dismissed_by, dismissed_at)
+
+### New Columns Added (Financial Controls Sprint)
+- `estimate_line_items.is_auto_generated` (BOOLEAN DEFAULT FALSE)
+- `estimate_line_items.fee_basis` (TEXT, nullable)
+- `schedule_entries.resource_type` (TEXT DEFAULT 'external', CHECK internal/external/vendor)
+- `labor_entries.resource_type` (TEXT DEFAULT 'external', CHECK internal/external/vendor)
+- `rate_card_items.is_rate_locked` (BOOLEAN DEFAULT FALSE)
+
+### Known Issues / Tech Debt
+- Email notifications wired but Resend integration not deployed yet (Edge Function needed).
+- SMS notifications deferred pending feedback.
+- PDF generation (WeasyPrint) not yet implemented.
+- Sage Intacct integration not yet started.
+- DriveShop internal rate card needs real rate values from Derek/HR (structure in place, $0 placeholders).
+- Historical event data (988 bid-vs-actual records) not yet migrated to Supabase — lives in enriched_master_index.json.
+- Nudge rules are starter set — expand based on Dave/Tatiana feedback.
+- FastAPI backend not yet deployed to Render (runs locally, deployment config pending).
+
+## Architecture Notes
+
+### Dual Layout System
+- `/login` — Public login page
+- **AppLayout** (`/`) — Protected. Full internal app with collapsible sidebar (256px expanded, 64px collapsed). Sidebar sections: Discovery Intelligence, Phase 1 Deliverables, Production, UI Concepts, Admin. Header shows NotificationBell and "CONFIDENTIAL" badge.
+- **StakeholderLayout** (`/stakeholder`) — Protected. Simplified review portal with its own sidebar.
+
+### Key Service Layers
+- `estimate-service.ts` — Estimate/labor CRUD
+- `rate-card-service.ts` — Clients, rate cards, fee types CRUD
+- `schedule-service.ts` — Schedule grid CRUD + rollup computation
+- `workflow-service.ts` — Status machine, versioning, three-gate approvals, rollback
+- `segment-status-service.ts` — Per-segment status transitions, edit rules, notification dispatch
+- `notification-service.ts` — Notification CRUD + role-based dispatch
+- `permissions.ts` — Role-permission matrix and hasPermission()
+- `system-settings-service.ts` — Configurable settings (approval threshold)
+- `auth.tsx` — AuthProvider, useAuth/useUser hooks
+- `supabase.ts` — Main client + createIsolatedClient() for admin invite
+- `ai-nudge-service.ts` — Frontend service for fetching nudges from FastAPI and managing dismissals
+
+### Supabase Tables
+clients, rate_card_sections, rate_card_items, fee_types, profiles, notifications, estimates, labor_logs (segments with per-segment status), labor_entries, estimate_line_items, schedule_entries, schedule_day_entries, schedule_day_types, estimate_versions, approval_requests, status_transitions, system_settings, estimate_nudge_dismissals
 
 ## Environment Variables
 
 | Variable | Purpose |
 |----------|---------|
-| `VITE_ANTHROPIC_API_KEY` | Anthropic API key for AI Scoping Assistant |
-| `VITE_SUPABASE_URL` | Supabase project URL |
-| `VITE_SUPABASE_ANON_KEY` | Supabase anonymous/public key |
-
----
-
-# Business Domain Knowledge
-
-## DriveShop's Rate Card System
-
-DriveShop maintains **separate rate cards for each OEM client**. Each client's MSA (Master Service Agreement) defines unique rates, markup rules, and cost structures. There is no single universal rate card.
-
-### Three Cost Types
-
-Every rate card item falls into one of three categories:
-
-1. **Labor** — Roles billed at a day rate or hourly rate. DriveShop makes margin on the spread between bill rate and pay rate. Examples: Event Director ($700/day), Product Specialist ($800/day), Chauffeur ($100/hr).
-
-2. **Flat Fees** — Fixed charges from the MSA, no receipts required. Billed per unit/day/event. Examples: Radio Rental ($20/unit/day), Event Insurance ($500/day), Detailing Supplies ($10/vehicle/prep).
-
-3. **Pass-Through Costs** — Receipt-based expenses passed to the client with a client-specific markup multiplier. Examples: Fuel, Airfare, Hotels, Shipping. Markup varies by client (Lucid = 1.5%, Mazda = 5%, VW = 0%, Hankook = 10%).
-
-### Client-Specific Rules
-
-Each client rate card has:
-- **Client Name**
-- **Third Party Cost Markup %** — markup applied to all pass-through costs
-- **Agency Fee %** — some clients (e.g., Mazda at 10%) have an additional agency fee on total bid
-- **Trucking Markup %** — some clients (e.g., Volvo at 20%) have separate trucking markup
-
-### Rate Card Sections (standard groupings)
-
-1. Planning & Administration Labor
-2. Onsite Event Labor
-3. Travel Expenses (Pass Through)
-4. Creative Costs
-5. Production Expenses (Pass Through)
-6. Logistics Expenses (Flat Fee)
-
-### MSA vs. Custom Rates
-
-Each section has "From MSA" rates (locked, from the contract) and "Added rates determined by project scope" (custom rates added by account managers for specific projects). Custom rates should persist for future projects and be flagged as non-MSA.
-
-### Corporate vs. Office Cost Structure
-
-- **Corporate-produced events** — DriveShop hires contractors directly. Margin = bill rate minus pay rate (variable per contractor).
-- **Office-produced events** — Regional offices execute. They receive 75% of revenue (80% for VW). Pass-throughs paid at 100%.
-
-### GL Codes
-
-GL codes are standardized across all clients. Each line item maps to a GL code for Intacct integration. Format examples: 4000.01, 4000.26, 4025.12, 4075.04.
-
-### Two Data Sources for Rates
-
-1. **Tatiana's Event Rate Cards** (`DriveShop_Event_Estimate_Template_12_01_25.xlsx`) — 8 client tabs (Lucid, VW, JLR, Hankook, Mazda, MB, Volvo, Volvo MS) with MSA rates, sections, and GL codes. This is the primary source for the Event Estimate Engine.
-
-2. **Dave's FMS Rate Matrix** (`FMS_Rate_Matrix.xlsx`) — Fleet Management rates. 146 fee types × 15 brands. Values are either flat dollar amounts or multiplier percentages (100 = at cost, 101.5 = 1.5% markup, 105 = 5% markup). Column B flags pass-through items.
-
-### Rate Card Ownership
-
-Account Managers own their client rate cards (recommended by Tatiana, pending Derek's confirmation). They can add new rates for project-specific needs. Accountants review but don't maintain rates.
-
-### Estimate Template Structure
-
-When building an estimate, rates are consumed in a grid format:
-- Line item name | Qty 1 | Qty 2 | Unit Rate | Subtotal | 3rd Party Fee | Total
-- Grouped by section with section totals
-- Grand Total at bottom
-- Pass-through sections include a 3rd Party Fee column for markup
-
----
-
-# Phase 2 Build Plan (12 weeks)
-
-| Phase | Weeks | Focus |
-|-------|-------|-------|
-| Foundation | 1-2 | Rate card engine, database schema, Supabase setup |
-| Core Build | 3-5 | Estimate builder UI, labor planning, calculations |
-| Workflow | 6-7 | Approval engine, version control, notifications |
-| Intelligence | 8-10 | AI scoping assistant, historical data training |
-| Outputs | 10-11 | Change orders, recaps, PDF generation |
-| Delivery | 12 | Intacct integration, pipeline dashboard, QA, training |
-
-**Weeks 1-2 (Complete):** Rate Card Management Engine
-**Weeks 3-5 (Complete):** Estimate Builder & Labor Planning
-**Week 5 (Complete):** Rate Card refinements — Fee Types tab, fee-type-linked Add Rate, client contacts, bulk import
-**Week 5-6 (Complete):** Estimate Builder UX — multi-select modals, custom items, steppers, combo dropdowns, split notes, NR summary, archive/delete
-**Week 6 (Complete):** Schedule tab — calendar staffing grid, Labor Log read-only rollup from schedule, sortable columns, per-segment date picker, auto-refresh on tab switch
-**Weeks 6-7 (Complete):** Workflow Engine — status state machine, version snapshots (with schedule rollup support), approval routing with threshold detection, version history panel with snapshot viewer and rollback, linear status bar UI, estimates list badges/filters/quick actions, read-only lockdown for locked statuses
-**Week 7 (Complete):** Segment-level workflow — status transitions moved from estimate-level to per-segment, SegmentTransitionBar and SegmentStatusBadge components, segment transitions create version snapshots, edit permissions gated per-segment, segment creation order preserved. Estimates list overhaul — segment status pills replacing single badge, sortable column headers, search input, removed estimate-level action buttons (actions now per-segment in builder).
-**Week 7-8 (Complete):** UX polish — Version History search and segment filter, updated status badge color palette (blue/fuchsia/violet/green). High-contrast pill badges for all status indicators (estimates list, builder, admin users).
-**Week 8 (Complete):** Auth Foundation + Notification System — Supabase Auth integration (email/password, invite-only), profiles table with 5 roles, login page, RequireAuth/RequireAdmin route guards, admin users page (invite, role assignment, activate/deactivate), notification bell with Realtime subscription, notification dispatch on all workflow transitions (segment status, approvals, rollbacks), replaced all 6 hardcoded 'Current User' strings with real user identity from auth context. SQL migration: `scripts/migration_auth_profiles_notifications.sql`.
-**Next Sprint (Weeks 8-10):** AI Intelligence (scoping assistant, historical data training)
-
-### Future Features (Not Yet Scheduled)
-- **Email Notifications** — Resend integration via Supabase Edge Function (`send-notification`). All dispatch points already wired in `notification-service.ts`. `notification_prefs.email` field on profiles already exists. Needs: Resend account + API key, Edge Function deployment, email templates (approval request, status change, decision, rollback). Free tier = 100 emails/day (sufficient for 10-20 users).
-- **SMS Notifications** — For field staff who won't have the app open. Deferred pending feedback on whether email alone is sufficient.
+| VITE_ANTHROPIC_API_KEY | Anthropic API key for AI Scoping Assistant |
+| VITE_SUPABASE_URL | Supabase project URL |
+| VITE_SUPABASE_ANON_KEY | Supabase anonymous/public key |
+| VITE_API_URL | FastAPI backend URL (e.g. http://localhost:8000) |
+| ANTHROPIC_API_KEY | Claude API key (server-side, in /api/.env) |
+| SUPABASE_SERVICE_KEY | Supabase service role key (server-side, in /api/.env) |
 
 ## Key Stakeholders
 
 - **Derek** — CEO. Decision maker. Approved Phase 2.
-- **Tatiana** — CFO. Owns rate card data, reviews estimates over $50K/$100K. Source of truth for MSA rates and markup rules.
-- **Dave** — Operations. Handles estimate building, labor logs, FMS data. Manages media scheduling system.
-- **Dan & Tim** — Production managers. Daily users who build estimates and run events. Key feedback providers for UI.
-- **Account Managers** (e.g., Gail for Lucid) — Own their client relationships and rate cards. Will maintain rates in the system.
+- **Tatiana** — CFO. Owns rate card data, reviews estimates over $50K/$100K.
+- **Dave** — Operations. Builds estimates, manages labor logs and FMS data.
+- **Dan & Tim** — Production managers. Daily users, key UI feedback providers.
+- **Account Managers** (e.g., Gail for Lucid) — Own client relationships and rate cards.
+
+---
+
+## Business Domain Knowledge
+
+### DriveShop's Rate Card System
+
+DriveShop maintains separate rate cards per OEM client. Each client's MSA defines unique rates, markup rules, and cost structures.
+
+**Three Cost Types:**
+1. **Labor** — Roles billed at day/hourly rate. Margin on spread between bill and pay rate.
+2. **Flat Fees** — Fixed MSA charges, no receipts. Billed per unit/day/event.
+3. **Pass-Through Costs** — Receipt-based, passed to client with client-specific markup (Lucid 1.5%, Mazda 5%, VW 0%, Hankook 10%).
+
+**Client-Specific Fields:** Client Name, Third Party Cost Markup %, Agency Fee %, Trucking Markup %.
+
+**Rate Card Sections:** Planning & Admin Labor, Onsite Event Labor, Travel Expenses (pass-through), Creative Costs, Production Expenses (pass-through), Logistics Expenses (flat fee).
+
+**MSA vs Custom:** Each section has MSA rates (locked) and custom rates (added per project, flagged as non-MSA).
+
+**Corporate vs Office:** Corporate events = DriveShop hires contractors directly (variable margin). Office events = regional offices get 75% revenue (80% for VW), pass-throughs at 100%.
+
+**GL Codes:** Standardized across clients. Format: 4000.01, 4025.12, etc. Live in fee_types table.
+
+**Two Rate Sources:**
+1. Tatiana's Event Rate Cards (DriveShop_Event_Estimate_Template) — 8 client tabs, primary source.
+2. Dave's FMS Rate Matrix — Fleet rates, 146 fee types x 15 brands.
+
+**Rate Card Ownership:** Account Managers own their client rate cards per Tatiana's recommendation.
+
+## Phase 2 Build Plan (12 weeks)
+
+| Phase | Weeks | Focus | Status |
+|-------|-------|-------|--------|
+| Foundation | 1-2 | Rate card engine, schema, Supabase | Complete |
+| Core Build | 3-5 | Estimate builder, labor planning | Complete |
+| Workflow | 6-7 | Approvals, versioning, notifications | Complete |
+| Auth | 8 | Authentication, roles, permissions | Complete |
+| Intelligence | 9-10 | AI scoping, historical data | In Progress |
+| Outputs | 10-11 | Change orders, recaps, PDF gen | Not Started |
+| Delivery | 12 | Intacct, pipeline dashboard, QA | Not Started |
