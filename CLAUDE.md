@@ -126,17 +126,22 @@ Current mode: Directed
 
 ## Current State
 
-- Phase 2, Week 10. AI Intelligence sprint complete.
-- **Completed this session:** AI Historical Data Pipeline (all 6 steps of AI Historical blueprint).
-  - Step 1: Two new Supabase tables (historical_events, historical_patterns)
-  - Step 2: Migration script — 1,674 events loaded from enriched_master_index.json (988 with recap data)
-  - Step 3: Event type classification via Claude Haiku — all 1,674 events classified into 8 types
-  - Step 4: Pattern computation — 98 patterns (90 client-specific + 8 ALL-client fallbacks) by client × event_type
-  - Step 5: Nudge pipeline updated — historical patterns injected into prompt, 5 new historical comparison rules
-  - Step 6: CLAUDE.md updates
-- **Previously completed:** AI Intelligence Phase 1 (FastAPI backend, nudge rules, live Intelligence panel), Financial Controls, and all prior sprints.
+- Phase 2, Week 10. AI Intelligence sprint.
+- **Completed this session:**
+  - AI Intelligence Phase 1 (all 6 steps of AI Nudges blueprint): FastAPI backend, Claude API integration, nudge rules engine, live Intelligence panel with dismiss, loading narration, auto/manual refresh UI, deployed to Render
+  - AI Historical Data Pipeline (all 6 steps of AI Historical blueprint): 1,674 events migrated, classified into 8 types, 98 pre-computed patterns, historically-enriched nudges
+  - Schedule data wiring: `onDataChange` callback on ScheduleGrid to refresh parent state (scheduleEntriesMap, laborEntriesMap, dayTypesMap)
+  - Day type data (`schedule_day_types`) added to AI payload so Claude can see Travel/Setup/Event column labels
+- **UNRESOLVED — Nudge auto-refresh is broken:**
+  - The 5-second debounced auto-refresh after data changes does not work reliably
+  - Manual refresh button does not consistently send updated data to the API
+  - Root cause attempted: stale closures in useCallback/useEffect, `initialFetchDone` ref blocking debounce, circular dependency in effect dependency arrays
+  - Multiple fix attempts failed. The core issue is that `estimateStateForAI` (useMemo) depends on state variables (estimate, laborEntriesMap, scheduleEntriesMap, lineItemsMap, dayTypesMap) that don't always update in time, AND the debounce/trigger mechanism has closure issues that prevent the latest state from reaching the API call
+  - The ScheduleGrid manages its own internal state and writes to Supabase directly — the parent component doesn't see changes until `onDataChange` fires, but even with that wiring the refresh pipeline doesn't work end-to-end
+  - **To fix this properly:** The entire refresh mechanism needs to be redesigned. Consider: (1) moving the AI fetch trigger to a simple "Refresh" button only (no auto-refresh), (2) using a global event bus or context to signal data changes, or (3) re-fetching all data from Supabase on refresh instead of relying on in-memory state synchronization
+- **Previously completed:** Financial Controls (all 5 steps) and all prior sprints.
 - **Deferred:** Admin Settings UI for GP/approval thresholds (GitHub issue captured).
-- **Next:** Mode 2 chat assistant or Outputs sprint.
+- **Next:** Fix nudge auto-refresh (see unresolved issue above), then Mode 2 chat assistant or Outputs sprint.
 
 ### New Tables Added This Sprint
 - `estimate_nudge_dismissals` (estimate_id, nudge_id, dismissed_by, dismissed_at)
@@ -156,6 +161,7 @@ Current mode: Directed
 - PDF generation (WeasyPrint) not yet implemented.
 - Sage Intacct integration not yet started.
 - DriveShop internal rate card needs real rate values from Derek/HR (structure in place, $0 placeholders).
+- **CRITICAL: Nudge auto-refresh broken.** The Intelligence panel loads nudges on first open but does not reliably update when estimate data changes (attendance, schedule, labor, line items). Manual refresh also sends stale data. Multiple attempted fixes to the useCallback/useEffect/useRef pipeline failed. See Current State for details and proposed approaches.
 - Historical patterns are pre-computed aggregates — rerun scripts/compute_historical_patterns.py after adding new event data.
 - Event type classification used Claude Haiku — spot-check 'Other' classifications (243 events) for potential misclassification.
 - Nudge rules are starter set — expand based on Dave/Tatiana feedback.

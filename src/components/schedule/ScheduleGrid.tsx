@@ -409,6 +409,7 @@ export function ScheduleGrid({
   estimate,
   rateCardData,
   onUpdateDates,
+  onDataChange,
   readOnly,
   namesEditable,
 }: {
@@ -416,6 +417,7 @@ export function ScheduleGrid({
   estimate: EstimateWithClient
   rateCardData: RateCardItemsBySection[]
   onUpdateDates?: (startDate: string, endDate: string) => Promise<void>
+  onDataChange?: () => void
   readOnly?: boolean
   namesEditable?: boolean
 }) {
@@ -534,12 +536,14 @@ export function ScheduleGrid({
       created.push({ ...entry, day_entries: [] })
     }
     setEntries((prev) => [...prev, ...created])
+    onDataChange?.()
   }
 
   async function handleDeleteRow(id: string) {
     if (!confirm('Remove this staff row?')) return
     await deleteScheduleEntry(id)
     setEntries((prev) => prev.filter((e) => e.id !== id))
+    onDataChange?.()
   }
 
   async function handleDuplicateRow(id: string) {
@@ -547,6 +551,7 @@ export function ScheduleGrid({
     // Reload to get nested day_entries
     const refreshed = await getScheduleEntries(laborLog.id)
     setEntries(refreshed)
+    onDataChange?.()
   }
 
   async function handleUpdatePersonName(id: string, name: string) {
@@ -607,6 +612,7 @@ export function ScheduleGrid({
       if (exists) return prev.map((d) => d.work_date === date ? dt : d)
       return [...prev, dt]
     })
+    onDataChange?.()
   }
 
   async function handleRemoveDate(date: string) {
@@ -625,6 +631,7 @@ export function ScheduleGrid({
       ...e,
       day_entries: e.day_entries?.filter((d) => d.work_date !== date),
     })))
+    onDataChange?.()
   }
 
   async function handleAddDate() {
@@ -635,6 +642,7 @@ export function ScheduleGrid({
     setDayTypes((prev) => [...prev, dt])
     setShowAddDate(false)
     setNewDate('')
+    onDataChange?.()
   }
 
   async function handleFillColumn(date: string) {
@@ -651,6 +659,7 @@ export function ScheduleGrid({
       }
     }))
     setShowFillConfirm(null)
+    onDataChange?.()
   }
 
   // ── Computed totals ──

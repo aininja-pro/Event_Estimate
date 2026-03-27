@@ -42,7 +42,7 @@ import { EstimateStatusBar } from '@/components/EstimateStatusBar'
 import { VersionHistoryPanel, HistoryButton } from '@/components/VersionHistoryPanel'
 import { ApprovalBanner } from '@/components/ApprovalBanner'
 import { SegmentTransitionBar } from '@/components/segments/SegmentTransitionBar'
-import { getScheduleEntries, computeScheduleRollup } from '@/lib/schedule-service'
+import { getScheduleEntries, getScheduleDayTypes, computeScheduleRollup } from '@/lib/schedule-service'
 import {
   getPendingSegmentApproval,
   submitForApproval,
@@ -53,7 +53,7 @@ import { useUser } from '@/lib/auth'
 import { hasPermission } from '@/lib/permissions'
 import { getGPThreshold } from '@/lib/system-settings-service'
 import type { ApprovalRequest, SegmentStatus, SegmentEditRules } from '@/types/workflow'
-import type { ScheduleEntry, LaborRollupRow } from '@/types/schedule'
+import type { ScheduleEntry, ScheduleDayType, LaborRollupRow } from '@/types/schedule'
 import {
   getEstimate,
   updateEstimate,
@@ -1996,6 +1996,7 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
   const [lineItemsMap, setLineItemsMap] = useState<Record<string, EstimateLineItem[]>>({})
   const [rateCardData, setRateCardData] = useState<RateCardItemsBySection[]>([])
   const [scheduleEntriesMap, setScheduleEntriesMap] = useState<Record<string, ScheduleEntry[]>>({})
+  const [dayTypesMap, setDayTypesMap] = useState<Record<string, ScheduleDayType[]>>({})
   const [activeTab, setActiveTab] = useState('schedule')
   const [aiPanelOpen, setAiPanelOpen] = useState(false)
   const [historyOpen, setHistoryOpen] = useState(false)
@@ -2022,19 +2023,23 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
       const entriesMap: Record<string, LaborEntry[]> = {}
       const itemsMap: Record<string, EstimateLineItem[]> = {}
       const schedMap: Record<string, ScheduleEntry[]> = {}
+      const dtMap: Record<string, ScheduleDayType[]> = {}
       await Promise.all(logs.map(async (log) => {
-        const [entries, items, schedEntries] = await Promise.all([
+        const [entries, items, schedEntries, dayTypes] = await Promise.all([
           getLaborEntries(log.id),
           getLineItemsByLocation(log.id),
           getScheduleEntries(log.id),
+          getScheduleDayTypes(log.id),
         ])
         entriesMap[log.id] = entries
         itemsMap[log.id] = items
         schedMap[log.id] = schedEntries
+        dtMap[log.id] = dayTypes
       }))
       setLaborEntriesMap(entriesMap)
       setLineItemsMap(itemsMap)
       setScheduleEntriesMap(schedMap)
+      setDayTypesMap(dtMap)
 
       // Load pending approvals for segments in in_review status
       const approvalsMap: Record<string, ApprovalRequest | null> = {}
@@ -2122,6 +2127,15 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
         schedule_entries: (scheduleEntriesMap[log.id] || []).map((s) => ({
           role_name: s.role_name,
           resource_type: s.resource_type,
+          day_rate: s.day_rate,
+          cost_rate: s.cost_rate,
+          days_scheduled: s.day_entries?.length || 0,
+          total_hours: s.day_entries?.reduce((sum, d) => sum + (d.hours || 0), 0) || 0,
+        })),
+        staff_count: (scheduleEntriesMap[log.id] || []).length,
+        schedule_day_types: (dayTypesMap[log.id] || []).map((dt) => ({
+          work_date: dt.work_date,
+          day_type: dt.day_type,
         })),
         line_items: (lineItemsMap[log.id] || []).map((li) => ({
           section: li.section,
@@ -2142,51 +2156,55 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
         gp_percent: Math.round(gpPercent * 10) / 10,
       },
     }
-  }, [estimate, laborLogs, laborEntriesMap, lineItemsMap, scheduleEntriesMap])
+  }, [estimate, laborLogs, laborEntriesMap, lineItemsMap, scheduleEntriesMap, dayTypesMap])
+
+  // Refs to avoid stale closures in effects and callbacks
+  const estimateStateRef = useRef(estimateStateForAI)
+  estimateStateRef.current = estimateStateForAI
+  const dismissedRef = useRef(dismissedNudgeIds)
+  dismissedRef.current = dismissedNudgeIds
 
   const triggerNudgeFetch = useCallback(async (bypassCache = false) => {
-    if (!estimateStateForAI) return
+    const currentState = estimateStateRef.current
+    if (!currentState) return
     setAiLoading(true)
     setAiError(null)
     const payload = bypassCache
-      ? { ...estimateStateForAI, _refresh: Date.now() }
-      : estimateStateForAI
+      ? { ...currentState, _refresh: Date.now() }
+      : currentState
     const [response] = await Promise.all([
       fetchNudges(estimateId, payload),
-      new Promise((r) => setTimeout(r, 800)), // minimum visible loading time
+      new Promise((r) => setTimeout(r, 800)),
     ])
     if (response.error) {
       setAiError(response.error)
     }
-    setAiNudges(response.nudges.filter((n) => !dismissedNudgeIds.includes(n.id)))
+    setAiNudges(response.nudges.filter((n) => !dismissedRef.current.includes(n.id)))
     setAiLoading(false)
-  }, [estimateId, estimateStateForAI, dismissedNudgeIds])
+  }, [estimateId])
 
-  // Serialize estimate state to a stable string for change detection
-  const estimateStateHash = useMemo(
-    () => estimateStateForAI ? JSON.stringify(estimateStateForAI) : '',
-    [estimateStateForAI]
-  )
+  // Ref for trigger function so effects can call it without dependency issues
+  const triggerRef = useRef(triggerNudgeFetch)
+  triggerRef.current = triggerNudgeFetch
 
-  // Track whether initial fetch has happened
-  const initialFetchDone = useRef(false)
+  // Track if we've fetched at least once (gates initial panel-open fetch only)
+  const hasFetchedOnce = useRef(false)
 
-  // Debounced auto-refresh when estimate state changes (not on first render)
+  // Auto-refresh: 5-second debounce after ANY estimateStateForAI change
   useEffect(() => {
-    if (!aiAutoRefresh || !aiPanelOpen || !estimateStateHash) return
-    if (!initialFetchDone.current) return // skip debounce on first load
-    if (nudgeDebounceRef.current) clearTimeout(nudgeDebounceRef.current)
-    nudgeDebounceRef.current = setTimeout(() => { triggerNudgeFetch() }, 5000)
-    return () => { if (nudgeDebounceRef.current) clearTimeout(nudgeDebounceRef.current) }
-  }, [estimateStateHash, aiAutoRefresh, aiPanelOpen]) // eslint-disable-line react-hooks/exhaustive-deps
+    if (!aiAutoRefresh || !aiPanelOpen || !estimateStateForAI) return
+    if (!hasFetchedOnce.current) return // don't debounce before first fetch
+    const timer = setTimeout(() => { triggerRef.current() }, 5000)
+    return () => clearTimeout(timer)
+  }, [estimateStateForAI, aiAutoRefresh, aiPanelOpen])
 
-  // Fetch on panel open (once)
+  // Fetch once when panel opens
   useEffect(() => {
-    if (aiPanelOpen && !initialFetchDone.current && estimateStateForAI) {
-      initialFetchDone.current = true
-      triggerNudgeFetch()
+    if (aiPanelOpen && estimateStateForAI && !hasFetchedOnce.current) {
+      hasFetchedOnce.current = true
+      triggerRef.current()
     }
-  }, [aiPanelOpen, estimateStateForAI]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [aiPanelOpen, estimateStateForAI])
 
   function handleDismissNudge(nudgeId: string) {
     setAiNudges((prev) => prev.filter((n) => n.id !== nudgeId))
@@ -2501,13 +2519,24 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
 
           <Tabs value={activeTab} onValueChange={async (tab) => {
             setActiveTab(tab)
-            // Refresh schedule entries when leaving the schedule tab so Labor Log / Summary see latest data
+            // Refresh schedule, labor, and day types when leaving the schedule tab so Labor Log / Summary / AI see latest data
             if (activeTab === 'schedule' && tab !== 'schedule') {
               const schedMap: Record<string, ScheduleEntry[]> = {}
+              const entriesMap: Record<string, LaborEntry[]> = {}
+              const dtMap: Record<string, ScheduleDayType[]> = {}
               await Promise.all(laborLogs.map(async (log) => {
-                schedMap[log.id] = await getScheduleEntries(log.id)
+                const [sched, entries, dayTypes] = await Promise.all([
+                  getScheduleEntries(log.id),
+                  getLaborEntries(log.id),
+                  getScheduleDayTypes(log.id),
+                ])
+                schedMap[log.id] = sched
+                entriesMap[log.id] = entries
+                dtMap[log.id] = dayTypes
               }))
               setScheduleEntriesMap(schedMap)
+              setLaborEntriesMap(entriesMap)
+              setDayTypesMap(dtMap)
             }
           }}>
             <TabsList variant="line" className="border-b border-border/40 w-full">
@@ -2554,6 +2583,17 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
                     onUpdateDates={async (startDate, endDate) => {
                       const updated = await updateLaborLog(activeLocationId, { start_date: startDate, end_date: endDate })
                       setLaborLogs((prev) => prev.map((l) => l.id === activeLocationId ? updated : l))
+                    }}
+                    onDataChange={async () => {
+                      if (!activeLocationId) return
+                      const [updatedSched, updatedLabor, updatedDayTypes] = await Promise.all([
+                        getScheduleEntries(activeLocationId),
+                        getLaborEntries(activeLocationId),
+                        getScheduleDayTypes(activeLocationId),
+                      ])
+                      setScheduleEntriesMap((prev) => ({ ...prev, [activeLocationId]: updatedSched }))
+                      setLaborEntriesMap((prev) => ({ ...prev, [activeLocationId]: updatedLabor }))
+                      setDayTypesMap((prev) => ({ ...prev, [activeLocationId]: updatedDayTypes }))
                     }}
                   />
                 )}
