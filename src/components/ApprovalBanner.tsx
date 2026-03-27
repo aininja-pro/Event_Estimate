@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { AlertCircle, Check, Undo2, ShieldCheck } from 'lucide-react'
+import { AlertCircle, Check, Undo2, ShieldCheck, Globe } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -10,8 +10,74 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog'
 import { Textarea } from '@/components/ui/textarea'
-import type { ApprovalRequest } from '@/types/workflow'
+import type { ApprovalRequest, ApprovalGate } from '@/types/workflow'
 import { canUserApprove } from '@/lib/workflow-service'
+
+// ── Gate-specific config ──────────────────────────────────────────────────────
+
+interface GateConfig {
+  bannerText: string
+  waitingText: string
+  approveLabel: string
+  rejectLabel: string
+  dialogApproveTitle: string
+  dialogApproveDesc: string
+  dialogRejectTitle: string
+  dialogRejectDesc: string
+  bannerBg: string
+  bannerBorder: string
+  bannerIcon: string
+}
+
+function getGateConfig(gate: ApprovalGate, threshold: string | null): GateConfig {
+  switch (gate) {
+    case 'executive':
+      return {
+        bannerText: `AM approved. Executive review required (${threshold || '≥ threshold'}).`,
+        waitingText: 'Awaiting CFO / Admin approval',
+        approveLabel: 'Approve',
+        rejectLabel: 'Send Back',
+        dialogApproveTitle: 'Executive Approval',
+        dialogApproveDesc: 'This will pass executive review and advance to client approval.',
+        dialogRejectTitle: 'Send Back for Revision',
+        dialogRejectDesc: 'Please explain what needs to change. The segment will return to Estimate status for editing.',
+        bannerBg: 'bg-amber-50',
+        bannerBorder: 'border-amber-200/80',
+        bannerIcon: 'text-amber-600',
+      }
+    case 'client':
+      return {
+        bannerText: 'Internally approved. Pending client approval.',
+        waitingText: 'Awaiting client response',
+        approveLabel: 'Mark Client Approved',
+        rejectLabel: 'Client Requested Changes',
+        dialogApproveTitle: 'Mark Client Approved',
+        dialogApproveDesc: 'This will mark the segment as client-approved and move it to Active status.',
+        dialogRejectTitle: 'Client Requested Changes',
+        dialogRejectDesc: 'Record what the client requested. The segment will return to Estimate status for revision.',
+        bannerBg: 'bg-blue-50',
+        bannerBorder: 'border-blue-200/80',
+        bannerIcon: 'text-blue-600',
+      }
+    case 'am':
+    default:
+      return {
+        bannerText: 'Submitted for review. Awaiting AM approval.',
+        waitingText: 'Awaiting AM approval',
+        approveLabel: 'Approve',
+        rejectLabel: 'Send Back',
+        dialogApproveTitle: 'Approve Segment',
+        dialogApproveDesc: threshold?.includes('executive')
+          ? 'This will pass AM review and advance to executive review (threshold exceeded).'
+          : 'This will pass AM review and advance to client approval.',
+        dialogRejectTitle: 'Send Back for Revision',
+        dialogRejectDesc: 'Please explain what needs to change. The segment will return to Estimate status for editing.',
+        bannerBg: 'bg-amber-50',
+        bannerBorder: 'border-amber-200/80',
+        bannerIcon: 'text-amber-600',
+      }
+  }
+}
 
 // ── Component ───────────────────────────────────────────────────────────────
 
@@ -32,8 +98,11 @@ export function ApprovalBanner({ approval, userRole, onApprove, onReject }: Appr
     month: 'short', day: 'numeric', year: 'numeric',
   })
 
+  const gate = (approval.approval_gate || 'am') as ApprovalGate
+  const config = getGateConfig(gate, approval.threshold_triggered)
   const canApprove = canUserApprove(approval, userRole)
-  const isThreshold = approval.threshold_triggered?.includes('$50K')
+  const isClient = gate === 'client'
+  const IconComponent = isClient ? Globe : AlertCircle
 
   async function handleConfirm() {
     if (!action) return
@@ -55,11 +124,11 @@ export function ApprovalBanner({ approval, userRole, onApprove, onReject }: Appr
 
   return (
     <>
-      <div className="flex items-center gap-3 px-4 py-2.5 bg-amber-50 border border-amber-200/80 rounded text-[12px]">
-        <AlertCircle className="h-4 w-4 text-amber-600 shrink-0" />
+      <div className={`flex items-center gap-3 px-4 py-2.5 ${config.bannerBg} border ${config.bannerBorder} rounded text-[12px]`}>
+        <IconComponent className={`h-4 w-4 ${config.bannerIcon} shrink-0`} />
         <div className="flex-1 min-w-0">
-          <span className="text-amber-900">
-            Awaiting review. Submitted by{' '}
+          <span className={isClient ? 'text-blue-900' : 'text-amber-900'}>
+            {config.bannerText} Submitted by{' '}
             <span className="font-medium">{approval.requested_by}</span> on {requestedDate}.
           </span>
           {approval.threshold_triggered && (
@@ -67,8 +136,8 @@ export function ApprovalBanner({ approval, userRole, onApprove, onReject }: Appr
               {approval.threshold_triggered}
             </span>
           )}
-          <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 font-medium">
-            {approval.approval_phase === 'client' ? 'Client Approval' : 'Internal Approval'}
+          <span className={`ml-2 text-[10px] px-1.5 py-0.5 rounded font-medium ${isClient ? 'bg-blue-100 text-blue-600' : 'bg-slate-100 text-slate-600'}`}>
+            {gate === 'client' ? 'Client Approval' : gate === 'executive' ? 'Executive Review' : 'AM Review'}
           </span>
         </div>
 
@@ -76,11 +145,11 @@ export function ApprovalBanner({ approval, userRole, onApprove, onReject }: Appr
           <div className="flex items-center gap-1.5 shrink-0">
             <Button
               size="sm"
-              className="h-7 text-[11px] gap-1 bg-emerald-600 hover:bg-emerald-700"
+              className={`h-7 text-[11px] gap-1 ${isClient ? 'bg-blue-600 hover:bg-blue-700' : 'bg-emerald-600 hover:bg-emerald-700'}`}
               onClick={() => { setAction('approve'); setNotes(''); setError(null) }}
             >
               <Check className="h-3 w-3" />
-              Approve
+              {config.approveLabel}
             </Button>
             <Button
               variant="outline"
@@ -89,13 +158,13 @@ export function ApprovalBanner({ approval, userRole, onApprove, onReject }: Appr
               onClick={() => { setAction('reject'); setNotes(''); setError(null) }}
             >
               <Undo2 className="h-3 w-3" />
-              Send Back
+              {config.rejectLabel}
             </Button>
           </div>
         ) : (
-          <div className="flex items-center gap-1.5 shrink-0 text-[11px] text-amber-700">
+          <div className={`flex items-center gap-1.5 shrink-0 text-[11px] ${isClient ? 'text-blue-700' : 'text-amber-700'}`}>
             <ShieldCheck className="h-3.5 w-3.5" />
-            <span>{isThreshold ? 'Awaiting CFO / Admin approval' : 'Awaiting approval'}</span>
+            <span>{config.waitingText}</span>
           </div>
         )}
       </div>
@@ -105,12 +174,10 @@ export function ApprovalBanner({ approval, userRole, onApprove, onReject }: Appr
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="text-sm">
-              {action === 'approve' ? 'Approve Segment' : 'Send Back for Revision'}
+              {action === 'approve' ? config.dialogApproveTitle : config.dialogRejectTitle}
             </DialogTitle>
             <DialogDescription className="text-xs text-muted-foreground">
-              {action === 'approve'
-                ? 'This will approve the segment and move it to Active status.'
-                : 'Please explain what needs to change. The segment will return to Estimate status for editing.'}
+              {action === 'approve' ? config.dialogApproveDesc : config.dialogRejectDesc}
             </DialogDescription>
           </DialogHeader>
 
@@ -133,9 +200,12 @@ export function ApprovalBanner({ approval, userRole, onApprove, onReject }: Appr
               size="sm"
               onClick={handleConfirm}
               disabled={submitting || (action === 'reject' && !notes.trim())}
-              className={action === 'approve' ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-orange-600 hover:bg-orange-700'}
+              className={action === 'approve'
+                ? (isClient ? 'bg-blue-600 hover:bg-blue-700' : 'bg-emerald-600 hover:bg-emerald-700')
+                : 'bg-orange-600 hover:bg-orange-700'
+              }
             >
-              {submitting ? 'Processing...' : action === 'approve' ? 'Confirm Approval' : 'Send Back'}
+              {submitting ? 'Processing...' : action === 'approve' ? config.approveLabel : config.rejectLabel}
             </Button>
           </DialogFooter>
         </DialogContent>

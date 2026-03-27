@@ -1,5 +1,7 @@
 // ---- Phase 2: Workflow Engine types ----
 
+export type ApprovalGate = 'am' | 'executive' | 'client'
+
 export interface EstimateVersion {
   id: string
   estimate_id: string
@@ -25,6 +27,7 @@ export interface ApprovalRequest {
   notes: string | null
   labor_log_id: string | null
   approval_phase: 'internal' | 'client'
+  approval_gate: ApprovalGate
   approval_role: string | null
   created_at: string
   updated_at: string

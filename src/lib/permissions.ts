@@ -25,7 +25,7 @@ const ROLE_PERMISSIONS: Record<string, Permission[]> = {
   account_manager: [
     'create_estimate', 'edit_estimate', 'submit_for_review',
     'approve_standard',
-    'edit_recap', 'transition_segment',
+    'edit_recap', 'transition_segment', 'delete_estimate',
   ],
   operations: [
     'create_estimate', 'edit_estimate', 'submit_for_review',
