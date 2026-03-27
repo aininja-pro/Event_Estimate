@@ -185,6 +185,16 @@ async def generate_nudges(estimate_state: dict) -> list[dict]:
     staffing_mismatches = _pre_compute_staffing_mismatches(estimate_state)
     estimate_state = {**estimate_state, "pre_computed_staffing_mismatches": staffing_mismatches}
 
+    # Debug: log what the pre-compute found and the raw role names
+    for seg in estimate_state.get("segments", []):
+        seg_name = seg.get("name", "?")
+        labor_roles = [e.get("role_name") for e in seg.get("labor_entries", [])]
+        sched_roles = [e.get("role_name") for e in seg.get("schedule_entries", [])]
+        print(f"[NUDGE DEBUG] Segment '{seg_name}'")
+        print(f"  labor_roles:    {labor_roles}")
+        print(f"  schedule_roles: {sched_roles}")
+    print(f"[NUDGE DEBUG] pre_computed_staffing_mismatches: {staffing_mismatches}")
+
     # Assemble system prompt
     system_prompt = (
         system_template
