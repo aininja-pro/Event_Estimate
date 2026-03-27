@@ -152,8 +152,16 @@ def _pre_compute_staffing_mismatches(estimate_state: dict) -> dict:
     results = {}
     for i, segment in enumerate(estimate_state.get("segments") or []):
         seg_name = segment.get("name", f"Segment {i+1}")
-        labor_roles = {e["role_name"] for e in segment.get("labor_entries", []) if e.get("role_name")}
-        schedule_roles = {e["role_name"] for e in segment.get("schedule_entries", []) if e.get("role_name")}
+        labor_entries = segment.get("labor_entries", [])
+        schedule_entries = segment.get("schedule_entries", [])
+
+        # If labor_entries is empty, the labor log is schedule-driven —
+        # roles are derived from the schedule so there can be no mismatch.
+        if not labor_entries:
+            continue
+
+        labor_roles = {e["role_name"] for e in labor_entries if e.get("role_name")}
+        schedule_roles = {e["role_name"] for e in schedule_entries if e.get("role_name")}
 
         in_labor_not_schedule = sorted(labor_roles - schedule_roles)
         in_schedule_not_labor = sorted(schedule_roles - labor_roles)
