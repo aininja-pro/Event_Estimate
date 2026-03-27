@@ -74,7 +74,7 @@ import { getRateCardItemsBySection } from '@/lib/rate-card-service'
 import type { EstimateWithClient, EstimateUpdate, LaborLog, LaborEntry, EstimateLineItem } from '@/types/estimate'
 import type { RateCardItemsBySection } from '@/types/rate-card'
 import type { Nudge } from '@/types/nudge'
-import { fetchNudges, dismissNudge, getDismissedNudges } from '@/lib/ai-nudge-service'
+import { fetchNudges, fetchFreshEstimateState, dismissNudge, getDismissedNudges } from '@/lib/ai-nudge-service'
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -2165,22 +2165,30 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
   dismissedRef.current = dismissedNudgeIds
 
   const triggerNudgeFetch = useCallback(async (bypassCache = false) => {
-    const currentState = estimateStateRef.current
-    if (!currentState) return
     setAiLoading(true)
     setAiError(null)
-    const payload = bypassCache
-      ? { ...currentState, _refresh: Date.now() }
-      : currentState
-    const [response] = await Promise.all([
-      fetchNudges(estimateId, payload),
-      new Promise((r) => setTimeout(r, 800)),
-    ])
-    if (response.error) {
-      setAiError(response.error)
+    try {
+      const freshState = await fetchFreshEstimateState(estimateId)
+      if (!freshState) {
+        setAiLoading(false)
+        return
+      }
+      const payload = bypassCache
+        ? { ...freshState, _refresh: Date.now() }
+        : freshState
+      const [response] = await Promise.all([
+        fetchNudges(estimateId, payload),
+        new Promise((r) => setTimeout(r, 800)),
+      ])
+      if (response.error) {
+        setAiError(response.error)
+      }
+      setAiNudges(response.nudges.filter((n) => !dismissedRef.current.includes(n.id)))
+    } catch {
+      setAiError('Failed to load estimate data for analysis')
+    } finally {
+      setAiLoading(false)
     }
-    setAiNudges(response.nudges.filter((n) => !dismissedRef.current.includes(n.id)))
-    setAiLoading(false)
   }, [estimateId])
 
   // Ref for trigger function so effects can call it without dependency issues
