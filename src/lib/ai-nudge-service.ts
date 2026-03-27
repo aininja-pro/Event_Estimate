@@ -55,7 +55,7 @@ export async function fetchFreshEstimateState(estimateId: string): Promise<Recor
       start_date: estimate.start_date,
       end_date: estimate.end_date,
       cost_structure: estimate.cost_structure,
-      attendance: estimate.expected_attendance ? parseInt(estimate.expected_attendance) || null : null,
+      attendance: estimate.expected_attendance || null,
       segments: segmentData.map(({ log, laborEntries, scheduleEntries, dayTypes, lineItems }) => ({
         name: log.location_name,
         status: log.status,
@@ -106,12 +106,12 @@ export async function fetchFreshEstimateState(estimateId: string): Promise<Recor
   }
 }
 
-export async function fetchNudges(estimateId: string, estimateState: Record<string, unknown>): Promise<NudgeResponse> {
+export async function fetchNudges(estimateId: string, estimateState: Record<string, unknown>, bypassCache = false): Promise<NudgeResponse> {
   try {
     const res = await fetch(`${API_URL}/api/ai/nudges`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ estimate_id: estimateId, estimate_state: estimateState }),
+      body: JSON.stringify({ estimate_id: estimateId, estimate_state: estimateState, bypass_cache: bypassCache }),
     })
     if (!res.ok) {
       return { nudges: [], cached: false, generated_at: new Date().toISOString(), error: 'AI service temporarily unavailable' }

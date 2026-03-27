@@ -2110,7 +2110,7 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
       start_date: estimate.start_date,
       end_date: estimate.end_date,
       cost_structure: estimate.cost_structure,
-      attendance: estimate.expected_attendance ? parseInt(estimate.expected_attendance) || null : null,
+      attendance: estimate.expected_attendance || null,
       segments: laborLogs.map((log) => ({
         name: log.location_name,
         status: log.status,
@@ -2170,11 +2170,8 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
         setAiLoading(false)
         return
       }
-      const payload = bypassCache
-        ? { ...freshState, _refresh: Date.now() }
-        : freshState
       const [response] = await Promise.all([
-        fetchNudges(estimateId, payload),
+        fetchNudges(estimateId, freshState, bypassCache),
         new Promise((r) => setTimeout(r, 800)),
       ])
       if (response.error) {

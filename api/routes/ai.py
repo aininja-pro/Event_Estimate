@@ -23,7 +23,7 @@ class EstimateState(BaseModel):
     start_date: str | None = None
     end_date: str | None = None
     cost_structure: str | None = None
-    attendance: int | None = None
+    attendance: str | int | None = None
     segments: list[dict] = []
     summary: dict = {}
 
@@ -31,6 +31,7 @@ class EstimateState(BaseModel):
 class NudgeRequest(BaseModel):
     estimate_id: str
     estimate_state: EstimateState
+    bypass_cache: bool = False
 
 
 @router.post("/nudges")
@@ -39,9 +40,9 @@ async def get_nudges(request: NudgeRequest):
     state_json = json.dumps(request.estimate_state.model_dump(), sort_keys=True)
     state_hash = hashlib.sha256(state_json.encode()).hexdigest()
 
-    # Check cache
+    # Check cache (skip if client requested bypass via manual refresh)
     now = time.time()
-    if state_hash in _cache:
+    if not request.bypass_cache and state_hash in _cache:
         cached_response, cached_at = _cache[state_hash]
         if now - cached_at < CACHE_TTL_SECONDS:
             return {**cached_response, "cached": True}
