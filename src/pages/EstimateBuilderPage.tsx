@@ -2158,9 +2158,6 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
     }
   }, [estimate, laborLogs, laborEntriesMap, lineItemsMap, scheduleEntriesMap, dayTypesMap])
 
-  // Refs to avoid stale closures in effects and callbacks
-  const estimateStateRef = useRef(estimateStateForAI)
-  estimateStateRef.current = estimateStateForAI
   const dismissedRef = useRef(dismissedNudgeIds)
   dismissedRef.current = dismissedNudgeIds
 
@@ -2191,28 +2188,24 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
     }
   }, [estimateId])
 
-  // Ref for trigger function so effects can call it without dependency issues
-  const triggerRef = useRef(triggerNudgeFetch)
-  triggerRef.current = triggerNudgeFetch
-
   // Track if we've fetched at least once (gates initial panel-open fetch only)
   const hasFetchedOnce = useRef(false)
 
-  // Auto-refresh: 5-second debounce after ANY estimateStateForAI change
+  // Auto-refresh: 3-second debounce after ANY estimateStateForAI change
   useEffect(() => {
     if (!aiAutoRefresh || !aiPanelOpen || !estimateStateForAI) return
     if (!hasFetchedOnce.current) return // don't debounce before first fetch
-    const timer = setTimeout(() => { triggerRef.current() }, 5000)
+    const timer = setTimeout(() => { triggerNudgeFetch() }, 3000)
     return () => clearTimeout(timer)
-  }, [estimateStateForAI, aiAutoRefresh, aiPanelOpen])
+  }, [estimateStateForAI, aiAutoRefresh, aiPanelOpen, triggerNudgeFetch])
 
   // Fetch once when panel opens
   useEffect(() => {
     if (aiPanelOpen && estimateStateForAI && !hasFetchedOnce.current) {
       hasFetchedOnce.current = true
-      triggerRef.current()
+      triggerNudgeFetch()
     }
-  }, [aiPanelOpen, estimateStateForAI])
+  }, [aiPanelOpen, estimateStateForAI, triggerNudgeFetch])
 
   function handleDismissNudge(nudgeId: string) {
     setAiNudges((prev) => prev.filter((n) => n.id !== nudgeId))
