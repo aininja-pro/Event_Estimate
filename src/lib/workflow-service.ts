@@ -2,13 +2,16 @@ import { supabase } from './supabase'
 import { computeScheduleRollup } from './schedule-service'
 import {
   createNotification,
+  notifyByRole,
   getEstimateCreatorId,
 } from './notification-service'
 import type { ScheduleEntry } from '../types/schedule'
 import { hasPermission } from './permissions'
+import { getApprovalThreshold } from './system-settings-service'
 import type {
   EstimateVersion,
   ApprovalRequest,
+  ApprovalGate,
   StatusTransition,
   EstimateSnapshot,
   SegmentStatus,
@@ -16,14 +19,16 @@ import type {
 
 // ---- Approval Role Gating ----
 
-export const APPROVAL_THRESHOLD = 50_000
-
-/** Check if a user's role allows them to approve a given approval request. */
+/** Check if a user's role allows them to approve a given approval request based on its gate. */
 export function canUserApprove(approval: ApprovalRequest, userRole: string): boolean {
-  if (approval.threshold_triggered?.includes('$50K')) {
-    return hasPermission(userRole, 'approve_threshold')
+  switch (approval.approval_gate) {
+    case 'executive':
+      return hasPermission(userRole, 'approve_threshold')
+    case 'am':
+    case 'client':
+    default:
+      return hasPermission(userRole, 'approve_standard')
   }
-  return hasPermission(userRole, 'approve_standard')
 }
 
 function requireSupabase() {
@@ -233,6 +238,7 @@ async function buildSnapshot(estimateId: string): Promise<EstimateSnapshot> {
         ot_cost_rate: Number(se.ot_cost_rate) || 0,
         gl_code: (se.gl_code as string) || null,
         notes: (se.notes as string) || null,
+        resource_type: (se.resource_type as 'internal' | 'external' | 'vendor') || 'external',
         created_at: (se.created_at as string) || '',
         updated_at: (se.updated_at as string) || '',
         day_entries: (dayEntriesByScheduleEntry.get(se.id as string) || []).map((de) => ({
@@ -554,11 +560,12 @@ export async function rollbackToVersion(
 
 // ---- Approval Workflow ----
 
-export function determineApprovalThreshold(estimateTotal: number): string {
-  if (estimateTotal >= 50000) {
-    return '$50K+ executive review'
+export async function determineApprovalThreshold(estimateTotal: number): Promise<{ label: string; triggered: boolean }> {
+  const threshold = await getApprovalThreshold()
+  if (estimateTotal >= threshold) {
+    return { label: `$${Math.round(threshold / 1000)}K+ executive review`, triggered: true }
   }
-  return 'standard AM review'
+  return { label: 'standard AM review', triggered: false }
 }
 
 export async function submitForApproval(
@@ -588,24 +595,25 @@ export async function submitForApproval(
   // Calculate threshold from segment revenue (not full estimate)
   const snapshot = latestVersion.snapshot_json as EstimateSnapshot
   const segmentRevenue = computeSegmentRevenue(snapshot, laborLogId)
-  const threshold = determineApprovalThreshold(segmentRevenue)
+  const thresholdResult = await determineApprovalThreshold(segmentRevenue)
 
-  // Create approval request with segment reference
+  // Create approval request with segment reference — starts at AM gate
   const { data, error } = await db
     .from('approval_requests')
     .insert({
       estimate_id: estimateId,
       version_id: latestVersion.id,
       requested_by: userId,
-      threshold_triggered: threshold,
+      threshold_triggered: thresholdResult.label,
       labor_log_id: laborLogId,
       approval_phase: 'internal',
+      approval_gate: 'am',
     })
     .select()
     .single()
   if (error) return { approvalId: '', threshold: '', error: error.message }
 
-  return { approvalId: data.id, threshold }
+  return { approvalId: data.id, threshold: thresholdResult.label }
 }
 
 /** Compute revenue for a single segment from a snapshot. */
@@ -663,7 +671,7 @@ export async function reviewApproval(
   reviewerId: string,
   reviewerRole: string,
   notes?: string
-): Promise<{ success: boolean; error?: string }> {
+): Promise<{ success: boolean; nextGate?: ApprovalGate; error?: string }> {
   const db = requireSupabase()
 
   if (decision === 'rejected' && !notes) {
@@ -682,12 +690,14 @@ export async function reviewApproval(
     return { success: false, error: `This approval has already been ${approval.status}` }
   }
 
-  // Role gating: check if this user's role is authorized to approve
+  const gate = (approval.approval_gate || 'am') as ApprovalGate
+
+  // Role gating: check if this user's role is authorized to approve at this gate
   if (!canUserApprove(approval as ApprovalRequest, reviewerRole)) {
     return { success: false, error: `Your role (${reviewerRole}) is not authorized to approve this request` }
   }
 
-  // Update the approval request
+  // Mark the current approval as resolved
   const { error: updateErr } = await db
     .from('approval_requests')
     .update({
@@ -701,38 +711,125 @@ export async function reviewApproval(
 
   if (updateErr) return { success: false, error: updateErr.message }
 
-  // Transition the segment (not the estimate — computeEstimateStatus handles rollup)
-  const toStatus = decision === 'approved' ? 'active' : 'estimate'
-  const reason = decision === 'rejected' ? notes : undefined
+  const creatorId = await getEstimateCreatorId(approval.estimate_id)
+  const targetUserId = creatorId || approval.requested_by
 
-  let result: { success: boolean; error?: string }
-  if (approval.labor_log_id) {
-    // Per-segment approval: transition the segment
-    const { transitionSegmentStatus: transitionSeg } = await import('./segment-status-service')
-    result = await transitionSeg(approval.labor_log_id, toStatus as SegmentStatus, reason, reviewerId)
-  } else {
-    // Legacy estimate-level approval (backward compat)
-    result = await transitionStatus(approval.estimate_id, toStatus, reviewerId, reason)
+  // ── Rejection at any gate → send back to estimate ──
+  if (decision === 'rejected') {
+    let result: { success: boolean; error?: string }
+    if (approval.labor_log_id) {
+      const { transitionSegmentStatus: transitionSeg } = await import('./segment-status-service')
+      result = await transitionSeg(approval.labor_log_id, 'estimate' as SegmentStatus, notes, reviewerId)
+    } else {
+      result = await transitionStatus(approval.estimate_id, 'estimate', reviewerId, notes)
+    }
+
+    if (result.success && targetUserId) {
+      const gateLabel = gate === 'client' ? 'Client' : gate === 'executive' ? 'Executive' : 'AM'
+      createNotification({
+        user_id: targetUserId,
+        type: 'approval_decision',
+        title: `Segment sent back (${gateLabel} review)`,
+        body: `Your segment was sent back by ${reviewerId}. Reason: ${notes}`,
+        estimate_id: approval.estimate_id,
+        labor_log_id: approval.labor_log_id,
+        metadata: { decision, gate, reviewer: reviewerId, approval_role: reviewerRole },
+      }).catch((err) => console.error('Notification dispatch failed:', err))
+    }
+
+    return result
   }
 
-  // Notify the original submitter of the decision
-  if (result.success && approval.requested_by) {
-    const creatorId = await getEstimateCreatorId(approval.estimate_id)
-    const targetUserId = creatorId || approval.requested_by
-    createNotification({
-      user_id: targetUserId,
-      type: 'approval_decision',
-      title: decision === 'approved' ? 'Segment approved' : 'Segment sent back',
-      body: decision === 'approved'
-        ? `Your segment was approved by ${reviewerId}.`
-        : `Your segment was sent back by ${reviewerId}. Reason: ${notes}`,
+  // ── Approval — determine next gate ──
+  const thresholdTriggered = approval.threshold_triggered?.includes('executive')
+
+  let nextGate: ApprovalGate | null = null
+  if (gate === 'am' && thresholdTriggered) {
+    nextGate = 'executive'
+  } else if (gate === 'am' && !thresholdTriggered) {
+    nextGate = 'client'
+  } else if (gate === 'executive') {
+    nextGate = 'client'
+  }
+  // gate === 'client' → no next gate, transition to active
+
+  if (nextGate) {
+    // Create the next approval request — segment stays in_review
+    const { error: nextErr } = await db
+      .from('approval_requests')
+      .insert({
+        estimate_id: approval.estimate_id,
+        version_id: approval.version_id,
+        requested_by: approval.requested_by,
+        threshold_triggered: approval.threshold_triggered,
+        labor_log_id: approval.labor_log_id,
+        approval_phase: nextGate === 'client' ? 'client' : 'internal',
+        approval_gate: nextGate,
+      })
+    if (nextErr) return { success: false, error: nextErr.message }
+
+    // Gate-specific notifications
+    if (nextGate === 'executive') {
+      // AM approved + threshold → notify CFO for executive review
+      notifyByRole('cfo', {
+        type: 'approval_requested',
+        title: 'Executive review required',
+        body: `AM approved a segment that exceeds the threshold. Executive review needed.`,
+        estimate_id: approval.estimate_id,
+        labor_log_id: approval.labor_log_id,
+        metadata: { gate: 'executive', previous_gate: 'am' },
+      }).catch((err) => console.error('Notification dispatch failed:', err))
+    } else if (nextGate === 'client') {
+      // Internal approval complete → notify creator
+      if (targetUserId) {
+        createNotification({
+          user_id: targetUserId,
+          type: 'approval_decision',
+          title: 'Internal approval passed',
+          body: `Your segment passed internal review. Awaiting client approval.`,
+          estimate_id: approval.estimate_id,
+          labor_log_id: approval.labor_log_id,
+          metadata: { gate: 'client', previous_gate: gate },
+        }).catch((err) => console.error('Notification dispatch failed:', err))
+      }
+    }
+
+    return { success: true, nextGate }
+  }
+
+  // ── Client gate approved → transition segment to active ──
+  let result: { success: boolean; error?: string }
+  if (approval.labor_log_id) {
+    const { transitionSegmentStatus: transitionSeg } = await import('./segment-status-service')
+    result = await transitionSeg(approval.labor_log_id, 'active' as SegmentStatus, undefined, reviewerId)
+  } else {
+    result = await transitionStatus(approval.estimate_id, 'active', reviewerId)
+  }
+
+  if (result.success) {
+    // Notify creator + production team
+    if (targetUserId) {
+      createNotification({
+        user_id: targetUserId,
+        type: 'approval_decision',
+        title: 'Segment approved — now active',
+        body: `Your segment was approved by the client and is now active.`,
+        estimate_id: approval.estimate_id,
+        labor_log_id: approval.labor_log_id,
+        metadata: { decision, gate: 'client', reviewer: reviewerId },
+      }).catch((err) => console.error('Notification dispatch failed:', err))
+    }
+    notifyByRole('production_manager', {
+      type: 'segment_status_changed',
+      title: 'Segment now active',
+      body: `A segment has been fully approved and is now active.`,
       estimate_id: approval.estimate_id,
       labor_log_id: approval.labor_log_id,
-      metadata: { decision, reviewer: reviewerId, approval_role: reviewerRole },
+      metadata: { gate: 'client', new_status: 'active' },
     }).catch((err) => console.error('Notification dispatch failed:', err))
   }
 
-  return result
+  return { success: result.success, error: result.error }
 }
 
 export async function getApprovalHistory(estimateId: string): Promise<ApprovalRequest[]> {

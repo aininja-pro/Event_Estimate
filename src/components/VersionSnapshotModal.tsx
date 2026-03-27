@@ -106,6 +106,7 @@ export function VersionSnapshotModal({ version, open, onClose }: VersionSnapshot
                 ot_cost_rate: Number(se.ot_cost_rate) || 0,
                 gl_code: (se.gl_code as string) || null,
                 notes: (se.notes as string) || null,
+                resource_type: (se.resource_type as 'internal' | 'external' | 'vendor') || 'external',
                 created_at: (se.created_at as string) || '',
                 updated_at: (se.updated_at as string) || '',
                 day_entries: (snapshot.schedule_day_entries || [])

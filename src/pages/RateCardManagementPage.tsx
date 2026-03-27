@@ -1129,6 +1129,7 @@ function BulkImportDialog({ open, onClose, clientId, clientName, onImportComplet
           is_active: true,
           created_by: null,
           fee_type_id: ft.id,
+          is_rate_locked: false,
         })
       }
       onImportComplete()

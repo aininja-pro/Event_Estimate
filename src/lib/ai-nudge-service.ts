@@ -20,6 +20,7 @@ export async function fetchNudges(estimateId: string, estimateState: Record<stri
 }
 
 export async function dismissNudge(estimateId: string, nudgeId: string, userId: string): Promise<void> {
+  if (!supabase) return
   await supabase.from('estimate_nudge_dismissals').upsert(
     { estimate_id: estimateId, nudge_id: nudgeId, dismissed_by: userId },
     { onConflict: 'estimate_id,nudge_id' }
@@ -27,6 +28,7 @@ export async function dismissNudge(estimateId: string, nudgeId: string, userId: 
 }
 
 export async function getDismissedNudges(estimateId: string): Promise<string[]> {
+  if (!supabase) return []
   const { data } = await supabase
     .from('estimate_nudge_dismissals')
     .select('nudge_id')
