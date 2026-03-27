@@ -2076,7 +2076,7 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
     const stored = localStorage.getItem('ai_auto_refresh')
     return stored !== null ? stored === 'true' : true
   })
-  const nudgeDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
 
   // Load dismissed nudges on mount
   useEffect(() => { getDismissedNudges(estimateId).then(setDismissedNudgeIds) }, [estimateId])
