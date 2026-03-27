@@ -14,7 +14,7 @@
 
 ## Staffing Checks
 - If the schedule has event days with zero staff assigned, flag it.
-- If any role appears in the labor log but has zero days in the schedule, flag the mismatch.
+- Check the `pre_computed_staffing_mismatches` field. If it is empty or missing, there are NO mismatches — do not flag anything. If it contains entries, report only the exact role names listed there. Never invent or infer role names that are not explicitly in this field.
 - If total staff count is less than 3 for a multi-day event, flag as potentially understaffed.
 
 ## Financial Guardrails

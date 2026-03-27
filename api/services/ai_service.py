@@ -147,6 +147,26 @@ def _fetch_historical_patterns(client_name: str, event_type: str) -> str:
     return "\n".join(lines)
 
 
+def _pre_compute_staffing_mismatches(estimate_state: dict) -> dict:
+    """Compare labor log roles to schedule roles per segment. Returns pre-computed facts."""
+    results = {}
+    for i, segment in enumerate(estimate_state.get("segments") or []):
+        seg_name = segment.get("name", f"Segment {i+1}")
+        labor_roles = {e["role_name"] for e in segment.get("labor_entries", []) if e.get("role_name")}
+        schedule_roles = {e["role_name"] for e in segment.get("schedule_entries", []) if e.get("role_name")}
+
+        in_labor_not_schedule = sorted(labor_roles - schedule_roles)
+        in_schedule_not_labor = sorted(schedule_roles - labor_roles)
+
+        if in_labor_not_schedule or in_schedule_not_labor:
+            results[seg_name] = {
+                "in_labor_not_schedule": in_labor_not_schedule,
+                "in_schedule_not_labor": in_schedule_not_labor,
+            }
+
+    return results
+
+
 async def generate_nudges(estimate_state: dict) -> list[dict]:
     """Assemble prompt, call Claude API, parse and validate nudges."""
     # Read prompt templates
@@ -160,6 +180,10 @@ async def generate_nudges(estimate_state: dict) -> list[dict]:
 
     # Fetch historical patterns
     historical_patterns = _fetch_historical_patterns(client_name, event_type)
+
+    # Pre-compute staffing mismatches so Claude doesn't have to string-match
+    staffing_mismatches = _pre_compute_staffing_mismatches(estimate_state)
+    estimate_state = {**estimate_state, "pre_computed_staffing_mismatches": staffing_mismatches}
 
     # Assemble system prompt
     system_prompt = (
