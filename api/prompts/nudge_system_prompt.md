@@ -10,6 +10,10 @@ Your job is to review an in-progress event estimate and surface potential issues
 
 {rate_card_data}
 
+## Historical Patterns (Based on Similar Past Events)
+
+{historical_patterns}
+
 ## Current Estimate State
 
 {estimate_state}

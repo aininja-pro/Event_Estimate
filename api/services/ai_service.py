@@ -67,6 +67,86 @@ def _fetch_rate_card(client_name: str) -> list[dict]:
     return results
 
 
+def _fetch_historical_patterns(client_name: str, event_type: str) -> str:
+    """Fetch historical patterns for this client × event_type. Falls back to ALL client."""
+    if not client_name and not event_type:
+        return "No historical data available — client and event type not specified."
+
+    supabase = _get_supabase()
+    pattern = None
+
+    # Try exact client × event_type match
+    if client_name and event_type:
+        resp = (
+            supabase.table("historical_patterns")
+            .select("*")
+            .eq("client", client_name)
+            .eq("event_type", event_type)
+            .limit(1)
+            .execute()
+        )
+        if resp.data:
+            pattern = resp.data[0]
+
+    # Fallback to ALL client × event_type
+    if not pattern and event_type:
+        resp = (
+            supabase.table("historical_patterns")
+            .select("*")
+            .eq("client", "ALL")
+            .eq("event_type", event_type)
+            .limit(1)
+            .execute()
+        )
+        if resp.data:
+            pattern = resp.data[0]
+
+    if not pattern:
+        return "No historical data available for this client and event type."
+
+    # Format concise text block (<500 tokens)
+    p = pattern
+    sa = p.get("section_averages") or {}
+    sv = p.get("section_variance") or {}
+    roles = p.get("common_roles") or []
+
+    client_label = p["client"] if p["client"] != "ALL" else "all clients"
+    lines = [
+        f"For {client_label} {p['event_type']} events ({p['event_count']} historical events):",
+        f"- Average total estimate: ${p.get('avg_grand_total') or 0:,.0f}",
+        f"- Average GP: {p.get('avg_gp_percent') or 0:.1f}%",
+    ]
+
+    # Section breakdown
+    section_parts = []
+    for sec_name, sec_data in sa.items():
+        pct = sec_data.get("pct_of_total", 0)
+        if pct > 0:
+            short_name = sec_name.replace("PLANNING & ADMINISTRATION", "Planning").replace("ONSITE LABOR ACTIVITY", "Onsite Labor").replace("TRAVEL EXPENSES", "Travel").replace("CREATIVE COSTS", "Creative").replace("PRODUCTION EXPENSES", "Production").replace("LOGISTICS EXPENSES", "Logistics")
+            section_parts.append(f"{short_name} {pct}%")
+    if section_parts:
+        lines.append(f"- Section breakdown (% of total): {', '.join(section_parts)}")
+
+    # Sections that tend to go over budget
+    over_budget = []
+    for sec_name, var_data in sv.items():
+        avg_var = var_data.get("avg_variance_pct")
+        over_pct = var_data.get("over_budget_pct", 0)
+        if avg_var and avg_var > 5:
+            short_name = sec_name.split(" ")[0]
+            over_budget.append(f"{short_name} (+{avg_var:.0f}% avg, over budget {over_pct}% of the time)")
+    if over_budget:
+        lines.append(f"- Sections that tend to go over budget: {'; '.join(over_budget)}")
+
+    # Common roles
+    top_roles = [r for r in roles[:5] if r.get("frequency", 0) > 0.3]
+    if top_roles:
+        role_parts = [f"{r['role']} ({r['frequency']*100:.0f}% of events, avg ${r['avg_rate']:,.0f})" for r in top_roles]
+        lines.append(f"- Most common roles: {'; '.join(role_parts)}")
+
+    return "\n".join(lines)
+
+
 async def generate_nudges(estimate_state: dict) -> list[dict]:
     """Assemble prompt, call Claude API, parse and validate nudges."""
     # Read prompt templates
@@ -75,7 +155,11 @@ async def generate_nudges(estimate_state: dict) -> list[dict]:
 
     # Fetch rate card for this client
     client_name = estimate_state.get("client_name") or ""
+    event_type = estimate_state.get("event_type") or ""
     rate_card_data = _fetch_rate_card(client_name) if client_name else []
+
+    # Fetch historical patterns
+    historical_patterns = _fetch_historical_patterns(client_name, event_type)
 
     # Assemble system prompt
     system_prompt = (
@@ -83,6 +167,7 @@ async def generate_nudges(estimate_state: dict) -> list[dict]:
         .replace("{nudge_rules}", rules)
         .replace("{rate_card_data}", json.dumps(rate_card_data, indent=2))
         .replace("{estimate_state}", json.dumps(estimate_state, indent=2))
+        .replace("{historical_patterns}", historical_patterns)
     )
 
     # Call Claude API

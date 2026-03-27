@@ -29,3 +29,10 @@
 - If start_date or end_date is missing, flag it.
 - If end_date is before start_date, flag it.
 - If attendance is null or zero for event types that typically track attendance (Ride & Drive, Launch Event, Family Day), flag it.
+
+## Historical Comparison (only apply when historical patterns are available)
+- If a section's estimated cost is more than 30% below the historical average for this client × event type, flag it as potentially underestimated. Reference the historical average.
+- If a section's estimated cost is more than 50% above the historical average, flag it as potentially overestimated. Reference the historical average.
+- If the overall estimate total is more than 40% below the historical average for this event type, flag it as unusually low.
+- If commonly used roles (frequency > 70%) for this client × event type are missing from the labor log, suggest adding them.
+- If a section historically goes over budget more than 60% of the time for this client × event type, proactively warn the estimator to add buffer.

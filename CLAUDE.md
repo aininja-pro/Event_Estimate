@@ -122,21 +122,26 @@ Current mode: Directed
 | Wk 9 | Bug fixes (Add Segment, ordering), three-gate approval chain, configurable threshold, pipeline as default status | Financial Controls sprint | Approval chain complete |
 | Wk 9 | Financial Controls: agency fee auto-populate, Fees & Markups tab, resource type tracking, locked rate cards, GP threshold, rollback bug fix | AI Intelligence sprint | Financial Controls complete |
 | Wk 9-10 | AI Intelligence Phase 1: FastAPI backend, Claude API integration, nudge rules engine, live Intelligence panel | Historical data pipeline | AI nudges live |
+| Wk 10 | AI Historical Pipeline: 988 events migrated to Supabase, event type classification, pre-computed patterns, historically-enriched nudges | Mode 2 chat assistant | Historical intelligence live |
 
 ## Current State
 
-- Phase 2, Week 9-10. AI Intelligence sprint.
-- **Completed this session:** AI Intelligence Phase 1 (Steps 1-4 of AI Nudges blueprint).
-  - Step 1: FastAPI backend (/api) with health check, CORS, Claude API integration
-  - Step 2: Nudge rules document (api/prompts/nudge_rules.md) — 20+ plain-English validation rules
-  - Step 3: System prompt template (api/prompts/nudge_system_prompt.md) with placeholders
-  - Step 4: Frontend integration — live Intelligence panel replacing hardcoded placeholders, dismiss persistence, debounced auto-refresh, narrated loading animation, loading/error/empty states
-- **Previously completed:** Financial Controls (all 5 steps) and all prior sprints.
+- Phase 2, Week 10. AI Intelligence sprint complete.
+- **Completed this session:** AI Historical Data Pipeline (all 6 steps of AI Historical blueprint).
+  - Step 1: Two new Supabase tables (historical_events, historical_patterns)
+  - Step 2: Migration script — 1,674 events loaded from enriched_master_index.json (988 with recap data)
+  - Step 3: Event type classification via Claude Haiku — all 1,674 events classified into 8 types
+  - Step 4: Pattern computation — 98 patterns (90 client-specific + 8 ALL-client fallbacks) by client × event_type
+  - Step 5: Nudge pipeline updated — historical patterns injected into prompt, 5 new historical comparison rules
+  - Step 6: CLAUDE.md updates
+- **Previously completed:** AI Intelligence Phase 1 (FastAPI backend, nudge rules, live Intelligence panel), Financial Controls, and all prior sprints.
 - **Deferred:** Admin Settings UI for GP/approval thresholds (GitHub issue captured).
-- **Next:** Step 5 (deployment config for Render) and Step 6 (already done — this update). Then historical data pipeline.
+- **Next:** Mode 2 chat assistant or Outputs sprint.
 
 ### New Tables Added This Sprint
 - `estimate_nudge_dismissals` (estimate_id, nudge_id, dismissed_by, dismissed_at)
+- `historical_events` (1,674 events — filename, client, event_name, event_type, financials, sections, labor_roles)
+- `historical_patterns` (98 aggregated patterns — client × event_type with section averages, variances, common roles)
 
 ### New Columns Added (Financial Controls Sprint)
 - `estimate_line_items.is_auto_generated` (BOOLEAN DEFAULT FALSE)
@@ -151,9 +156,9 @@ Current mode: Directed
 - PDF generation (WeasyPrint) not yet implemented.
 - Sage Intacct integration not yet started.
 - DriveShop internal rate card needs real rate values from Derek/HR (structure in place, $0 placeholders).
-- Historical event data (988 bid-vs-actual records) not yet migrated to Supabase — lives in enriched_master_index.json.
+- Historical patterns are pre-computed aggregates — rerun scripts/compute_historical_patterns.py after adding new event data.
+- Event type classification used Claude Haiku — spot-check 'Other' classifications (243 events) for potential misclassification.
 - Nudge rules are starter set — expand based on Dave/Tatiana feedback.
-- FastAPI backend not yet deployed to Render (runs locally, deployment config pending).
 
 ## Architecture Notes
 
@@ -176,7 +181,7 @@ Current mode: Directed
 - `ai-nudge-service.ts` — Frontend service for fetching nudges from FastAPI and managing dismissals
 
 ### Supabase Tables
-clients, rate_card_sections, rate_card_items, fee_types, profiles, notifications, estimates, labor_logs (segments with per-segment status), labor_entries, estimate_line_items, schedule_entries, schedule_day_entries, schedule_day_types, estimate_versions, approval_requests, status_transitions, system_settings, estimate_nudge_dismissals
+clients, rate_card_sections, rate_card_items, fee_types, profiles, notifications, estimates, labor_logs (segments with per-segment status), labor_entries, estimate_line_items, schedule_entries, schedule_day_entries, schedule_day_types, estimate_versions, approval_requests, status_transitions, system_settings, estimate_nudge_dismissals, historical_events, historical_patterns
 
 ## Environment Variables
 
