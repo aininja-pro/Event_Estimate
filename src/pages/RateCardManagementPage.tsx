@@ -1399,10 +1399,9 @@ export function RateCardManagementPage() {
     setDialogOpen(true)
   }
 
-  async function handleToggleLock(item: RateCardItem) {
+  function handleToggleLock(item: RateCardItem) {
     if (!selectedClientId) return
-    await updateRateCardItem(item.id, { is_rate_locked: !item.is_rate_locked })
-    // Update local state without re-fetching (preserves collapsed sections)
+    // Optimistic local update (preserves collapsed sections)
     setSectionsWithItems((prev) =>
       prev.map((s) => ({
         ...s,
@@ -1411,6 +1410,8 @@ export function RateCardManagementPage() {
         ),
       }))
     )
+    // Fire DB update in background
+    updateRateCardItem(item.id, { is_rate_locked: !item.is_rate_locked }).catch(console.error)
   }
 
   async function handleSaveAdd(form: RateFormState) {
