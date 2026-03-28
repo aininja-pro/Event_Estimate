@@ -37,6 +37,7 @@ import {
   CheckCircle2,
   AlertCircle,
   Lock,
+  LockOpen,
 } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import type {
@@ -427,10 +428,11 @@ interface SectionTableProps {
   onToggle: () => void
   onAddRate: (section: RateCardSection) => void
   onEditRate: (item: RateCardItem) => void
+  onToggleLock?: (item: RateCardItem) => void
   readOnly?: boolean
 }
 
-function SectionTable({ section, items, search, thirdPartyMarkup, collapsed, onToggle, onAddRate, onEditRate, readOnly }: SectionTableProps) {
+function SectionTable({ section, items, search, thirdPartyMarkup, collapsed, onToggle, onAddRate, onEditRate, onToggleLock, readOnly }: SectionTableProps) {
   const isPassThrough = section.cost_type === 'pass_through'
   const term = search.toLowerCase()
   const filtered = items.filter((item) => item.name.toLowerCase().includes(term))
@@ -524,12 +526,29 @@ function SectionTable({ section, items, search, thirdPartyMarkup, collapsed, onT
                     )}
                   </TableCell>
                   <TableCell className="py-1">
-                    {!readOnly && (
-                      <Pencil
-                        className="h-3 w-3 opacity-0 group-hover:opacity-50 hover:!opacity-100 transition-opacity cursor-pointer text-foreground/60"
-                        onClick={() => onEditRate(item)}
-                      />
-                    )}
+                    <div className="flex items-center gap-1.5">
+                      {!readOnly && onToggleLock && (
+                        item.is_rate_locked ? (
+                          <Lock
+                            className="h-3 w-3 opacity-0 group-hover:opacity-50 hover:!opacity-100 transition-opacity cursor-pointer text-amber-600"
+                            onClick={() => onToggleLock(item)}
+                            title="Unlock rate"
+                          />
+                        ) : (
+                          <LockOpen
+                            className="h-3 w-3 opacity-0 group-hover:opacity-50 hover:!opacity-100 transition-opacity cursor-pointer text-foreground/60"
+                            onClick={() => onToggleLock(item)}
+                            title="Lock rate"
+                          />
+                        )
+                      )}
+                      {!readOnly && (
+                        <Pencil
+                          className="h-3 w-3 opacity-0 group-hover:opacity-50 hover:!opacity-100 transition-opacity cursor-pointer text-foreground/60"
+                          onClick={() => onEditRate(item)}
+                        />
+                      )}
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}
@@ -1382,6 +1401,12 @@ export function RateCardManagementPage() {
     setDialogOpen(true)
   }
 
+  async function handleToggleLock(item: RateCardItem) {
+    if (!selectedClientId) return
+    await updateRateCardItem(item.id, { is_rate_locked: !item.is_rate_locked })
+    await loadItems(selectedClientId)
+  }
+
   async function handleSaveAdd(form: RateFormState) {
     if (!selectedClientId || !dialogSection || !form.fee_type_id) return
     await createRateCardItem({
@@ -1619,6 +1644,7 @@ export function RateCardManagementPage() {
                   onToggle={() => toggleSection(section.id)}
                   onAddRate={handleAddRate}
                   onEditRate={handleEditRate}
+                  onToggleLock={canEditRateCards ? handleToggleLock : undefined}
                   readOnly={!canEditRateCards}
                 />
               ))}
