@@ -1402,7 +1402,15 @@ export function RateCardManagementPage() {
   async function handleToggleLock(item: RateCardItem) {
     if (!selectedClientId) return
     await updateRateCardItem(item.id, { is_rate_locked: !item.is_rate_locked })
-    await loadItems(selectedClientId)
+    // Update local state without re-fetching (preserves collapsed sections)
+    setSectionsWithItems((prev) =>
+      prev.map((s) => ({
+        ...s,
+        items: s.items.map((i) =>
+          i.id === item.id ? { ...i, is_rate_locked: !i.is_rate_locked } : i
+        ),
+      }))
+    )
   }
 
   async function handleSaveAdd(form: RateFormState) {
