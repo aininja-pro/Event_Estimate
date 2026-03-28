@@ -532,13 +532,11 @@ function SectionTable({ section, items, search, thirdPartyMarkup, collapsed, onT
                           <Lock
                             className="h-3 w-3 opacity-0 group-hover:opacity-50 hover:!opacity-100 transition-opacity cursor-pointer text-amber-600"
                             onClick={() => onToggleLock(item)}
-                            title="Unlock rate"
                           />
                         ) : (
                           <LockOpen
                             className="h-3 w-3 opacity-0 group-hover:opacity-50 hover:!opacity-100 transition-opacity cursor-pointer text-foreground/60"
                             onClick={() => onToggleLock(item)}
-                            title="Lock rate"
                           />
                         )
                       )}
