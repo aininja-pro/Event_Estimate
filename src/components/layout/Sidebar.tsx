@@ -7,7 +7,6 @@ import { useAuth } from '@/lib/auth'
 const discoveryItems = [
   { to: '/dashboard', label: 'Historical Dashboard', icon: BarChart3 },
   { to: '/rate-card', label: 'Historical Rate Analysis', icon: ClipboardList },
-  { to: '/ai-assistant', label: 'AI Scoping Assistant', icon: Bot },
 ]
 
 const deliverableItems = [
@@ -20,6 +19,7 @@ const deliverableItems = [
 const productionItems = [
   { to: '/estimates', label: 'Estimates', icon: Briefcase },
   { to: '/rate-card-management', label: 'Rate Cards', icon: DollarSign },
+  { to: '/ai-assistant', label: 'AI Scoping', icon: Bot },
 ]
 
 const uiConceptItems = [
