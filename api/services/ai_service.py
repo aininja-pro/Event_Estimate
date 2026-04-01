@@ -10,19 +10,19 @@ PROMPTS_DIR = Path(__file__).resolve().parent.parent / "prompts"
 REQUIRED_NUDGE_FIELDS = {"id", "type", "severity", "title", "message"}
 
 
-def _get_supabase():
+def get_supabase():
     url = os.getenv("SUPABASE_URL", "")
     key = os.getenv("SUPABASE_SERVICE_KEY", "")
     return create_client(url, key)
 
 
-def _read_prompt(filename: str) -> str:
+def read_prompt(filename: str) -> str:
     return (PROMPTS_DIR / filename).read_text()
 
 
-def _fetch_rate_card(client_name: str) -> list[dict]:
+def fetch_rate_card(client_name: str) -> list[dict]:
     """Fetch the client's rate card items joined with fee_types."""
-    supabase = _get_supabase()
+    supabase = get_supabase()
 
     # Look up client by name
     client_resp = (
@@ -67,12 +67,12 @@ def _fetch_rate_card(client_name: str) -> list[dict]:
     return results
 
 
-def _fetch_historical_patterns(client_name: str, event_type: str) -> str:
+def fetch_historical_patterns(client_name: str, event_type: str) -> str:
     """Fetch historical patterns for this client × event_type. Falls back to ALL client."""
     if not client_name and not event_type:
         return "No historical data available — client and event type not specified."
 
-    supabase = _get_supabase()
+    supabase = get_supabase()
     pattern = None
 
     # Try exact client × event_type match
@@ -178,16 +178,16 @@ def _pre_compute_staffing_mismatches(estimate_state: dict) -> dict:
 async def generate_nudges(estimate_state: dict) -> list[dict]:
     """Assemble prompt, call Claude API, parse and validate nudges."""
     # Read prompt templates
-    system_template = _read_prompt("nudge_system_prompt.md")
-    rules = _read_prompt("nudge_rules.md")
+    system_template = read_prompt("nudge_system_prompt.md")
+    rules = read_prompt("nudge_rules.md")
 
     # Fetch rate card for this client
     client_name = estimate_state.get("client_name") or ""
     event_type = estimate_state.get("event_type") or ""
-    rate_card_data = _fetch_rate_card(client_name) if client_name else []
+    rate_card_data = fetch_rate_card(client_name) if client_name else []
 
     # Fetch historical patterns
-    historical_patterns = _fetch_historical_patterns(client_name, event_type)
+    historical_patterns = fetch_historical_patterns(client_name, event_type)
 
     # Pre-compute staffing mismatches so Claude doesn't have to string-match
     staffing_mismatches = _pre_compute_staffing_mismatches(estimate_state)

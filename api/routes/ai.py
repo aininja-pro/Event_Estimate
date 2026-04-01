@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from fastapi import APIRouter
 from pydantic import BaseModel
 
+from services.ai_chat_service import generate_chat_response
 from services.ai_service import generate_nudges
 
 router = APIRouter(prefix="/api/ai")
@@ -32,6 +33,18 @@ class NudgeRequest(BaseModel):
     estimate_id: str
     estimate_state: EstimateState
     bypass_cache: bool = False
+
+
+class ChatMessage(BaseModel):
+    role: str
+    content: str
+
+
+class ChatRequest(BaseModel):
+    estimate_id: str
+    message: str
+    conversation_history: list[ChatMessage] = []
+    estimate_state: EstimateState
 
 
 @router.post("/nudges")
@@ -66,4 +79,23 @@ async def get_nudges(request: NudgeRequest):
             "error": "AI service temporarily unavailable",
             "cached": False,
             "generated_at": datetime.now(timezone.utc).isoformat(),
+        }
+
+
+@router.post("/chat")
+async def chat(request: ChatRequest):
+    try:
+        result = await generate_chat_response(
+            message=request.message,
+            conversation_history=[msg.model_dump() for msg in request.conversation_history],
+            estimate_state=request.estimate_state.model_dump(),
+            estimate_id=request.estimate_id,
+        )
+        return result
+    except Exception:
+        import traceback
+        traceback.print_exc()
+        return {
+            "response": "I'm having trouble right now. Please try again in a moment.",
+            "sources": [],
         }
