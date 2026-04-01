@@ -28,12 +28,13 @@ import type { ScopeEstimate } from '@/types/ai-context'
 const aiContext = getAIContext()
 
 const EVENT_TYPES = [
-  'Auto Show',
   'Ride & Drive',
-  'Brand Activation',
-  'Product Launch',
-  'Corporate Event',
-  'Experiential Marketing',
+  'Static Display',
+  'Press Event',
+  'Chauffeur',
+  'Auto Show',
+  'Tour',
+  'Fleet',
   'Other',
 ]
 
