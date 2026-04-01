@@ -92,6 +92,16 @@ export function AIScopingPage() {
 
   useEffect(() => { getClients().then(setClients) }, [])
 
+  // Auto-calculate duration from dates
+  useEffect(() => {
+    if (startDate && endDate) {
+      const start = new Date(startDate + 'T00:00:00')
+      const end = new Date(endDate + 'T00:00:00')
+      const diff = Math.round((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1
+      if (diff > 0) setDuration(String(diff))
+    }
+  }, [startDate, endDate])
+
   function handleSectionToggle(section: string) {
     setSelectedSections((prev) =>
       prev.includes(section)
@@ -396,8 +406,9 @@ export function AIScopingPage() {
                 placeholder="e.g. 3"
                 value={duration}
                 onChange={(e) => setDuration(e.target.value)}
+                readOnly={!!(startDate && endDate)}
                 required
-                className={fieldInput}
+                className={`${fieldInput} ${startDate && endDate ? 'text-muted-foreground cursor-default' : ''}`}
               />
             </div>
             <div>
@@ -443,7 +454,7 @@ export function AIScopingPage() {
                     type="checkbox"
                     checked={selectedSections.includes(section)}
                     onChange={() => handleSectionToggle(section)}
-                    className="rounded border-input"
+                    className="rounded border-border/60 accent-foreground"
                   />
                   {section}
                 </label>
@@ -462,7 +473,7 @@ export function AIScopingPage() {
             />
           </div>
 
-          <Button type="submit" size="sm" disabled={isLoading || !clientId}>
+          <Button type="submit" variant="outline" size="sm" disabled={isLoading || !clientId} className="text-[13px]">
             {isLoading ? (
               <Loader2 className="size-3.5 animate-spin" />
             ) : (
@@ -646,7 +657,7 @@ export function AIScopingPage() {
               Start Over
             </Button>
             {clientId && (
-              <Button size="sm" onClick={handleCreateEstimate} disabled={creating}>
+              <Button variant="outline" size="sm" onClick={handleCreateEstimate} disabled={creating} className="text-[13px]">
                 {creating ? (
                   <Loader2 className="size-3.5 animate-spin" />
                 ) : (
