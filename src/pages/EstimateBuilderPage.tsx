@@ -233,7 +233,8 @@ function AINudgePanel({
         </div>
       </div>
 
-      <div className="flex-1 min-h-0 space-y-1.5 overflow-y-auto pr-1 relative">
+      {/* Nudges zone — scrollable, takes up to half the panel */}
+      <div className="min-h-0 max-h-[50%] space-y-1.5 overflow-y-auto pr-1 relative shrink-0">
         {loading && nudges.length > 0 && (
           <div className="absolute inset-0 bg-background/50 z-10 flex items-start justify-center pt-8">
             <RefreshCw className="w-4 h-4 animate-spin text-muted-foreground/50" />
@@ -281,41 +282,24 @@ function AINudgePanel({
             </div>
           )
         })}
+      </div>
 
-        {/* Chat messages */}
-        {chatMessages.length > 0 && (
-          <>
-            {(nudges.length > 0 || (!loading && !error)) && (
-              <div className="border-t border-border/30 my-2" />
-            )}
-            {chatMessages.map((msg, i) => (
-              <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                <div className={`max-w-[90%] rounded-md px-2.5 py-1.5 text-[12px] leading-relaxed ${
-                  msg.role === 'user'
-                    ? 'bg-indigo-50 text-indigo-900'
-                    : 'text-foreground/80'
-                }`}>
-                  <p className="whitespace-pre-wrap">{msg.content}</p>
-                </div>
+      {/* Chat zone — separate scrollable area with pinned input */}
+      <div className="flex flex-col flex-1 min-h-0 border-t border-border/30 mt-2 pt-2">
+        {/* Chat messages — scrollable */}
+        <div className="flex-1 min-h-0 overflow-y-auto space-y-1.5 pr-1">
+          {chatMessages.map((msg, i) => (
+            <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+              <div className={`max-w-[90%] rounded-md px-2.5 py-1.5 text-[12px] leading-relaxed ${
+                msg.role === 'user'
+                  ? 'bg-indigo-50 text-indigo-900'
+                  : 'text-foreground/80'
+              }`}>
+                <p className="whitespace-pre-wrap">{msg.content}</p>
               </div>
-            ))}
-            {chatLoading && (
-              <div className="flex justify-start">
-                <div className="flex items-center gap-1 px-2.5 py-1.5">
-                  <span className="w-1.5 h-1.5 bg-muted-foreground/40 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                  <span className="w-1.5 h-1.5 bg-muted-foreground/40 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                  <span className="w-1.5 h-1.5 bg-muted-foreground/40 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
-                </div>
-              </div>
-            )}
-            <div ref={chatEndRef} />
-          </>
-        )}
-        {chatMessages.length === 0 && chatLoading && (
-          <>
-            {(nudges.length > 0 || (!loading && !error)) && (
-              <div className="border-t border-border/30 my-2" />
-            )}
+            </div>
+          ))}
+          {chatLoading && (
             <div className="flex justify-start">
               <div className="flex items-center gap-1 px-2.5 py-1.5">
                 <span className="w-1.5 h-1.5 bg-muted-foreground/40 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
@@ -323,12 +307,12 @@ function AINudgePanel({
                 <span className="w-1.5 h-1.5 bg-muted-foreground/40 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
               </div>
             </div>
-            <div ref={chatEndRef} />
-          </>
-        )}
+          )}
+          <div ref={chatEndRef} />
+        </div>
 
-        {/* Chat input — inside scroll area, right below content */}
-        <div className="mt-3 pt-2.5 border-t border-border/40 sticky bottom-0 bg-background pb-1">
+        {/* Chat input — pinned at bottom of chat zone */}
+        <div className="pt-2 shrink-0">
           <div className="flex gap-1.5">
             <Textarea
               placeholder="Ask about this estimate..."
