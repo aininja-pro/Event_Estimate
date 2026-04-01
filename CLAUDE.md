@@ -89,6 +89,9 @@ Current mode: Directed
 - Staffing mismatches are pre-computed in the backend (`_pre_compute_staffing_mismatches`). Claude reads the result, never does its own role comparison.
 - Schedule-driven segments have empty `labor_entries` — the labor log UI derives data from schedule_entries. Staffing mismatch check skips these segments.
 - Cache bypass uses `bypass_cache: true` as a top-level field in the nudge request body (not inside estimate_state).
+- Chat conversation history managed in frontend React state. Persists on panel collapse, clears on navigation. Max 20 messages per session.
+- AI Scoping generates scope via backend `POST /api/ai/generate-scope` using client-specific rate card. Never calls Claude from frontend.
+- Create Estimate from scope creates: estimate + labor log + labor entries + line items + schedule day types + schedule entries + day entries (10hr) + agency fee.
 
 ## Avoid
 
@@ -128,24 +131,21 @@ Current mode: Directed
 | Wk 9-10 | AI Intelligence Phase 1: FastAPI backend, Claude API integration, nudge rules engine, live Intelligence panel | Historical data pipeline | AI nudges live |
 | Wk 10 | AI Historical Pipeline: 988 events migrated to Supabase, event type classification, pre-computed patterns, historically-enriched nudges | Nudge refresh fix | Historical intelligence live |
 | Wk 10 | Nudge auto-refresh fix: Supabase-direct fetch, cache bypass, pre-computed staffing mismatches, schedule-driven segment handling, attendance parsing | Mode 2 chat assistant | Nudge refresh complete |
+| Wk 10-11 | AI Chat Assistant (Mode 2) + Scoping Bridge (Mode 3): conversational chat in Intelligence panel with cross-client data, AI Scoping page restyled and moved to Production sidebar, Create Estimate from scope with schedule auto-generation, scope generation moved to backend with client-specific rate cards | Outputs sprint | AI Intelligence phase complete |
 
 ## Current State
 
-- Phase 2, Week 10. AI Intelligence sprint complete.
+- Phase 2, Week 11. AI Intelligence sprint complete (Modes 1, 2, 3 all live).
 - **Completed this session:**
-  - Nudge auto-refresh fix (all 5 steps of blueprint-driveshop-nudge-refresh-fix.md):
-    - `fetchFreshEstimateState()` in ai-nudge-service.ts — queries Supabase directly, bypassing stale React state
-    - `triggerNudgeFetch` rewritten to use fresh Supabase data on every call
-    - Removed stale-state refs (`estimateStateRef`, `triggerRef`, `nudgeDebounceRef`)
-    - Debounce reduced from 5s to 3s
-  - Cache bypass fix: `bypass_cache` sent as top-level request field (Pydantic was stripping `_refresh` from estimate_state)
-  - Pre-computed staffing mismatches: backend does deterministic set comparison instead of Claude guessing role name matches
-  - Schedule-driven segment handling: skip mismatch check when `labor_entries` is empty (labor log derives from schedule)
-  - Attendance parsing fix: raw string sent to AI instead of parseInt mangling range values
-  - Nudge rule updated to use pre-computed mismatch field instead of Claude doing string matching
-- **Previously completed:** AI Intelligence Phase 1, AI Historical Pipeline, Financial Controls, and all prior sprints.
+  - **Mode 2 — Chat Assistant:** Conversational chat in the Intelligence panel. Users type questions, Claude responds with real data from current estimate + historical events + cross-client comparisons. Conversation history within session. Frontend: chat bubbles, typing indicator, auto-scroll, split nudge/chat scroll zones.
+  - **Mode 3 — Scoping Bridge:** "Create Estimate" button on AI Scoping page generates a fully pre-populated estimate in Supabase with labor entries, line items, schedule grid with 10hr days, and auto-generated agency fee. Navigates to the Estimate Builder.
+  - **AI Scoping moved to backend:** Scope generation now routes through FastAPI (`POST /api/ai/generate-scope`) using the client's actual rate card from Supabase. Replaced hardcoded DriveShop roles with client-specific MSA roles/rates. Fuzzy matching strips "Day (10 hr)" suffixes.
+  - **Cross-client intelligence:** Chat prompt includes up to 10 events from other clients of the same event type + industry-wide aggregated patterns, enabling cross-client comparisons.
+  - **AI Scoping page restyled:** Moved from Discovery Intelligence to Production sidebar. Matched production conventions (underline inputs, uppercase labels, outline buttons). Added client dropdown, cost structure toggle, start/end date fields with auto-calculated duration.
+  - **Intelligence panel layout:** Sticky panel with separate nudge and chat scroll zones. Chat input position adjusts based on content.
+- **Previously completed:** Nudge refresh fix, AI Intelligence Phase 1, AI Historical Pipeline, Financial Controls, and all prior sprints.
 - **Deferred:** Admin Settings UI for GP/approval thresholds (GitHub issue captured). Location-aware historical patterns (logged as enhancement).
-- **Next:** Mode 2 chat assistant or Outputs sprint.
+- **Next:** Outputs sprint (change orders, recaps, PDF generation).
 
 ### New Tables Added This Sprint
 - `estimate_nudge_dismissals` (estimate_id, nudge_id, dismissed_by, dismissed_at)
@@ -169,6 +169,9 @@ Current mode: Directed
 - Historical patterns are client × event_type only — location-aware patterns logged as enhancement.
 - Event type classification used Claude Haiku — spot-check 'Other' classifications (243 events) for potential misclassification.
 - Nudge rules are starter set — expand based on Dave/Tatiana feedback.
+- Chat conversation history is session-only — clears on navigation away. No database persistence.
+- Mode 3 scope-to-estimate matching is best-effort — roles not in the rate card are created as custom items (null rate_card_item_id).
+- AI Scoping page lives under Production section in sidebar, not Discovery Intelligence.
 
 ## Architecture Notes
 
@@ -188,7 +191,10 @@ Current mode: Directed
 - `system-settings-service.ts` — Configurable settings (approval threshold)
 - `auth.tsx` — AuthProvider, useAuth/useUser hooks
 - `supabase.ts` — Main client + createIsolatedClient() for admin invite
-- `ai-nudge-service.ts` — Frontend service for fetching nudges from FastAPI and managing dismissals
+- `ai-nudge-service.ts` — Frontend service for fetching nudges, sending chat messages, and managing dismissals
+- `ai_chat_service.py` (backend) — Chat endpoint with conversation history, cross-client historical events, rate card context
+- `ai_scope_gen_service.py` (backend) — Scope generation using client-specific rate card from Supabase
+- `ai_scope_service.py` (backend) — Scope-to-estimate matching: role name fuzzy matching, section mapping
 
 ### Supabase Tables
 clients, rate_card_sections, rate_card_items, fee_types, profiles, notifications, estimates, labor_logs (segments with per-segment status), labor_entries, estimate_line_items, schedule_entries, schedule_day_entries, schedule_day_types, estimate_versions, approval_requests, status_transitions, system_settings, estimate_nudge_dismissals, historical_events, historical_patterns
@@ -197,7 +203,7 @@ clients, rate_card_sections, rate_card_items, fee_types, profiles, notifications
 
 | Variable | Purpose |
 |----------|---------|
-| VITE_ANTHROPIC_API_KEY | Anthropic API key for AI Scoping Assistant |
+| VITE_ANTHROPIC_API_KEY | Anthropic API key (legacy, no longer used — scoping moved to backend) |
 | VITE_SUPABASE_URL | Supabase project URL |
 | VITE_SUPABASE_ANON_KEY | Supabase anonymous/public key |
 | VITE_API_URL | FastAPI backend URL (e.g. http://localhost:8000) |
@@ -249,6 +255,6 @@ DriveShop maintains separate rate cards per OEM client. Each client's MSA define
 | Core Build | 3-5 | Estimate builder, labor planning | Complete |
 | Workflow | 6-7 | Approvals, versioning, notifications | Complete |
 | Auth | 8 | Authentication, roles, permissions | Complete |
-| Intelligence | 9-10 | AI scoping, historical data | In Progress |
+| Intelligence | 9-11 | AI scoping, historical data, chat, scoping bridge | Complete |
 | Outputs | 10-11 | Change orders, recaps, PDF gen | Not Started |
 | Delivery | 12 | Intacct, pipeline dashboard, QA | Not Started |
