@@ -85,6 +85,10 @@ Current mode: Directed
 - in_review segments always show "Send Back to Estimate" button (handles post-rollback stuck state).
 - AI nudge rules defined in api/prompts/nudge_rules.md. Edit rules in plain English — no code changes needed.
 - All Claude API calls route through FastAPI backend. Never call Anthropic API from the frontend.
+- Nudge refresh queries Supabase directly via `fetchFreshEstimateState()` — never reads from React state maps.
+- Staffing mismatches are pre-computed in the backend (`_pre_compute_staffing_mismatches`). Claude reads the result, never does its own role comparison.
+- Schedule-driven segments have empty `labor_entries` — the labor log UI derives data from schedule_entries. Staffing mismatch check skips these segments.
+- Cache bypass uses `bypass_cache: true` as a top-level field in the nudge request body (not inside estimate_state).
 
 ## Avoid
 
@@ -122,26 +126,26 @@ Current mode: Directed
 | Wk 9 | Bug fixes (Add Segment, ordering), three-gate approval chain, configurable threshold, pipeline as default status | Financial Controls sprint | Approval chain complete |
 | Wk 9 | Financial Controls: agency fee auto-populate, Fees & Markups tab, resource type tracking, locked rate cards, GP threshold, rollback bug fix | AI Intelligence sprint | Financial Controls complete |
 | Wk 9-10 | AI Intelligence Phase 1: FastAPI backend, Claude API integration, nudge rules engine, live Intelligence panel | Historical data pipeline | AI nudges live |
-| Wk 10 | AI Historical Pipeline: 988 events migrated to Supabase, event type classification, pre-computed patterns, historically-enriched nudges | Mode 2 chat assistant | Historical intelligence live |
+| Wk 10 | AI Historical Pipeline: 988 events migrated to Supabase, event type classification, pre-computed patterns, historically-enriched nudges | Nudge refresh fix | Historical intelligence live |
+| Wk 10 | Nudge auto-refresh fix: Supabase-direct fetch, cache bypass, pre-computed staffing mismatches, schedule-driven segment handling, attendance parsing | Mode 2 chat assistant | Nudge refresh complete |
 
 ## Current State
 
-- Phase 2, Week 10. AI Intelligence sprint.
+- Phase 2, Week 10. AI Intelligence sprint complete.
 - **Completed this session:**
-  - AI Intelligence Phase 1 (all 6 steps of AI Nudges blueprint): FastAPI backend, Claude API integration, nudge rules engine, live Intelligence panel with dismiss, loading narration, auto/manual refresh UI, deployed to Render
-  - AI Historical Data Pipeline (all 6 steps of AI Historical blueprint): 1,674 events migrated, classified into 8 types, 98 pre-computed patterns, historically-enriched nudges
-  - Schedule data wiring: `onDataChange` callback on ScheduleGrid to refresh parent state (scheduleEntriesMap, laborEntriesMap, dayTypesMap)
-  - Day type data (`schedule_day_types`) added to AI payload so Claude can see Travel/Setup/Event column labels
-- **UNRESOLVED — Nudge auto-refresh is broken:**
-  - The 5-second debounced auto-refresh after data changes does not work reliably
-  - Manual refresh button does not consistently send updated data to the API
-  - Root cause attempted: stale closures in useCallback/useEffect, `initialFetchDone` ref blocking debounce, circular dependency in effect dependency arrays
-  - Multiple fix attempts failed. The core issue is that `estimateStateForAI` (useMemo) depends on state variables (estimate, laborEntriesMap, scheduleEntriesMap, lineItemsMap, dayTypesMap) that don't always update in time, AND the debounce/trigger mechanism has closure issues that prevent the latest state from reaching the API call
-  - The ScheduleGrid manages its own internal state and writes to Supabase directly — the parent component doesn't see changes until `onDataChange` fires, but even with that wiring the refresh pipeline doesn't work end-to-end
-  - **To fix this properly:** The entire refresh mechanism needs to be redesigned. Consider: (1) moving the AI fetch trigger to a simple "Refresh" button only (no auto-refresh), (2) using a global event bus or context to signal data changes, or (3) re-fetching all data from Supabase on refresh instead of relying on in-memory state synchronization
-- **Previously completed:** Financial Controls (all 5 steps) and all prior sprints.
-- **Deferred:** Admin Settings UI for GP/approval thresholds (GitHub issue captured).
-- **Next:** Fix nudge auto-refresh (see unresolved issue above), then Mode 2 chat assistant or Outputs sprint.
+  - Nudge auto-refresh fix (all 5 steps of blueprint-driveshop-nudge-refresh-fix.md):
+    - `fetchFreshEstimateState()` in ai-nudge-service.ts — queries Supabase directly, bypassing stale React state
+    - `triggerNudgeFetch` rewritten to use fresh Supabase data on every call
+    - Removed stale-state refs (`estimateStateRef`, `triggerRef`, `nudgeDebounceRef`)
+    - Debounce reduced from 5s to 3s
+  - Cache bypass fix: `bypass_cache` sent as top-level request field (Pydantic was stripping `_refresh` from estimate_state)
+  - Pre-computed staffing mismatches: backend does deterministic set comparison instead of Claude guessing role name matches
+  - Schedule-driven segment handling: skip mismatch check when `labor_entries` is empty (labor log derives from schedule)
+  - Attendance parsing fix: raw string sent to AI instead of parseInt mangling range values
+  - Nudge rule updated to use pre-computed mismatch field instead of Claude doing string matching
+- **Previously completed:** AI Intelligence Phase 1, AI Historical Pipeline, Financial Controls, and all prior sprints.
+- **Deferred:** Admin Settings UI for GP/approval thresholds (GitHub issue captured). Location-aware historical patterns (logged as enhancement).
+- **Next:** Mode 2 chat assistant or Outputs sprint.
 
 ### New Tables Added This Sprint
 - `estimate_nudge_dismissals` (estimate_id, nudge_id, dismissed_by, dismissed_at)
@@ -161,8 +165,8 @@ Current mode: Directed
 - PDF generation (WeasyPrint) not yet implemented.
 - Sage Intacct integration not yet started.
 - DriveShop internal rate card needs real rate values from Derek/HR (structure in place, $0 placeholders).
-- **CRITICAL: Nudge auto-refresh broken.** The Intelligence panel loads nudges on first open but does not reliably update when estimate data changes (attendance, schedule, labor, line items). Manual refresh also sends stale data. Multiple attempted fixes to the useCallback/useEffect/useRef pipeline failed. See Current State for details and proposed approaches.
 - Historical patterns are pre-computed aggregates — rerun scripts/compute_historical_patterns.py after adding new event data.
+- Historical patterns are client × event_type only — location-aware patterns logged as enhancement.
 - Event type classification used Claude Haiku — spot-check 'Other' classifications (243 events) for potential misclassification.
 - Nudge rules are starter set — expand based on Dave/Tatiana feedback.
 
