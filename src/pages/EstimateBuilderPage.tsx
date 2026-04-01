@@ -234,7 +234,7 @@ function AINudgePanel({
       </div>
 
       {/* Nudges zone — scrollable, takes up to half the panel */}
-      <div className="min-h-0 max-h-[50%] space-y-1.5 overflow-y-auto pr-1 relative shrink-0">
+      <div className="min-h-0 max-h-[65%] space-y-1.5 overflow-y-auto pr-1 relative shrink-0">
         {loading && nudges.length > 0 && (
           <div className="absolute inset-0 bg-background/50 z-10 flex items-start justify-center pt-8">
             <RefreshCw className="w-4 h-4 animate-spin text-muted-foreground/50" />
@@ -286,8 +286,8 @@ function AINudgePanel({
 
       {/* Chat zone — separate scrollable area with pinned input */}
       <div className="flex flex-col flex-1 min-h-0 border-t border-border/30 mt-2 pt-2">
-        {/* Chat messages — scrollable */}
-        <div className="flex-1 min-h-0 overflow-y-auto space-y-1.5 pr-1">
+        {/* Chat messages — scrollable, only grows when there are messages */}
+        <div className={`min-h-0 overflow-y-auto space-y-1.5 pr-1 ${chatMessages.length > 0 || chatLoading ? 'flex-1' : ''}`}>
           {chatMessages.map((msg, i) => (
             <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
               <div className={`max-w-[90%] rounded-md px-2.5 py-1.5 text-[12px] leading-relaxed ${

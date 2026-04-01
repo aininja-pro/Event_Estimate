@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -19,11 +20,15 @@ import {
   TableCell,
 } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
-import { Sparkles, Loader2, AlertTriangle, RotateCcw } from 'lucide-react'
+import { Sparkles, Loader2, AlertTriangle, RotateCcw, ArrowRight } from 'lucide-react'
 import { getAIContext } from '@/lib/data'
-import { streamScopeEstimate } from '@/lib/ai'
-import type { EventParams } from '@/lib/ai'
+import { getClients } from '@/lib/rate-card-service'
+import { createEstimate, createLaborLog, createLaborEntry, createLineItem, createAutoFeeLines, updateLaborLog } from '@/lib/estimate-service'
+import { generateDateRange, upsertScheduleDayType, addScheduleEntry, upsertScheduleDayEntry } from '@/lib/schedule-service'
 import type { ScopeEstimate } from '@/types/ai-context'
+import type { Client } from '@/types/rate-card'
+
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
 const aiContext = getAIContext()
 
@@ -62,17 +67,13 @@ function formatDollar(value: number): string {
   return `$${value.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
 }
 
-function extractJson(text: string): ScopeEstimate | null {
-  const match = text.match(/```json\s*([\s\S]*?)```/)
-  if (!match?.[1]) return null
-  try {
-    return JSON.parse(match[1]) as ScopeEstimate
-  } catch {
-    return null
-  }
-}
-
 export function AIScopingPage() {
+  const navigate = useNavigate()
+  const [clients, setClients] = useState<Client[]>([])
+  const [clientId, setClientId] = useState('')
+  const [costStructure, setCostStructure] = useState<'corporate' | 'office'>('corporate')
+  const [startDate, setStartDate] = useState('')
+  const [endDate, setEndDate] = useState('')
   const [eventName, setEventName] = useState('')
   const [eventType, setEventType] = useState('')
   const [duration, setDuration] = useState('')
@@ -87,6 +88,9 @@ export function AIScopingPage() {
   const [parsedEstimate, setParsedEstimate] = useState<ScopeEstimate | null>(null)
   const [parseError, setParseError] = useState(false)
   const [error, setError] = useState('')
+  const [creating, setCreating] = useState(false)
+
+  useEffect(() => { getClients().then(setClients) }, [])
 
   function handleSectionToggle(section: string) {
     setSelectedSections((prev) =>
@@ -97,6 +101,10 @@ export function AIScopingPage() {
   }
 
   function handleReset() {
+    setClientId('')
+    setCostStructure('corporate')
+    setStartDate('')
+    setEndDate('')
     setEventName('')
     setEventType('')
     setDuration('')
@@ -111,6 +119,148 @@ export function AIScopingPage() {
     setError('')
   }
 
+  async function handleCreateEstimate() {
+    if (!parsedEstimate || !clientId) return
+    setCreating(true)
+    setError('')
+    try {
+      const client = clients.find((c) => c.id === clientId)
+
+      // Call backend to match scope to rate card
+      const res = await fetch(`${API_URL}/api/ai/scope-to-estimate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          client_id: clientId,
+          staffing: parsedEstimate.staffing,
+          cost_breakdown: parsedEstimate.costBreakdown,
+        }),
+      })
+      const matched = await res.json()
+      if (matched.error) throw new Error(matched.error)
+
+      // Create estimate
+      const estimate = await createEstimate({
+        client_id: clientId,
+        event_name: eventName || 'New AI-Scoped Estimate',
+        event_type: eventType || null,
+        location: location || null,
+        start_date: startDate || null,
+        end_date: endDate || null,
+        duration_days: duration ? parseInt(duration, 10) : null,
+        expected_attendance: attendance || null,
+        cost_structure: costStructure,
+        po_number: null,
+        project_id: null,
+        internal_notes: null,
+        published_notes: null,
+        status: 'pipeline',
+        created_by: null,
+      })
+
+      // Create primary labor log
+      const laborLog = await createLaborLog({
+        estimate_id: estimate.id,
+        location_name: location || 'Primary',
+        is_primary: true,
+      })
+
+      // Create labor entries from matched staffing
+      for (const entry of matched.labor_entries || []) {
+        await createLaborEntry({
+          labor_log_id: laborLog.id,
+          role_name: entry.role_name,
+          rate_card_item_id: entry.rate_card_item_id || null,
+          gl_code: entry.gl_code || null,
+          quantity: entry.quantity,
+          days: entry.days,
+          unit_rate: entry.unit_rate,
+          cost_rate: null,
+          override_rate: null,
+          override_reason: null,
+          has_overtime: false,
+          overtime_rate: null,
+          overtime_hours: null,
+          notes: null,
+          resource_type: entry.resource_type || 'external',
+          display_order: entry.display_order,
+        })
+      }
+
+      // Create line items from matched cost breakdown
+      for (const item of matched.line_items || []) {
+        await createLineItem({
+          estimate_id: estimate.id,
+          labor_log_id: laborLog.id,
+          section: item.section,
+          rate_card_item_id: item.rate_card_item_id || null,
+          item_name: item.item_name,
+          description: null,
+          quantity: item.quantity,
+          unit_cost: item.unit_cost,
+          markup_pct: item.markup_pct || 0,
+          gl_code: item.gl_code || null,
+          notes: null,
+          is_auto_generated: false,
+          fee_basis: null,
+          display_order: item.display_order,
+        })
+      }
+
+      // Auto-generate agency fee if client has one
+      if (client?.agency_fee) {
+        await createAutoFeeLines(estimate.id, laborLog.id, client.agency_fee)
+      }
+
+      // Create schedule if we have dates
+      if (startDate && endDate) {
+        // Set dates on the labor log
+        await updateLaborLog(laborLog.id, { start_date: startDate, end_date: endDate })
+
+        // Create day type columns for each date
+        const dates = generateDateRange(startDate, endDate)
+        for (let i = 0; i < dates.length; i++) {
+          await upsertScheduleDayType(laborLog.id, dates[i], 'event', i)
+        }
+
+        // Create schedule entries (rows) for each staffing role and fill 10hr days
+        for (const entry of matched.labor_entries || []) {
+          for (let q = 0; q < (entry.quantity || 1); q++) {
+            const schedEntry = await addScheduleEntry({
+              labor_log_id: laborLog.id,
+              rate_card_item_id: entry.rate_card_item_id || null,
+              role_name: entry.role_name,
+              person_name: null,
+              row_index: 0,
+              staff_group_id: null,
+              needs_airfare: true,
+              needs_hotel: true,
+              needs_per_diem: true,
+              day_rate: entry.unit_rate,
+              cost_rate: 0,
+              gl_code: entry.gl_code || null,
+              notes: null,
+              resource_type: entry.resource_type || 'external',
+            })
+
+            // Fill in 10 hours for each day this role works
+            const roleDays = Math.min(entry.days || dates.length, dates.length)
+            for (let d = 0; d < roleDays; d++) {
+              await upsertScheduleDayEntry(schedEntry.id, dates[d], 10)
+            }
+          }
+        }
+      }
+
+      // Navigate to the new estimate
+      navigate(`/estimates/${estimate.id}`)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to create estimate')
+    } finally {
+      setCreating(false)
+    }
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError('')
@@ -119,27 +269,28 @@ export function AIScopingPage() {
     setParseError(false)
     setIsLoading(true)
 
-    const params: EventParams = {
-      eventName,
-      eventType,
-      duration: parseInt(duration, 10),
-      attendance: parseInt(attendance, 10),
-      location,
-      budgetRange,
-      sections: selectedSections,
-      specialRequirements,
-    }
-
     try {
-      const finalText = await streamScopeEstimate(params, aiContext, (text) => {
-        setStreamedText(text)
+      const res = await fetch(`${API_URL}/api/ai/generate-scope`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          client_id: clientId,
+          event_name: eventName,
+          event_type: eventType,
+          duration: parseInt(duration, 10) || 1,
+          attendance: parseInt(attendance, 10) || 0,
+          location,
+          budget_range: budgetRange,
+          sections: selectedSections,
+          special_requirements: specialRequirements,
+        }),
       })
-
-      const parsed = extractJson(finalText)
-      if (parsed) {
-        setParsedEstimate(parsed)
+      const data = await res.json()
+      if (data.error) {
+        setError(data.error)
+        if (data.raw) setStreamedText(data.raw)
       } else {
-        setParseError(true)
+        setParsedEstimate(data as ScopeEstimate)
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An unexpected error occurred.')
@@ -148,8 +299,8 @@ export function AIScopingPage() {
     }
   }
 
-  const hasResults = streamedText && !isLoading
-  const showStructured = hasResults && parsedEstimate && !parseError
+  const hasResults = (parsedEstimate || streamedText || error) && !isLoading
+  const showStructured = !isLoading && parsedEstimate && !parseError
 
   const fieldLabel = "mb-0.5 text-[10px] uppercase tracking-widest text-muted-foreground font-medium"
   const fieldInput = "h-7 text-[13px] font-medium rounded-none border-0 border-b border-border/40 bg-transparent hover:border-border/60 focus-visible:border-foreground/40 focus-visible:ring-0 px-0 transition-colors"
@@ -166,6 +317,19 @@ export function AIScopingPage() {
       <div className="border border-border/50 rounded-md px-4 py-3">
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-4 gap-x-5 gap-y-2">
+            <div>
+              <p className={fieldLabel}>Client</p>
+              <Select value={clientId} onValueChange={setClientId}>
+                <SelectTrigger className={`${fieldInput} h-7 w-full`}>
+                  <SelectValue placeholder="Select client" />
+                </SelectTrigger>
+                <SelectContent>
+                  {clients.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
             <div className="col-span-2">
               <p className={fieldLabel}>Event Name</p>
               <Input
@@ -206,6 +370,24 @@ export function AIScopingPage() {
               </Select>
             </div>
             <div>
+              <p className={fieldLabel}>Start Date</p>
+              <Input
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className={fieldInput}
+              />
+            </div>
+            <div>
+              <p className={fieldLabel}>End Date</p>
+              <Input
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                className={fieldInput}
+              />
+            </div>
+            <div>
               <p className={fieldLabel}>Duration (days)</p>
               <Input
                 type="number"
@@ -238,6 +420,14 @@ export function AIScopingPage() {
                 onChange={(e) => setLocation(e.target.value)}
                 className={fieldInput}
               />
+            </div>
+            <div>
+              <p className={fieldLabel}>Cost Structure</p>
+              <div className="flex items-center gap-0 h-7">
+                <button type="button" onClick={() => setCostStructure('corporate')} className={`text-[13px] transition-colors ${costStructure === 'corporate' ? 'font-medium text-foreground border-b border-foreground/40' : 'text-muted-foreground/70 hover:text-foreground/90'}`}>Corporate</button>
+                <span className="mx-2 text-muted-foreground/30">|</span>
+                <button type="button" onClick={() => setCostStructure('office')} className={`text-[13px] transition-colors ${costStructure === 'office' ? 'font-medium text-foreground border-b border-foreground/40' : 'text-muted-foreground/70 hover:text-foreground/90'}`}>Office</button>
+              </div>
             </div>
           </div>
 
@@ -272,7 +462,7 @@ export function AIScopingPage() {
             />
           </div>
 
-          <Button type="submit" size="sm" disabled={isLoading}>
+          <Button type="submit" size="sm" disabled={isLoading || !clientId}>
             {isLoading ? (
               <Loader2 className="size-3.5 animate-spin" />
             ) : (
@@ -449,12 +639,25 @@ export function AIScopingPage() {
             </p>
           </div>
 
-          {/* New Estimate button */}
-          <div className="flex justify-center pt-2">
-            <Button variant="ghost" size="lg" onClick={handleReset}>
-              <RotateCcw className="size-4" />
-              New Estimate
+          {/* Action buttons */}
+          <div className="flex items-center justify-center gap-3 pt-2">
+            <Button variant="ghost" size="sm" onClick={handleReset}>
+              <RotateCcw className="size-3.5" />
+              Start Over
             </Button>
+            {clientId && (
+              <Button size="sm" onClick={handleCreateEstimate} disabled={creating}>
+                {creating ? (
+                  <Loader2 className="size-3.5 animate-spin" />
+                ) : (
+                  <ArrowRight className="size-3.5" />
+                )}
+                {creating ? 'Creating...' : 'Create Estimate'}
+              </Button>
+            )}
+            {!clientId && (
+              <p className="text-[12px] text-muted-foreground">Select a client above to create an estimate</p>
+            )}
           </div>
         </div>
       )}

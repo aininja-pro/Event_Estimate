@@ -7,6 +7,8 @@ from fastapi import APIRouter
 from pydantic import BaseModel
 
 from services.ai_chat_service import generate_chat_response
+from services.ai_scope_gen_service import generate_scope
+from services.ai_scope_service import match_scope_to_rate_card
 from services.ai_service import generate_nudges
 
 router = APIRouter(prefix="/api/ai")
@@ -99,3 +101,70 @@ async def chat(request: ChatRequest):
             "response": "I'm having trouble right now. Please try again in a moment.",
             "sources": [],
         }
+
+
+class StaffingItem(BaseModel):
+    role: str
+    quantity: int = 1
+    days: int = 1
+    dailyRate: float = 0
+    totalCost: float = 0
+    rationale: str = ""
+
+
+class CostBreakdownItem(BaseModel):
+    section: str
+    estimatedCost: float = 0
+    percentOfTotal: float = 0
+    notes: str = ""
+
+
+class ScopeToEstimateRequest(BaseModel):
+    client_id: str
+    staffing: list[StaffingItem] = []
+    cost_breakdown: list[CostBreakdownItem] = []
+
+
+@router.post("/scope-to-estimate")
+async def scope_to_estimate(request: ScopeToEstimateRequest):
+    try:
+        result = match_scope_to_rate_card(
+            staffing=[s.model_dump() for s in request.staffing],
+            cost_breakdown=[c.model_dump() for c in request.cost_breakdown],
+            client_id=request.client_id,
+        )
+        return result
+    except Exception:
+        import traceback
+        traceback.print_exc()
+        return {
+            "labor_entries": [],
+            "line_items": [],
+            "error": "Failed to match scope to rate card",
+        }
+
+
+class GenerateScopeRequest(BaseModel):
+    client_id: str
+    event_name: str = ""
+    event_type: str = ""
+    duration: int = 1
+    attendance: int | str = 0
+    location: str = ""
+    budget_range: str = ""
+    sections: list[str] = []
+    special_requirements: str = ""
+
+
+@router.post("/generate-scope")
+async def generate_scope_endpoint(request: GenerateScopeRequest):
+    try:
+        result = await generate_scope(
+            params=request.model_dump(exclude={"client_id"}),
+            client_id=request.client_id,
+        )
+        return result
+    except Exception:
+        import traceback
+        traceback.print_exc()
+        return {"error": "AI scope generation failed. Please try again."}
