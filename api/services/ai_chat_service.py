@@ -33,6 +33,27 @@ def _fetch_historical_events(client_name: str) -> list[dict]:
     return resp.data or []
 
 
+def _fetch_cross_client_events(event_type: str, exclude_client: str) -> list[dict]:
+    """Fetch up to 10 events of the same type from OTHER clients for comparison."""
+    if not event_type:
+        return []
+
+    supabase = get_supabase()
+    resp = (
+        supabase.table("historical_events")
+        .select(
+            "client, event_name, event_type, location, grand_total, bid_total, "
+            "recap_total, has_recap_data, sections, labor_roles"
+        )
+        .eq("event_type", event_type)
+        .neq("client", exclude_client)
+        .order("created_at", desc=True)
+        .limit(10)
+        .execute()
+    )
+    return resp.data or []
+
+
 def _format_amount(amount) -> str:
     """Format a dollar amount concisely. Rounds to nearest $1K for amounts >= $1000."""
     if not amount:
@@ -43,16 +64,17 @@ def _format_amount(amount) -> str:
     return f"${amount:,.0f}"
 
 
-def _format_historical_events(events: list[dict]) -> str:
+def _format_historical_events(events: list[dict], include_client: bool = False) -> str:
     """Format historical events as concise text for the system prompt."""
     if not events:
-        return "No historical events found for this client."
+        return "No historical events found." if include_client else "No historical events found for this client."
 
     lines = []
     for i, event in enumerate(events, 1):
         name = event.get("event_name") or "Unnamed Event"
         etype = event.get("event_type") or ""
         location = event.get("location") or ""
+        client = event.get("client") or ""
 
         # Identity line
         parts = [name]
@@ -60,6 +82,8 @@ def _format_historical_events(events: list[dict]) -> str:
             parts.append(etype)
         if location:
             parts.append(location)
+        if include_client and client:
+            parts.append(client)
         lines.append(f"{i}. {' | '.join(parts)}")
 
         # Financials line
@@ -156,9 +180,12 @@ async def generate_chat_response(
 
     # Fetch contextual data
     rate_card_data = fetch_rate_card(client_name) if client_name else []
-    historical_patterns = fetch_historical_patterns(client_name, event_type)
+    client_patterns = fetch_historical_patterns(client_name, event_type)
+    all_patterns = fetch_historical_patterns("ALL", event_type) if event_type else ""
     historical_events = _fetch_historical_events(client_name)
+    cross_client_events = _fetch_cross_client_events(event_type, client_name)
     formatted_events = _format_historical_events(historical_events)
+    formatted_cross_client = _format_historical_events(cross_client_events, include_client=True)
 
     # Assemble system prompt
     system_template = read_prompt("chat_system_prompt.md")
@@ -166,7 +193,9 @@ async def generate_chat_response(
         system_template
         .replace("{estimate_state}", json.dumps(estimate_state, indent=2))
         .replace("{historical_events}", formatted_events)
-        .replace("{historical_patterns}", historical_patterns)
+        .replace("{historical_patterns}", client_patterns)
+        .replace("{cross_client_events}", formatted_cross_client)
+        .replace("{all_client_patterns}", all_patterns)
         .replace("{rate_card_data}", json.dumps(rate_card_data, indent=2))
         .replace("{client_name}", client_name or "Unknown Client")
         .replace("{event_type}", event_type or "Unknown Type")
@@ -195,7 +224,8 @@ async def generate_chat_response(
         }
 
     # Extract which historical events were referenced
-    sources = _extract_sources(response_text, historical_events)
+    all_events = historical_events + cross_client_events
+    sources = _extract_sources(response_text, all_events)
 
     return {
         "response": response_text,

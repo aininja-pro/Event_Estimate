@@ -122,6 +122,32 @@ export async function fetchNudges(estimateId: string, estimateState: Record<stri
   }
 }
 
+export async function sendChatMessage(
+  estimateId: string,
+  message: string,
+  conversationHistory: Array<{ role: 'user' | 'assistant'; content: string }>,
+  estimateState: Record<string, unknown>
+): Promise<{ response: string; sources: string[] }> {
+  try {
+    const res = await fetch(`${API_URL}/api/ai/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        estimate_id: estimateId,
+        message,
+        conversation_history: conversationHistory,
+        estimate_state: estimateState,
+      }),
+    })
+    if (!res.ok) {
+      return { response: 'Something went wrong. Please try again.', sources: [] }
+    }
+    return await res.json()
+  } catch {
+    return { response: 'Unable to reach the AI service. Please try again.', sources: [] }
+  }
+}
+
 export async function dismissNudge(estimateId: string, nudgeId: string, userId: string): Promise<void> {
   if (!supabase) return
   await supabase.from('estimate_nudge_dismissals').upsert(

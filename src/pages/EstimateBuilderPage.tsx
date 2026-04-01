@@ -74,7 +74,7 @@ import { getRateCardItemsBySection } from '@/lib/rate-card-service'
 import type { EstimateWithClient, EstimateUpdate, LaborLog, LaborEntry, EstimateLineItem } from '@/types/estimate'
 import type { RateCardItemsBySection } from '@/types/rate-card'
 import type { Nudge } from '@/types/nudge'
-import { fetchNudges, fetchFreshEstimateState, dismissNudge, getDismissedNudges } from '@/lib/ai-nudge-service'
+import { fetchNudges, fetchFreshEstimateState, sendChatMessage, dismissNudge, getDismissedNudges } from '@/lib/ai-nudge-service'
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -177,6 +177,11 @@ function AINudgePanel({
   onDismiss,
   onRetry,
   onClose,
+  chatMessages,
+  chatInput,
+  chatLoading,
+  onChatInputChange,
+  onChatSend,
 }: {
   nudges: Nudge[]
   loading: boolean
@@ -186,7 +191,19 @@ function AINudgePanel({
   onDismiss: (nudgeId: string) => void
   onRetry: () => void
   onClose: () => void
+  chatMessages: Array<{ role: 'user' | 'assistant'; content: string }>
+  chatInput: string
+  chatLoading: boolean
+  onChatInputChange: (value: string) => void
+  onChatSend: () => void
 }) {
+  const chatEndRef = useRef<HTMLDivElement>(null)
+
+  // Auto-scroll to bottom when new messages appear
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [chatMessages, chatLoading])
+
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-center justify-between mb-3">
@@ -216,7 +233,7 @@ function AINudgePanel({
         </div>
       </div>
 
-      <div className="flex-1 space-y-1.5 overflow-y-auto pr-1 relative">
+      <div className="flex-1 min-h-0 space-y-1.5 overflow-y-auto pr-1 relative">
         {loading && nudges.length > 0 && (
           <div className="absolute inset-0 bg-background/50 z-10 flex items-start justify-center pt-8">
             <RefreshCw className="w-4 h-4 animate-spin text-muted-foreground/50" />
@@ -264,12 +281,76 @@ function AINudgePanel({
             </div>
           )
         })}
-      </div>
 
-      <div className="mt-3 pt-2.5 border-t border-border/40">
-        <div className="flex gap-1.5">
-          <Textarea placeholder="Ask about this estimate..." className="min-h-[40px] resize-none text-xs border-border/40 bg-transparent focus-visible:ring-0 placeholder:text-muted-foreground/60" readOnly />
-          <button className="shrink-0 self-end p-1.5 text-muted-foreground/60 hover:text-foreground/60 transition-colors"><Send className="h-3 w-3" /></button>
+        {/* Chat messages */}
+        {chatMessages.length > 0 && (
+          <>
+            {(nudges.length > 0 || (!loading && !error)) && (
+              <div className="border-t border-border/30 my-2" />
+            )}
+            {chatMessages.map((msg, i) => (
+              <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                <div className={`max-w-[90%] rounded-md px-2.5 py-1.5 text-[12px] leading-relaxed ${
+                  msg.role === 'user'
+                    ? 'bg-indigo-50 text-indigo-900'
+                    : 'text-foreground/80'
+                }`}>
+                  <p className="whitespace-pre-wrap">{msg.content}</p>
+                </div>
+              </div>
+            ))}
+            {chatLoading && (
+              <div className="flex justify-start">
+                <div className="flex items-center gap-1 px-2.5 py-1.5">
+                  <span className="w-1.5 h-1.5 bg-muted-foreground/40 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                  <span className="w-1.5 h-1.5 bg-muted-foreground/40 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                  <span className="w-1.5 h-1.5 bg-muted-foreground/40 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                </div>
+              </div>
+            )}
+            <div ref={chatEndRef} />
+          </>
+        )}
+        {chatMessages.length === 0 && chatLoading && (
+          <>
+            {(nudges.length > 0 || (!loading && !error)) && (
+              <div className="border-t border-border/30 my-2" />
+            )}
+            <div className="flex justify-start">
+              <div className="flex items-center gap-1 px-2.5 py-1.5">
+                <span className="w-1.5 h-1.5 bg-muted-foreground/40 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                <span className="w-1.5 h-1.5 bg-muted-foreground/40 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                <span className="w-1.5 h-1.5 bg-muted-foreground/40 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+              </div>
+            </div>
+            <div ref={chatEndRef} />
+          </>
+        )}
+
+        {/* Chat input — inside scroll area, right below content */}
+        <div className="mt-3 pt-2.5 border-t border-border/40 sticky bottom-0 bg-background pb-1">
+          <div className="flex gap-1.5">
+            <Textarea
+              placeholder="Ask about this estimate..."
+              className="min-h-[40px] resize-none text-xs border-border/40 bg-transparent focus-visible:ring-0 placeholder:text-muted-foreground/60"
+              value={chatInput}
+              onChange={(e) => onChatInputChange(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault()
+                  onChatSend()
+                }
+              }}
+              disabled={chatLoading}
+            />
+            <button
+              onClick={onChatSend}
+              disabled={chatLoading || !chatInput.trim()}
+              className="shrink-0 self-end p-1.5 text-muted-foreground/60 hover:text-foreground/60 transition-colors disabled:opacity-30"
+            >
+              <Send className="h-3 w-3" />
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -2078,6 +2159,11 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
   })
 
 
+  // ── AI Chat State ──
+  const [chatMessages, setChatMessages] = useState<Array<{ role: 'user' | 'assistant'; content: string }>>([])
+  const [chatInput, setChatInput] = useState('')
+  const [chatLoading, setChatLoading] = useState(false)
+
   // Load dismissed nudges on mount
   useEffect(() => { getDismissedNudges(estimateId).then(setDismissedNudgeIds) }, [estimateId])
 
@@ -2216,6 +2302,28 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
       localStorage.setItem('ai_auto_refresh', String(next))
       return next
     })
+  }
+
+  async function handleChatSend() {
+    const msg = chatInput.trim()
+    if (!msg || chatLoading) return
+    setChatInput('')
+    const userMsg = { role: 'user' as const, content: msg }
+    setChatMessages((prev) => [...prev, userMsg])
+    setChatLoading(true)
+    try {
+      const freshState = await fetchFreshEstimateState(estimateId)
+      if (!freshState) {
+        setChatMessages((prev) => [...prev, { role: 'assistant', content: 'Unable to load estimate data. Please try again.' }])
+        return
+      }
+      const result = await sendChatMessage(estimateId, msg, [...chatMessages, userMsg], freshState)
+      setChatMessages((prev) => [...prev, { role: 'assistant', content: result.response }])
+    } catch {
+      setChatMessages((prev) => [...prev, { role: 'assistant', content: 'Something went wrong. Please try again.' }])
+    } finally {
+      setChatLoading(false)
+    }
   }
 
   // ── Handlers ──
@@ -2655,7 +2763,7 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
 
         {/* Right Panel — Collapsible AI Intelligence */}
         {aiPanelOpen ? (
-          <div className="flex-[3] min-w-[260px] border-l border-border/40 pl-4">
+          <div className="flex-[3] min-w-[260px] border-l border-border/40 pl-4 sticky top-0 h-screen overflow-hidden py-3">
             <AINudgePanel
               nudges={aiNudges}
               loading={aiLoading}
@@ -2665,6 +2773,11 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
               onDismiss={handleDismissNudge}
               onRetry={() => triggerNudgeFetch(true)}
               onClose={() => setAiPanelOpen(false)}
+              chatMessages={chatMessages}
+              chatInput={chatInput}
+              chatLoading={chatLoading}
+              onChatInputChange={setChatInput}
+              onChatSend={handleChatSend}
             />
           </div>
         ) : (
