@@ -139,15 +139,16 @@ Current mode: Directed
 
 ## Current State
 
-- Phase 2, Week 11. Recap Entry sprint complete.
+- Phase 2, Week 11. Recap Entry sprint complete. Outputs sprint started.
 - **Completed this session:**
-  - **Mode 2 — Chat Assistant:** Conversational chat in the Intelligence panel. Users type questions, Claude responds with real data from current estimate + historical events + cross-client comparisons. Conversation history within session. Frontend: chat bubbles, typing indicator, auto-scroll, split nudge/chat scroll zones.
-  - **Mode 3 — Scoping Bridge:** "Create Estimate" button on AI Scoping page generates a fully pre-populated estimate in Supabase with labor entries, line items, schedule grid with 10hr days, and auto-generated agency fee. Navigates to the Estimate Builder.
-  - **AI Scoping moved to backend:** Scope generation now routes through FastAPI (`POST /api/ai/generate-scope`) using the client's actual rate card from Supabase. Replaced hardcoded DriveShop roles with client-specific MSA roles/rates. Fuzzy matching strips "Day (10 hr)" suffixes.
-  - **Cross-client intelligence:** Chat prompt includes up to 10 events from other clients of the same event type + industry-wide aggregated patterns, enabling cross-client comparisons.
-  - **AI Scoping page restyled:** Moved from Discovery Intelligence to Production sidebar. Matched production conventions (underline inputs, uppercase labels, outline buttons). Added client dropdown, cost structure toggle, start/end date fields with auto-calculated duration.
-  - **Intelligence panel layout:** Sticky panel with separate nudge and chat scroll zones. Chat input position adjusts based on content.
-- **Previously completed:** Nudge refresh fix, AI Intelligence Phase 1, AI Historical Pipeline, Financial Controls, and all prior sprints.
+  - **Recap UI on Labor Log tab:** When a segment is in "recap" status, 4 new columns appear (Act Days, Act Cost, Variance, Var%) with on-blur save to `recap_actuals` table. Works for both schedule-driven rollup rows and manual labor entries.
+  - **Recap UI on line item tabs:** All 6 line item tabs (Production, Travel, Creative, Access, Misc, Fees) show Actual, Variance, and Receipt columns in recap mode. Actuals save on blur.
+  - **Receipt uploads:** Paperclip icon per line item opens file picker. Files upload to Supabase Storage bucket "receipts" with metadata in `receipt_attachments` table. Click to view (signed URL), X to delete. Validation: 10MB max, PDF/JPG/PNG/XLSX/CSV only.
+  - **Variance Summary on Summary tab:** When any segment is in recap or invoiced status, a "Recap: Estimated vs Actual" section appears below the P&L table. Shows per-section estimated/actual/variance with color-coded green/red totals. Supports schedule-driven labor variance.
+  - **Name validation gate:** "Mark Invoiced" button disabled with amber warning when staff names are missing. Enforced in both SegmentTransitionBar UI and `transitionSegmentStatus()` service layer. Progress counter on Labor Log: "6 of 8 names assigned".
+  - **Receipt service layer:** New `receipt-service.ts` with upload, get, getByEstimate, getUrl, delete functions following existing CRUD patterns.
+  - **Database:** `receipt_attachments` table + `receipts` Supabase Storage bucket created. `recap_actuals` table already existed from prior migration.
+- **Previously completed:** AI Intelligence (Modes 1-3), Financial Controls, Auth, Workflow, Schedule, Estimate Builder, Rate Cards.
 - **Deferred:** Admin Settings UI for GP/approval thresholds (GitHub issue captured). Location-aware historical patterns (logged as enhancement).
 - **Next:** Change Orders sprint, then PDF generation.
 
@@ -267,5 +268,5 @@ DriveShop maintains separate rate cards per OEM client. Each client's MSA define
 | Workflow | 6-7 | Approvals, versioning, notifications | Complete |
 | Auth | 8 | Authentication, roles, permissions | Complete |
 | Intelligence | 9-11 | AI scoping, historical data, chat, scoping bridge | Complete |
-| Outputs | 10-11 | Change orders, recaps, PDF gen | Not Started |
+| Outputs | 10-11 | Change orders, recaps, PDF gen | Recaps Complete |
 | Delivery | 12 | Intacct, pipeline dashboard, QA | Not Started |
