@@ -92,6 +92,9 @@ Current mode: Directed
 - Chat conversation history managed in frontend React state. Persists on panel collapse, clears on navigation. Max 20 messages per session.
 - AI Scoping generates scope via backend `POST /api/ai/generate-scope` using client-specific rate card. Never calls Claude from frontend.
 - Create Estimate from scope creates: estimate + labor log + labor entries + line items + schedule day types + schedule entries + day entries (10hr) + agency fee.
+- Recap mode renders additional columns when `editRules.actuals === true`. Original estimate data is never modified — actuals are separate records in recap_actuals.
+- Receipts stored in Supabase Storage bucket 'receipts' with path pattern: receipts/{estimate_id}/{line_item_id}/{timestamp}_{filename}.
+- Name validation gate: recap → invoiced transition blocked until all schedule_entries have person_name filled. Enforced in both service layer and SegmentTransitionBar UI.
 
 ## Avoid
 
@@ -132,10 +135,11 @@ Current mode: Directed
 | Wk 10 | AI Historical Pipeline: 988 events migrated to Supabase, event type classification, pre-computed patterns, historically-enriched nudges | Nudge refresh fix | Historical intelligence live |
 | Wk 10 | Nudge auto-refresh fix: Supabase-direct fetch, cache bypass, pre-computed staffing mismatches, schedule-driven segment handling, attendance parsing | Mode 2 chat assistant | Nudge refresh complete |
 | Wk 10-11 | AI Chat Assistant (Mode 2) + Scoping Bridge (Mode 3): conversational chat in Intelligence panel with cross-client data, AI Scoping page restyled and moved to Production sidebar, Create Estimate from scope with schedule auto-generation, scope generation moved to backend with client-specific rate cards | Outputs sprint | AI Intelligence phase complete |
+| Wk 11 | Recap Entry: actuals columns on Labor Log + line items, variance display on Summary, name validation gate, receipt upload via Supabase Storage | Change Orders sprint | Recap mode complete |
 
 ## Current State
 
-- Phase 2, Week 11. AI Intelligence sprint complete (Modes 1, 2, 3 all live).
+- Phase 2, Week 11. Recap Entry sprint complete.
 - **Completed this session:**
   - **Mode 2 — Chat Assistant:** Conversational chat in the Intelligence panel. Users type questions, Claude responds with real data from current estimate + historical events + cross-client comparisons. Conversation history within session. Frontend: chat bubbles, typing indicator, auto-scroll, split nudge/chat scroll zones.
   - **Mode 3 — Scoping Bridge:** "Create Estimate" button on AI Scoping page generates a fully pre-populated estimate in Supabase with labor entries, line items, schedule grid with 10hr days, and auto-generated agency fee. Navigates to the Estimate Builder.
@@ -145,9 +149,13 @@ Current mode: Directed
   - **Intelligence panel layout:** Sticky panel with separate nudge and chat scroll zones. Chat input position adjusts based on content.
 - **Previously completed:** Nudge refresh fix, AI Intelligence Phase 1, AI Historical Pipeline, Financial Controls, and all prior sprints.
 - **Deferred:** Admin Settings UI for GP/approval thresholds (GitHub issue captured). Location-aware historical patterns (logged as enhancement).
-- **Next:** Outputs sprint (change orders, recaps, PDF generation).
+- **Next:** Change Orders sprint, then PDF generation.
 
 ### New Tables Added This Sprint
+- `recap_actuals` (estimate_id, labor_log_id, labor_entry_id, schedule_entry_id, line_item_id, actual_quantity, actual_days, actual_hours, actual_unit_cost, actual_total, notes)
+- `receipt_attachments` (estimate_id, line_item_id, labor_entry_id, file_name, file_path, file_size, mime_type, uploaded_by, uploaded_at)
+
+### Tables Added in Prior Sprints
 - `estimate_nudge_dismissals` (estimate_id, nudge_id, dismissed_by, dismissed_at)
 - `historical_events` (1,674 events — filename, client, event_name, event_type, financials, sections, labor_roles)
 - `historical_patterns` (98 aggregated patterns — client × event_type with section averages, variances, common roles)
@@ -172,6 +180,8 @@ Current mode: Directed
 - Chat conversation history is session-only — clears on navigation away. No database persistence.
 - Mode 3 scope-to-estimate matching is best-effort — roles not in the rate card are created as custom items (null rate_card_item_id).
 - AI Scoping page lives under Production section in sidebar, not Discovery Intelligence.
+- Receipt upload supports one file per line item. Multiple attachments per line item is a future enhancement.
+- Recap actuals are entered at the line item level. Schedule-level hour-by-hour actuals tracking is deferred.
 
 ## Architecture Notes
 
@@ -195,9 +205,10 @@ Current mode: Directed
 - `ai_chat_service.py` (backend) — Chat endpoint with conversation history, cross-client historical events, rate card context
 - `ai_scope_gen_service.py` (backend) — Scope generation using client-specific rate card from Supabase
 - `ai_scope_service.py` (backend) — Scope-to-estimate matching: role name fuzzy matching, section mapping
+- `receipt-service.ts` — Receipt upload/download/delete via Supabase Storage
 
 ### Supabase Tables
-clients, rate_card_sections, rate_card_items, fee_types, profiles, notifications, estimates, labor_logs (segments with per-segment status), labor_entries, estimate_line_items, schedule_entries, schedule_day_entries, schedule_day_types, estimate_versions, approval_requests, status_transitions, system_settings, estimate_nudge_dismissals, historical_events, historical_patterns
+clients, rate_card_sections, rate_card_items, fee_types, profiles, notifications, estimates, labor_logs (segments with per-segment status), labor_entries, estimate_line_items, schedule_entries, schedule_day_entries, schedule_day_types, estimate_versions, approval_requests, status_transitions, system_settings, estimate_nudge_dismissals, historical_events, historical_patterns, recap_actuals, receipt_attachments
 
 ## Environment Variables
 

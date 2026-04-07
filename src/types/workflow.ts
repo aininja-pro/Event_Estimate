@@ -100,6 +100,19 @@ export interface VarianceRow {
   variance_pct: number
 }
 
+export interface ReceiptAttachment {
+  id: string
+  estimate_id: string
+  line_item_id: string | null
+  labor_entry_id: string | null
+  file_name: string
+  file_path: string
+  file_size: number | null
+  mime_type: string | null
+  uploaded_by: string | null
+  uploaded_at: string
+}
+
 export type EstimateStatus = 'pipeline' | 'estimate' | 'in_review' | 'active' | 'recap' | 'invoiced' | 'lost' | 'cancelled'
 
 // ---- Snapshot shape ----

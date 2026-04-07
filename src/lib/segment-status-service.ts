@@ -83,6 +83,22 @@ export async function transitionSegmentStatus(
     return { success: false, error: 'A reason is required when marking a segment as lost or cancelled' }
   }
 
+  // Block recap → invoiced if staff names are missing
+  if (fromStatus === 'recap' && toStatus === 'invoiced') {
+    const { data: schedEntries, error: seErr } = await db
+      .from('schedule_entries')
+      .select('id, person_name')
+      .eq('labor_log_id', laborLogId)
+    if (seErr) return { success: false, error: seErr.message }
+    const unnamed = (schedEntries || []).filter((e: { person_name: string | null }) => !e.person_name?.trim())
+    if (unnamed.length > 0) {
+      return {
+        success: false,
+        error: `Cannot mark as invoiced — ${unnamed.length} staff member${unnamed.length === 1 ? '' : 's'} still need${unnamed.length === 1 ? 's' : ''} names assigned.`,
+      }
+    }
+  }
+
   // Update the segment status
   const { error: updateErr } = await db
     .from('labor_logs')
@@ -353,6 +369,13 @@ export async function getVarianceReport(laborLogId: string): Promise<VarianceRow
     .eq('labor_log_id', laborLogId)
   if (leErr) throw leErr
 
+  // Get schedule entries for this segment (schedule-driven segments have no labor_entries)
+  const { data: scheduleEntries, error: seErr } = await db
+    .from('schedule_entries')
+    .select('*, day_entries:schedule_day_entries(*)')
+    .eq('labor_log_id', laborLogId)
+  if (seErr) throw seErr
+
   // Get line items for this segment
   const { data: lineItems, error: liErr } = await db
     .from('estimate_line_items')
@@ -362,27 +385,75 @@ export async function getVarianceReport(laborLogId: string): Promise<VarianceRow
 
   const rows: VarianceRow[] = []
 
-  // Build variance rows from labor entries
-  for (const entry of (laborEntries || [])) {
-    const qty = (entry.quantity as number) || 0
-    const days = (entry.days as number) || 0
-    const rate = (entry.unit_rate as number) || 0
-    const estimatedTotal = qty * days * rate
+  const isScheduleDriven = (scheduleEntries || []).length > 0
 
-    const actual = (actuals || []).find(
-      (a: RecapActual) => a.labor_entry_id === entry.id
-    )
-    const actualTotal = actual?.actual_total ?? 0
+  if (isScheduleDriven) {
+    // Build variance rows from schedule entry rollup groups (grouped by role_name:day_rate:cost_rate)
+    const groups = new Map<string, { entries: typeof scheduleEntries; firstId: string }>()
+    for (const entry of (scheduleEntries || [])) {
+      const key = `${entry.role_name}:${entry.day_rate}:${entry.cost_rate}`
+      if (!groups.has(key)) {
+        groups.set(key, { entries: [], firstId: entry.id })
+      }
+      groups.get(key)!.entries.push(entry)
+    }
 
-    const variance = estimatedTotal - actualTotal
-    rows.push({
-      item_name: entry.role_name || 'Unnamed Role',
-      section: 'labor',
-      estimated_total: estimatedTotal,
-      actual_total: actualTotal,
-      variance,
-      variance_pct: estimatedTotal > 0 ? (variance / estimatedTotal) * 100 : 0,
-    })
+    for (const [, group] of groups) {
+      const first = group.entries[0]
+      const quantity = group.entries.length
+      let totalDays = 0
+      let revenueTotal = 0
+      let costTotal = 0
+
+      for (const entry of group.entries) {
+        const dayEntries = (entry as { day_entries?: { hours: number }[] }).day_entries || []
+        for (const de of dayEntries) {
+          totalDays += 1
+          const stdHours = Math.min(de.hours, 10)
+          const otHours = Math.max(de.hours - 10, 0)
+          revenueTotal += stdHours * ((first.day_rate as number) || 0) / 10 + otHours * ((first.day_rate as number) || 0) / 10 * 1.5
+          costTotal += stdHours * ((first.cost_rate as number) || 0) / 10 + otHours * ((first.cost_rate as number) || 0) / 10 * 1.5
+        }
+      }
+
+      const actual = (actuals || []).find(
+        (a: RecapActual) => a.schedule_entry_id === group.firstId
+      )
+      const actualTotal = actual?.actual_total ?? 0
+
+      const variance = revenueTotal - actualTotal
+      rows.push({
+        item_name: (first.role_name as string) || 'Unnamed Role',
+        section: 'labor',
+        estimated_total: revenueTotal,
+        actual_total: actualTotal,
+        variance,
+        variance_pct: revenueTotal > 0 ? (variance / revenueTotal) * 100 : 0,
+      })
+    }
+  } else {
+    // Build variance rows from manual labor entries
+    for (const entry of (laborEntries || [])) {
+      const qty = (entry.quantity as number) || 0
+      const days = (entry.days as number) || 0
+      const rate = (entry.unit_rate as number) || 0
+      const estimatedTotal = qty * days * rate
+
+      const actual = (actuals || []).find(
+        (a: RecapActual) => a.labor_entry_id === entry.id
+      )
+      const actualTotal = actual?.actual_total ?? 0
+
+      const variance = estimatedTotal - actualTotal
+      rows.push({
+        item_name: entry.role_name || 'Unnamed Role',
+        section: 'labor',
+        estimated_total: estimatedTotal,
+        actual_total: actualTotal,
+        variance,
+        variance_pct: estimatedTotal > 0 ? (variance / estimatedTotal) * 100 : 0,
+      })
+    }
   }
 
   // Build variance rows from line items

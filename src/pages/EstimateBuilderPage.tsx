@@ -48,11 +48,16 @@ import {
   submitForApproval,
   reviewApproval,
 } from '@/lib/workflow-service'
-import { transitionSegmentStatus, getSegmentEditRules } from '@/lib/segment-status-service'
+import { transitionSegmentStatus, getSegmentEditRules, getRecapActuals, upsertRecapActual, getVarianceReport } from '@/lib/segment-status-service'
 import { useUser } from '@/lib/auth'
 import { hasPermission } from '@/lib/permissions'
 import { getGPThreshold } from '@/lib/system-settings-service'
-import type { ApprovalRequest, SegmentStatus, SegmentEditRules } from '@/types/workflow'
+import type { ApprovalRequest, SegmentStatus, SegmentEditRules, RecapActual, VarianceRow } from '@/types/workflow'
+import { RecapActualsCells, RecapColumnHeaders } from '@/components/recap/RecapActualsCells'
+import { ReceiptCell } from '@/components/recap/ReceiptCell'
+import { VarianceSummary } from '@/components/recap/VarianceSummary'
+import { getReceiptsByEstimate } from '@/lib/receipt-service'
+import type { ReceiptAttachment } from '@/types/workflow'
 import type { ScheduleEntry, ScheduleDayType, LaborRollupRow } from '@/types/schedule'
 import {
   getEstimate,
@@ -889,6 +894,8 @@ function LaborLogTab({
   onSwitchToSchedule,
   readOnly,
   canDelete,
+  editRules,
+  estimateId,
 }: {
   estimate: EstimateWithClient
   laborLogs: LaborLog[]
@@ -907,13 +914,73 @@ function LaborLogTab({
   onSwitchToSchedule: () => void
   readOnly?: boolean
   canDelete?: boolean
+  editRules?: SegmentEditRules
+  estimateId?: string
 }) {
   const [showAddRole, setShowAddRole] = useState(false)
+  const [recapMap, setRecapMap] = useState<Record<string, RecapActual>>({})
+  const isRecapMode = editRules?.actuals === true
+
+  // Load recap actuals when in recap mode
+  useEffect(() => {
+    if (!isRecapMode || !activeLocationId) {
+      setRecapMap({})
+      return
+    }
+    getRecapActuals(activeLocationId).then((actuals) => {
+      const map: Record<string, RecapActual> = {}
+      for (const a of actuals) {
+        if (a.labor_entry_id) map[`labor_${a.labor_entry_id}`] = a
+        if (a.schedule_entry_id) map[`schedule_${a.schedule_entry_id}`] = a
+      }
+      setRecapMap(map)
+    }).catch(console.error)
+  }, [isRecapMode, activeLocationId])
 
   // Check if the active segment has schedule data
   const activeScheduleEntries = activeLocationId ? (scheduleEntriesMap[activeLocationId] ?? []) : []
   const hasScheduleData = activeScheduleEntries.length > 0
   const activeRollup = hasScheduleData ? computeScheduleRollup(activeScheduleEntries) : []
+
+  // Map rollup rows to first schedule_entry_id per group (for recap actuals keying)
+  const rollupEntryIds = useMemo(() => {
+    if (!hasScheduleData) return [] as string[]
+    const groups = new Map<string, string>()
+    for (const entry of activeScheduleEntries) {
+      const key = `${entry.role_name}:${entry.day_rate}:${entry.cost_rate}`
+      if (!groups.has(key)) groups.set(key, entry.id)
+    }
+    return Array.from(groups.values())
+  }, [activeScheduleEntries, hasScheduleData])
+
+  // Name progress tracking
+  const namedCount = activeScheduleEntries.filter((e) => e.person_name?.trim()).length
+  const totalStaffCount = activeScheduleEntries.length
+  const allNamed = totalStaffCount > 0 && namedCount === totalStaffCount
+
+  async function handleSaveRecapActual(
+    key: string,
+    entryRef: { labor_entry_id?: string; schedule_entry_id?: string },
+    updates: { actual_days?: number | null; actual_total?: number | null }
+  ) {
+    if (!activeLocationId || !estimateId) return
+    const existing = recapMap[key]
+    try {
+      const result = await upsertRecapActual({
+        ...(existing ? { id: existing.id } : {}),
+        estimate_id: estimateId,
+        labor_log_id: activeLocationId,
+        labor_entry_id: entryRef.labor_entry_id || null,
+        schedule_entry_id: entryRef.schedule_entry_id || null,
+        line_item_id: null,
+        actual_days: updates.actual_days ?? existing?.actual_days ?? null,
+        actual_total: updates.actual_total ?? existing?.actual_total ?? null,
+      })
+      setRecapMap((prev) => ({ ...prev, [key]: result }))
+    } catch (err) {
+      console.error('Failed to save recap actual:', err)
+    }
+  }
 
   // Active segment summary (from schedule rollup or manual entries)
   const activeLog = laborLogs.find((l) => l.id === activeLocationId)
@@ -993,11 +1060,14 @@ function LaborLogTab({
                   <TableHead className="text-right w-24 text-[10px] uppercase tracking-widest text-muted-foreground font-medium py-2">Cost Total</TableHead>
                   <TableHead className="text-right w-20 text-[10px] uppercase tracking-widest text-muted-foreground font-medium py-2">GP</TableHead>
                   <TableHead className="text-right w-14 text-[10px] uppercase tracking-widest text-muted-foreground font-medium py-2">GP%</TableHead>
+                  {isRecapMode && <RecapColumnHeaders />}
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {activeRollup.map((row, idx) => {
                   const gp = row.revenue_total - row.cost_total
+                  const schedEntryId = rollupEntryIds[idx]
+                  const recapKey = `schedule_${schedEntryId}`
                   return (
                     <TableRow key={idx} className="border-b border-border/10 hover:bg-muted/30">
                       <TableCell className="py-1.5 text-[13px] font-medium">{row.role_name}</TableCell>
@@ -1009,6 +1079,15 @@ function LaborLogTab({
                       <TableCell className="py-1.5 text-[13px] text-right tabular-nums">{fmt(row.cost_total)}</TableCell>
                       <TableCell className="py-1.5 text-[13px] text-right tabular-nums text-green-800/60 font-medium">{fmt(gp)}</TableCell>
                       <TableCell className="py-1.5 text-[13px] text-right tabular-nums">{pct(gp, row.revenue_total)}</TableCell>
+                      {isRecapMode && (
+                        <RecapActualsCells
+                          recapActual={recapMap[recapKey] || null}
+                          estimatedTotal={row.revenue_total}
+                          onSave={(updates) => handleSaveRecapActual(recapKey, { schedule_entry_id: schedEntryId }, updates)}
+                          autoCalcRate={row.day_rate}
+                          autoCalcQty={row.quantity}
+                        />
+                      )}
                     </TableRow>
                   )
                 })}
@@ -1033,6 +1112,7 @@ function LaborLogTab({
                     <TableHead className="text-right w-24 text-[10px] uppercase tracking-widest text-muted-foreground font-medium py-2">Cost Total</TableHead>
                     <TableHead className="text-right w-20 text-[10px] uppercase tracking-widest text-muted-foreground font-medium py-2">GP</TableHead>
                     <TableHead className="text-right w-14 text-[10px] uppercase tracking-widest text-muted-foreground font-medium py-2">GP%</TableHead>
+                    {isRecapMode && <RecapColumnHeaders />}
                     <TableHead className="w-6" />
                   </TableRow>
                 </TableHeader>
@@ -1046,6 +1126,8 @@ function LaborLogTab({
                       onUpdate={onUpdateEntry}
                       onDelete={onDeleteEntry}
                       readOnly={readOnly}
+                      recapActual={isRecapMode ? (recapMap[`labor_${entry.id}`] || null) : undefined}
+                      onSaveRecapActual={isRecapMode ? (updates) => handleSaveRecapActual(`labor_${entry.id}`, { labor_entry_id: entry.id }, updates) : undefined}
                     />
                   ))}
                 </TableBody>
@@ -1063,6 +1145,14 @@ function LaborLogTab({
           </button>
         ))}
       </div>
+
+      {/* Name progress counter (recap mode) */}
+      {editRules?.names_required && totalStaffCount > 0 && (
+        <div className={`flex items-center gap-2 px-3 py-1.5 rounded text-[11px] ${allNamed ? 'bg-green-50 border border-green-200/60 text-green-700' : 'bg-amber-50 border border-amber-200/60 text-amber-700'}`}>
+          <span className="font-medium">{namedCount} of {totalStaffCount} names assigned</span>
+          {!allNamed && <span className="text-amber-600/70">— assign all names before invoicing</span>}
+        </div>
+      )}
 
       {/* Labor Summary — two compact lines */}
       <div className="mt-1.5 space-y-1 border-t border-border/40 pt-2.5">
@@ -1161,6 +1251,8 @@ function LaborEntryRow({
   onUpdate,
   onDelete,
   readOnly,
+  recapActual,
+  onSaveRecapActual,
 }: {
   entry: LaborEntry
   isOffice: boolean
@@ -1168,6 +1260,8 @@ function LaborEntryRow({
   onUpdate: (id: string, updates: Partial<LaborEntry>) => void
   onDelete: (id: string) => void
   readOnly?: boolean
+  recapActual?: RecapActual | null
+  onSaveRecapActual?: (updates: { actual_days?: number | null; actual_total?: number | null }) => void
 }) {
   const [qty, setQty] = useState(entry.quantity.toString())
   const [days, setDays] = useState(entry.days.toString())
@@ -1259,6 +1353,15 @@ function LaborEntryRow({
       <TableCell className="text-right py-1">
         <span className="text-[13px] tabular-nums text-muted-foreground/50">{gpPct}%</span>
       </TableCell>
+      {recapActual !== undefined && onSaveRecapActual && (
+        <RecapActualsCells
+          recapActual={recapActual}
+          estimatedTotal={lineTotal}
+          onSave={onSaveRecapActual}
+          autoCalcRate={effectiveRate}
+          autoCalcQty={qtyNum}
+        />
+      )}
       <TableCell className="py-1">
         {!readOnly && (
           <Trash2
@@ -1291,6 +1394,8 @@ function LineItemTab({
   onDelete,
   readOnly,
   canDelete,
+  editRules,
+  estimateId,
 }: {
   items: EstimateLineItem[]
   section: string
@@ -1309,8 +1414,58 @@ function LineItemTab({
   onDelete: (id: string) => void
   readOnly?: boolean
   canDelete?: boolean
+  editRules?: SegmentEditRules
+  estimateId?: string
 }) {
   const [showModal, setShowModal] = useState(false)
+  const [recapMap, setRecapMap] = useState<Record<string, RecapActual>>({})
+  const [receiptsMap, setReceiptsMap] = useState<Record<string, ReceiptAttachment>>({})
+  const isRecapMode = editRules?.actuals === true
+
+  // Load recap actuals and receipts when in recap mode
+  useEffect(() => {
+    if (!isRecapMode || !activeLocationId) {
+      setRecapMap({})
+      setReceiptsMap({})
+      return
+    }
+    getRecapActuals(activeLocationId).then((actuals) => {
+      const map: Record<string, RecapActual> = {}
+      for (const a of actuals) {
+        if (a.line_item_id) map[a.line_item_id] = a
+      }
+      setRecapMap(map)
+    }).catch(console.error)
+
+    if (estimateId) {
+      getReceiptsByEstimate(estimateId).then((receipts) => {
+        const map: Record<string, ReceiptAttachment> = {}
+        for (const r of receipts) {
+          if (r.line_item_id) map[r.line_item_id] = r
+        }
+        setReceiptsMap(map)
+      }).catch(console.error)
+    }
+  }, [isRecapMode, activeLocationId, estimateId])
+
+  async function handleSaveLineItemActual(lineItemId: string, updates: { actual_total?: number | null }) {
+    if (!activeLocationId || !estimateId) return
+    const existing = recapMap[lineItemId]
+    try {
+      const result = await upsertRecapActual({
+        ...(existing ? { id: existing.id } : {}),
+        estimate_id: estimateId,
+        labor_log_id: activeLocationId,
+        line_item_id: lineItemId,
+        labor_entry_id: null,
+        schedule_entry_id: null,
+        actual_total: updates.actual_total ?? existing?.actual_total ?? null,
+      })
+      setRecapMap((prev) => ({ ...prev, [lineItemId]: result }))
+    } catch (err) {
+      console.error('Failed to save recap actual:', err)
+    }
+  }
 
   return (
     <div className="space-y-2">
@@ -1344,12 +1499,31 @@ function LineItemTab({
                 <TableHead className="text-right w-24 text-[10px] uppercase tracking-widest text-muted-foreground font-medium py-2">Total</TableHead>
                 <TableHead className="text-center w-18 text-[10px] uppercase tracking-widest text-muted-foreground font-medium py-2">Markup</TableHead>
                 <TableHead className="text-right w-28 text-[10px] uppercase tracking-widest text-muted-foreground font-medium py-2">Client Total</TableHead>
+                {isRecapMode && (
+                  <>
+                    <th className="text-right w-24 text-[10px] uppercase tracking-widest text-muted-foreground font-medium py-2">Actual</th>
+                    <th className="text-right w-24 text-[10px] uppercase tracking-widest text-muted-foreground font-medium py-2">Variance</th>
+                    <th className="text-center w-10 text-[10px] uppercase tracking-widest text-muted-foreground font-medium py-2">Receipt</th>
+                  </>
+                )}
                 <TableHead className="w-6" />
               </TableRow>
             </TableHeader>
             <TableBody>
               {items.map((item) => (
-                <LineItemRow key={item.id} item={item} onUpdate={onUpdate} onDelete={onDelete} readOnly={readOnly} />
+                <LineItemRow
+                  key={item.id}
+                  item={item}
+                  onUpdate={onUpdate}
+                  onDelete={onDelete}
+                  readOnly={readOnly}
+                  recapActual={isRecapMode ? (recapMap[item.id] || null) : undefined}
+                  onSaveRecapActual={isRecapMode ? (updates) => handleSaveLineItemActual(item.id, updates) : undefined}
+                  receipt={isRecapMode ? (receiptsMap[item.id] || null) : undefined}
+                  estimateId={isRecapMode ? estimateId : undefined}
+                  onReceiptUpload={isRecapMode ? (receipt) => setReceiptsMap((prev) => ({ ...prev, [item.id]: receipt })) : undefined}
+                  onReceiptDelete={isRecapMode ? (id) => setReceiptsMap((prev) => { const next = { ...prev }; delete next[id]; return next }) : undefined}
+                />
               ))}
             </TableBody>
           </Table>
@@ -1381,24 +1555,54 @@ function LineItemRow({
   onUpdate,
   onDelete,
   readOnly,
+  recapActual,
+  onSaveRecapActual,
+  receipt,
+  estimateId,
+  onReceiptUpload,
+  onReceiptDelete,
 }: {
   item: EstimateLineItem
   onUpdate: (id: string, updates: Partial<EstimateLineItem>) => void
   onDelete: (id: string) => void
   readOnly?: boolean
+  recapActual?: RecapActual | null
+  onSaveRecapActual?: (updates: { actual_total?: number | null }) => void
+  receipt?: ReceiptAttachment | null
+  estimateId?: string
+  onReceiptUpload?: (receipt: ReceiptAttachment) => void
+  onReceiptDelete?: (lineItemId: string) => void
 }) {
   const [qty, setQty] = useState(item.quantity.toString())
   const [unitCost, setUnitCost] = useState(item.unit_cost.toString())
   const [markup, setMarkup] = useState(item.markup_pct.toString())
   const [desc, setDesc] = useState(item.description || '')
+  const [actTotal, setActTotal] = useState(recapActual?.actual_total?.toString() ?? '')
+  const [saved, setSaved] = useState(false)
+
+  // Sync local state when async-loaded recapActual arrives
+  useEffect(() => {
+    setActTotal(recapActual?.actual_total?.toString() ?? '')
+  }, [recapActual?.id])
 
   const qtyNum = parseFloat(qty) || 0
   const costNum = parseFloat(unitCost) || 0
   const markupNum = parseFloat(markup) || 0
   const total = qtyNum * costNum
   const clientTotal = total * (1 + markupNum / 100)
+  const actTotalNum = parseFloat(actTotal) || 0
+  const hasActual = actTotal !== '' && recapActual !== undefined
+  const variance = hasActual ? clientTotal - actTotalNum : null
 
   const cellInput = "h-6 text-[13px] bg-transparent border-0 focus-visible:ring-0 focus-visible:bg-muted/50 rounded-sm transition-colors tabular-nums"
+
+  function handleActualBlur() {
+    if (!onSaveRecapActual) return
+    const val = parseFloat(actTotal) || null
+    onSaveRecapActual({ actual_total: val })
+    setSaved(true)
+    setTimeout(() => setSaved(false), 1200)
+  }
 
   return (
     <TableRow className="group border-b border-border/30 hover:bg-muted/30">
@@ -1436,6 +1640,43 @@ function LineItemRow({
       <TableCell className="text-right py-1">
         <span className="text-[13px] font-medium tabular-nums text-foreground">{fmt(clientTotal)}</span>
       </TableCell>
+      {recapActual !== undefined && onSaveRecapActual && (
+        <>
+          <TableCell className="text-right py-1">
+            <div className="relative w-[72px] ml-auto flex items-center">
+              <span className="absolute left-1 top-1/2 -translate-y-1/2 text-[13px] text-muted-foreground/60 pointer-events-none">$</span>
+              <Input
+                value={actTotal}
+                onChange={(e) => setActTotal(e.target.value)}
+                onBlur={handleActualBlur}
+                placeholder="—"
+                className={`${cellInput} w-full text-right pl-4`}
+              />
+              {saved && <Check className="absolute -right-4 h-3 w-3 text-green-600" />}
+            </div>
+          </TableCell>
+          <TableCell className="text-right py-1">
+            {variance !== null ? (
+              <span className={`text-[13px] font-medium tabular-nums ${variance >= 0 ? 'text-green-700' : 'text-red-600'}`}>
+                {variance >= 0 ? '+' : ''}{fmt(variance)}
+              </span>
+            ) : (
+              <span className="text-[13px] text-muted-foreground/40">—</span>
+            )}
+          </TableCell>
+          <TableCell className="text-center py-1">
+            {estimateId && onReceiptUpload && onReceiptDelete && (
+              <ReceiptCell
+                estimateId={estimateId}
+                lineItemId={item.id}
+                receipt={receipt ?? null}
+                onUploadComplete={onReceiptUpload}
+                onDeleteComplete={onReceiptDelete}
+              />
+            )}
+          </TableCell>
+        </>
+      )}
       <TableCell className="py-1">
         {!readOnly && !item.is_auto_generated && (
           <Trash2 className="h-3 w-3 opacity-0 group-hover:opacity-50 hover:!opacity-100 transition-opacity cursor-pointer text-foreground/60" onClick={() => onDelete(item.id)} />
@@ -1770,7 +2011,30 @@ function SummaryTab({
   rateCardData: RateCardItemsBySection[]
   scheduleEntriesMap: Record<string, ScheduleEntry[]>
   gpThreshold: number
+  editRules?: SegmentEditRules
 }) {
+  // Variance data for recap segments
+  const [varianceData, setVarianceData] = useState<Record<string, VarianceRow[]>>({})
+  const recapLogs = laborLogs.filter((l) => l.status === 'recap' || l.status === 'invoiced')
+  const hasRecapData = recapLogs.length > 0
+  const recapLogIds = recapLogs.map((l) => l.id).join(',')
+
+  useEffect(() => {
+    if (!hasRecapData) return
+    const loadVariance = async () => {
+      const results: Record<string, VarianceRow[]> = {}
+      await Promise.all(recapLogs.map(async (log) => {
+        try {
+          results[log.id] = await getVarianceReport(log.id)
+        } catch (err) {
+          console.error('Failed to load variance for segment:', log.id, err)
+        }
+      }))
+      setVarianceData(results)
+    }
+    loadVariance()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasRecapData, recapLogIds])
   // Build lookup: rate_card_item_id → rate_card_section name
   const itemSectionMap = new Map<string, string>()
   for (const { section, items } of rateCardData) {
@@ -2044,6 +2308,23 @@ function SummaryTab({
             </div>
           ) : null
         })()}
+
+        {/* Variance Summary for recap segments */}
+        {hasRecapData && Object.keys(varianceData).length > 0 && (
+          <div className="mt-4 pt-4 border-t border-border/40 space-y-4">
+            {recapLogs.map((log) => {
+              const rows = varianceData[log.id]
+              if (!rows || rows.length === 0) return null
+              return (
+                <VarianceSummary
+                  key={log.id}
+                  varianceRows={rows}
+                  segmentName={laborLogs.length > 1 ? log.location_name : undefined}
+                />
+              )
+            })}
+          </div>
+        )}
       </div>
     </div>
   )
@@ -2598,6 +2879,11 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
           status={activeSegmentStatus}
           userRole={userRole}
           onTransition={handleSegmentTransition}
+          unnamedStaffCount={
+            activeSegmentStatus === 'recap' && activeLocationId
+              ? (scheduleEntriesMap[activeLocationId] ?? []).filter((e) => !e.person_name?.trim()).length
+              : undefined
+          }
         />
       )}
 
@@ -2709,6 +2995,8 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
                 onSwitchToSchedule={() => setActiveTab('schedule')}
                 readOnly={!editRules.labor_log}
                 canDelete={hasPermission(userRole, 'delete_estimate')}
+                editRules={editRules}
+                estimateId={estimate.id}
               />
             </TabsContent>
 
@@ -2732,6 +3020,8 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
                   onDelete={handleDeleteLineItem}
                   readOnly={!editRules.line_items}
                   canDelete={hasPermission(userRole, 'delete_estimate')}
+                  editRules={editRules}
+                  estimateId={estimate.id}
                 />
               </TabsContent>
             ))}

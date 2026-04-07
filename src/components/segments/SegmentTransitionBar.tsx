@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Lock } from 'lucide-react'
+import { Lock, AlertTriangle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -75,9 +75,10 @@ interface SegmentTransitionBarProps {
   userRole: string
   onTransition: (toStatus: SegmentStatus, comment?: string) => Promise<{ success: boolean; error?: string }>
   disabled?: boolean
+  unnamedStaffCount?: number
 }
 
-export function SegmentTransitionBar({ segmentName, status, userRole, onTransition, disabled }: SegmentTransitionBarProps) {
+export function SegmentTransitionBar({ segmentName, status, userRole, onTransition, disabled, unnamedStaffCount }: SegmentTransitionBarProps) {
   const [confirmAction, setConfirmAction] = useState<SegmentAction | null>(null)
   const [reason, setReason] = useState('')
   const [submitting, setSubmitting] = useState(false)
@@ -87,6 +88,7 @@ export function SegmentTransitionBar({ segmentName, status, userRole, onTransiti
     (action) => hasPermission(userRole, action.permission)
   )
   const lockMessage = LOCK_MESSAGES[status]
+  const namesBlocking = status === 'recap' && (unnamedStaffCount ?? 0) > 0
 
   async function handleAction(action: SegmentAction) {
     // Show confirmation for all transitions
@@ -123,19 +125,28 @@ export function SegmentTransitionBar({ segmentName, status, userRole, onTransiti
             Segment
           </span>
           <div className="flex items-center gap-1.5">
-            {actions.map((action) => (
-              <Button
-                key={action.label}
-                variant={action.variant}
-                size="sm"
-                className={`h-6 text-[10px] px-2 ${action.className || ''}`}
-                onClick={() => handleAction(action)}
-                disabled={disabled || submitting}
-              >
-                {action.label}
-              </Button>
-            ))}
+            {actions.map((action) => {
+              const isInvoiceBlocked = action.toStatus === 'invoiced' && namesBlocking
+              return (
+                <Button
+                  key={action.label}
+                  variant={action.variant}
+                  size="sm"
+                  className={`h-6 text-[10px] px-2 ${action.className || ''}`}
+                  onClick={() => handleAction(action)}
+                  disabled={disabled || submitting || isInvoiceBlocked}
+                >
+                  {action.label}
+                </Button>
+              )
+            })}
           </div>
+          {namesBlocking && (
+            <div className="flex items-center gap-1.5 text-[10px] text-amber-600">
+              <AlertTriangle className="h-3 w-3 shrink-0" />
+              <span>{unnamedStaffCount} staff still need{unnamedStaffCount === 1 ? 's' : ''} names assigned before invoicing</span>
+            </div>
+          )}
         </div>
       )}
 
