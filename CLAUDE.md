@@ -144,17 +144,20 @@ Current mode: Directed
 
 ## Current State
 
-- Phase 2, Week 11-12. Change Orders sprint complete. Outputs sprint continuing.
+- Phase 2, Week 11-12. Change Orders sprint complete. PDF generation sprint next.
 - **Completed this session:**
   - **Lightweight "Request Edit" flow:** "Request Edit" button on active segments. Requires reason, captures version snapshot, transitions segment back to `estimate` for editing. No CO record — version history is the audit trail. Re-submission goes through normal approval flow.
-  - **Formal "Create Change Order" flow:** "Create Change Order" button on active segments. Creates numbered CO record (CO-001, CO-002), captures baseline snapshot, unlocks segment for editing. Blue banner shows CO in progress. "Submit Change Order" replaces normal submit button.
-  - **Auto-computed delta:** On CO submission, `computeDelta()` diffs baseline snapshot vs current state. Compares labor entries, line items, and schedule entries. Categorizes changes as added/removed/modified with dollar amounts. Handles both schedule-driven and manual labor segments.
-  - **CO approval routing:** `handleApprove`/`handleReject` in EstimateBuilderPage detect submitted COs and route through `approveChangeOrder`/`rejectChangeOrder` which wrap `reviewApproval` and handle CO record lifecycle. Rejection rolls back to baseline and returns segment to active.
-  - **Delta display in ApprovalBanner:** When a submitted CO exists, ApprovalBanner shows a collapsible delta summary section (added/removed/modified items with dollar amounts) so reviewers see exactly what changed.
-  - **Change Order history tab:** VersionHistoryPanel has a third "COs" tab. Shows running total (Original → Current with total delta), timeline of all COs newest-first with status badges, and expandable delta detail per CO.
-  - **Database:** `change_orders` table created with co_number, baseline/revised version references, delta_summary JSONB, status machine (draft/submitted/approved/rejected).
-  - **Service layer:** `change-order-service.ts` with full CRUD, delta computation, submit/approve/reject lifecycle.
-  - **Status transitions:** Added `active` → `estimate` (for reopening) and `estimate` → `active` (for CO rejection rollback) to valid transitions map.
+  - **Formal "Create Change Order" flow:** "Create Change Order" button on active segments. Creates numbered CO record (CO-001, CO-002), captures baseline snapshot, unlocks segment for editing. Blue banner shows CO in progress. "Submit Change Order" replaces normal submit button when draft CO exists.
+  - **Auto-computed delta (entry-level):** On CO submission, `computeDelta()` diffs baseline snapshot vs current state. For schedule-driven segments, compares individual entries by ID (not rollups) — detects exact person removed, hours added, rate changed. For manual labor, matches by `rate_card_item_id` then `role_name`. Line items matched by `rate_card_item_id` then `item_name` + `section`. Delta detail shows days, rate, and dollar amounts.
+  - **CO approval routing:** `handleApprove`/`handleReject` in EstimateBuilderPage detect submitted COs and route through `approveChangeOrder`/`rejectChangeOrder` which wrap `reviewApproval` and handle CO record lifecycle. Rejection uses targeted `rollbackSegmentData()` that restores child data without deleting the labor log — preserves approval history, change orders, and segment activities.
+  - **Delta display in ApprovalBanner:** When a submitted CO exists, ApprovalBanner shows a collapsible delta summary section (added/removed/modified items with days, rates, dollar amounts) so reviewers see exactly what changed before approving.
+  - **Change Order history tab:** VersionHistoryPanel has a third "COs" tab. Shows running total (Original → Current with total delta), timeline of all COs newest-first with status badges, and expandable delta detail per CO with rate/days breakdown.
+  - **UUID → display name resolution:** All history views resolve profile UUIDs to `full_name` at display time. Covers version history `changed_by` + `change_summary` text, approval `requested_by`/`reviewed_by`, live approval banners, and CO created/approved names. Uses batch resolution via `buildProfileNameMap()` for history panels and `resolveDisplayName()` for live data.
+  - **Improved version history summaries:** Approval notes now flow through all paths — submit comment stored on approval_request and in version snapshot summary, approver notes (optional textarea) stored and included in snapshot. Intermediate gate approvals (AM, executive) create their own version snapshots. Summaries show human-readable text: "Submitted for review by Dan — ready for review", "AM review approved by Tad — Looks good — advancing to client approval", "Client approved by Derek".
+  - **Expandable version entries:** Clicking a version entry in the History panel removes the 2-line clamp so full summaries are readable.
+  - **Database:** `change_orders` table with co_number, baseline/revised version references, delta_summary JSONB, status machine (draft/submitted/approved/rejected).
+  - **Service layer:** `change-order-service.ts` with full CRUD, entry-level delta computation, targeted segment rollback, submit/approve/reject lifecycle.
+  - **Status transitions:** Added `active` → `estimate` (for reopening) and `estimate` → `active` (for CO rejection rollback) to valid transitions map. Comment guard requires reason when reopening active segments.
 - **Previously completed:** Recap Entry, AI Intelligence (Modes 1-3), Financial Controls, Auth, Workflow, Schedule, Estimate Builder, Rate Cards.
 - **Deferred:** Admin Settings UI for GP/approval thresholds (GitHub issue captured). Location-aware historical patterns (logged as enhancement).
 - **Next:** PDF generation sprint.
