@@ -23,13 +23,22 @@ interface SegmentAction {
   requiresReason?: boolean
   className?: string
   permission: Permission
+  action?: 'transition' | 'create_co' | 'submit_co'
 }
 
-function getSegmentActions(status: SegmentStatus): SegmentAction[] {
+function getSegmentActions(status: SegmentStatus, hasDraftCO?: boolean): SegmentAction[] {
   switch (status) {
     case 'pipeline':
       return [{ label: 'Begin Estimating', toStatus: 'estimate', variant: 'outline', permission: 'transition_segment', className: 'border-zinc-300/60 text-zinc-600/80 bg-zinc-50/50 hover:bg-zinc-100/60 hover:border-zinc-400/60 hover:text-zinc-800' }]
     case 'estimate':
+      // When a draft CO exists, replace "Submit for Review" with "Submit Change Order"
+      if (hasDraftCO) {
+        return [
+          { label: 'Submit Change Order', toStatus: 'in_review', variant: 'outline', permission: 'submit_for_review', action: 'submit_co', className: 'border-blue-300/60 text-blue-700/80 bg-blue-50/50 hover:bg-blue-100/60 hover:border-blue-400/60 hover:text-blue-800' },
+          { label: 'Mark Lost', toStatus: 'lost', variant: 'outline', requiresReason: true, permission: 'transition_segment', className: 'border-red-300/60 text-red-600/80 hover:bg-red-50/60 hover:text-red-700' },
+          { label: 'Cancel', toStatus: 'cancelled', variant: 'outline', requiresReason: true, permission: 'transition_segment', className: 'border-slate-300/60 text-slate-500/80 hover:bg-slate-50/60 hover:text-slate-600' },
+        ]
+      }
       return [
         { label: 'Submit for Review', toStatus: 'in_review', variant: 'outline', permission: 'submit_for_review', className: 'border-amber-300/60 text-amber-700/80 bg-amber-50/50 hover:bg-amber-100/60 hover:border-amber-400/60 hover:text-amber-800' },
         { label: 'Mark Lost', toStatus: 'lost', variant: 'outline', requiresReason: true, permission: 'transition_segment', className: 'border-red-300/60 text-red-600/80 hover:bg-red-50/60 hover:text-red-700' },
@@ -42,7 +51,11 @@ function getSegmentActions(status: SegmentStatus): SegmentAction[] {
         { label: 'Cancel', toStatus: 'cancelled', variant: 'outline', requiresReason: true, permission: 'transition_segment', className: 'border-slate-300/60 text-slate-500/80 hover:bg-slate-50/60 hover:text-slate-600' },
       ]
     case 'active':
-      return [{ label: 'Begin Recap', toStatus: 'recap', variant: 'outline', permission: 'transition_segment', className: 'border-violet-300/60 text-violet-700/80 bg-violet-50/50 hover:bg-violet-100/60 hover:border-violet-400/60 hover:text-violet-800' }]
+      return [
+        { label: 'Request Edit', toStatus: 'estimate', variant: 'outline', requiresReason: true, permission: 'transition_segment', className: 'border-orange-300/60 text-orange-600/80 hover:bg-orange-50/60 hover:text-orange-700' },
+        { label: 'Create Change Order', toStatus: 'estimate', variant: 'outline', requiresReason: true, permission: 'transition_segment', action: 'create_co', className: 'border-blue-300/60 text-blue-700/80 bg-blue-50/50 hover:bg-blue-100/60 hover:border-blue-400/60 hover:text-blue-800' },
+        { label: 'Begin Recap', toStatus: 'recap', variant: 'outline', permission: 'transition_segment', className: 'border-violet-300/60 text-violet-700/80 bg-violet-50/50 hover:bg-violet-100/60 hover:border-violet-400/60 hover:text-violet-800' },
+      ]
     case 'recap':
       return [{ label: 'Mark Invoiced', toStatus: 'invoiced', variant: 'outline', permission: 'mark_invoiced', className: 'border-teal-300/60 text-teal-700/80 bg-teal-50/50 hover:bg-teal-100/60 hover:border-teal-400/60 hover:text-teal-800' }]
     case 'invoiced':
@@ -74,17 +87,20 @@ interface SegmentTransitionBarProps {
   status: SegmentStatus
   userRole: string
   onTransition: (toStatus: SegmentStatus, comment?: string) => Promise<{ success: boolean; error?: string }>
+  onCreateChangeOrder?: (description: string) => Promise<{ success: boolean; error?: string }>
+  onSubmitChangeOrder?: () => Promise<{ success: boolean; error?: string }>
   disabled?: boolean
   unnamedStaffCount?: number
+  hasDraftCO?: boolean
 }
 
-export function SegmentTransitionBar({ segmentName, status, userRole, onTransition, disabled, unnamedStaffCount }: SegmentTransitionBarProps) {
+export function SegmentTransitionBar({ segmentName, status, userRole, onTransition, onCreateChangeOrder, onSubmitChangeOrder, disabled, unnamedStaffCount, hasDraftCO }: SegmentTransitionBarProps) {
   const [confirmAction, setConfirmAction] = useState<SegmentAction | null>(null)
   const [reason, setReason] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const actions = getSegmentActions(status).filter(
+  const actions = getSegmentActions(status, hasDraftCO).filter(
     (action) => hasPermission(userRole, action.permission)
   )
   const lockMessage = LOCK_MESSAGES[status]
@@ -106,7 +122,17 @@ export function SegmentTransitionBar({ segmentName, status, userRole, onTransiti
 
     setSubmitting(true)
     setError(null)
-    const result = await onTransition(confirmAction.toStatus, reason.trim() || undefined)
+
+    let result: { success: boolean; error?: string }
+
+    if (confirmAction.action === 'create_co' && onCreateChangeOrder) {
+      result = await onCreateChangeOrder(reason.trim())
+    } else if (confirmAction.action === 'submit_co' && onSubmitChangeOrder) {
+      result = await onSubmitChangeOrder()
+    } else {
+      result = await onTransition(confirmAction.toStatus, reason.trim() || undefined)
+    }
+
     setSubmitting(false)
 
     if (result.success) {
@@ -169,7 +195,11 @@ export function SegmentTransitionBar({ segmentName, status, userRole, onTransiti
           <DialogHeader>
             <DialogTitle className="text-sm">{confirmAction?.label}</DialogTitle>
             <DialogDescription className="text-xs text-muted-foreground">
-              {confirmAction?.requiresReason
+              {confirmAction?.action === 'create_co'
+                ? `Describe the scope change for "${segmentName}". This will create a numbered change order and unlock the segment for editing.`
+                : confirmAction?.action === 'submit_co'
+                ? `Submit the change order for "${segmentName}". The delta will be auto-computed and sent for approval.`
+                : confirmAction?.requiresReason
                 ? `Please provide a reason for this change to "${segmentName}".`
                 : `Confirm: transition "${segmentName}" to ${confirmAction?.toStatus === 'in_review' ? 'In Review' : confirmAction?.toStatus}.`
               }

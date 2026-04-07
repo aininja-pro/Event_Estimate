@@ -24,9 +24,9 @@ function requireSupabase() {
 
 const VALID_SEGMENT_TRANSITIONS: Record<string, string[]> = {
   pipeline: ['estimate', 'lost', 'cancelled'],
-  estimate: ['in_review', 'lost', 'cancelled'],
+  estimate: ['in_review', 'active', 'lost', 'cancelled'],
   in_review: ['active', 'estimate', 'lost', 'cancelled'],
-  active: ['recap'],
+  active: ['estimate', 'recap'],
   recap: ['invoiced'],
   invoiced: ['recap'],
   lost: ['estimate'],
@@ -79,6 +79,9 @@ export async function transitionSegmentStatus(
   if (toStatus === 'estimate' && fromStatus === 'in_review' && !comment) {
     return { success: false, error: 'A reason is required when sending back a segment' }
   }
+  if (toStatus === 'estimate' && fromStatus === 'active' && !comment) {
+    return { success: false, error: 'A reason is required when reopening an active segment for editing' }
+  }
   if ((toStatus === 'lost' || toStatus === 'cancelled') && !comment) {
     return { success: false, error: 'A reason is required when marking a segment as lost or cancelled' }
   }
@@ -127,7 +130,7 @@ export async function transitionSegmentStatus(
   await createVersionSnapshot(
     log.estimate_id,
     userName || 'Unknown User',
-    `Segment "${log.location_name}" moved from ${fromStatus} to ${toStatus}`
+    `Segment "${log.location_name}" moved from ${fromStatus} to ${toStatus}${comment ? ` — ${comment}` : ''}`
   )
 
   // Dispatch notifications (fire-and-forget)

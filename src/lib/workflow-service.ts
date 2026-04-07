@@ -38,6 +38,19 @@ function requireSupabase() {
   return supabase
 }
 
+/** Resolve a profile UUID to full_name. Returns the ID as-is if not a UUID or lookup fails. */
+async function resolveDisplayName(userId: string): Promise<string> {
+  // If it doesn't look like a UUID, it's already a display name
+  if (!userId.match(/^[0-9a-f]{8}-/)) return userId
+  const db = requireSupabase()
+  const { data } = await db
+    .from('profiles')
+    .select('full_name')
+    .eq('id', userId)
+    .maybeSingle()
+  return data?.full_name || userId
+}
+
 /** Strip system-generated columns before re-inserting a snapshot record. */
 function stripSystemCols(obj: Record<string, unknown>, extra: string[] = []): Record<string, unknown> {
   const omit = new Set(['id', 'created_at', 'updated_at', ...extra])
@@ -571,13 +584,16 @@ export async function determineApprovalThreshold(estimateTotal: number): Promise
 export async function submitForApproval(
   estimateId: string,
   userId: string,
-  laborLogId: string
+  laborLogId: string,
+  comment?: string
 ): Promise<{ approvalId: string; threshold: string; error?: string }> {
   const db = requireSupabase()
 
   // Transition the segment to in_review via segment-status-service
   const { transitionSegmentStatus: transitionSeg } = await import('./segment-status-service')
-  const result = await transitionSeg(laborLogId, 'in_review', undefined, userId)
+  const submitterName = await resolveDisplayName(userId)
+  const summary = `Submitted for review by ${submitterName}${comment ? ` — ${comment}` : ''}`
+  const result = await transitionSeg(laborLogId, 'in_review', summary, submitterName)
   if (!result.success) {
     return { approvalId: '', threshold: '', error: result.error }
   }
@@ -608,6 +624,7 @@ export async function submitForApproval(
       labor_log_id: laborLogId,
       approval_phase: 'internal',
       approval_gate: 'am',
+      notes: comment || null,
     })
     .select()
     .single()
@@ -716,12 +733,14 @@ export async function reviewApproval(
 
   // ── Rejection at any gate → send back to estimate ──
   if (decision === 'rejected') {
+    const reviewerName = await resolveDisplayName(reviewerId)
     let result: { success: boolean; error?: string }
     if (approval.labor_log_id) {
       const { transitionSegmentStatus: transitionSeg } = await import('./segment-status-service')
-      result = await transitionSeg(approval.labor_log_id, 'estimate' as SegmentStatus, notes, reviewerId)
+      const gateLabel = gate === 'client' ? 'Client' : gate === 'executive' ? 'Executive' : 'AM'
+      result = await transitionSeg(approval.labor_log_id, 'estimate' as SegmentStatus, `Sent back by ${reviewerName} (${gateLabel} review)${notes ? ` — ${notes}` : ''}`, reviewerName)
     } else {
-      result = await transitionStatus(approval.estimate_id, 'estimate', reviewerId, notes)
+      result = await transitionStatus(approval.estimate_id, 'estimate', reviewerName, notes)
     }
 
     if (result.success && targetUserId) {
@@ -794,6 +813,16 @@ export async function reviewApproval(
       }
     }
 
+    // Record the intermediate approval in version history
+    const gateApprovedLabel = gate === 'am' ? 'AM review approved' : 'Executive review approved'
+    const nextGateLabel = nextGate === 'executive' ? 'advancing to executive review' : 'advancing to client approval'
+    const reviewerName = await resolveDisplayName(reviewerId)
+    await createVersionSnapshot(
+      approval.estimate_id,
+      reviewerName,
+      `${gateApprovedLabel} by ${reviewerName}${notes ? ` — ${notes}` : ''} — ${nextGateLabel}`
+    )
+
     return { success: true, nextGate }
   }
 
@@ -801,7 +830,9 @@ export async function reviewApproval(
   let result: { success: boolean; error?: string }
   if (approval.labor_log_id) {
     const { transitionSegmentStatus: transitionSeg } = await import('./segment-status-service')
-    result = await transitionSeg(approval.labor_log_id, 'active' as SegmentStatus, undefined, reviewerId)
+    const gateLabel = gate === 'client' ? 'Client approved' : gate === 'executive' ? 'Executive approved' : 'AM approved'
+    const reviewerName = await resolveDisplayName(reviewerId)
+    result = await transitionSeg(approval.labor_log_id, 'active' as SegmentStatus, `${gateLabel} by ${reviewerName}${notes ? ` — ${notes}` : ''}`, reviewerName)
   } else {
     result = await transitionStatus(approval.estimate_id, 'active', reviewerId)
   }
@@ -840,7 +871,26 @@ export async function getApprovalHistory(estimateId: string): Promise<ApprovalRe
     .eq('estimate_id', estimateId)
     .order('created_at', { ascending: false })
   if (error) throw error
-  return data
+
+  // Resolve profile UUIDs to display names
+  const profileIds = new Set<string>()
+  for (const a of (data || [])) {
+    if (a.requested_by) profileIds.add(a.requested_by)
+    if (a.reviewed_by) profileIds.add(a.reviewed_by)
+  }
+  if (profileIds.size > 0) {
+    const { data: profiles } = await db
+      .from('profiles')
+      .select('id, full_name')
+      .in('id', Array.from(profileIds))
+    const nameMap = new Map((profiles || []).map((p: { id: string; full_name: string }) => [p.id, p.full_name]))
+    for (const a of (data || [])) {
+      if (a.requested_by && nameMap.has(a.requested_by)) a.requested_by = nameMap.get(a.requested_by)!
+      if (a.reviewed_by && nameMap.has(a.reviewed_by)) a.reviewed_by = nameMap.get(a.reviewed_by)!
+    }
+  }
+
+  return data || []
 }
 
 /** Get the pending approval for a specific segment. */

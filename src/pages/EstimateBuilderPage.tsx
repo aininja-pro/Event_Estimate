@@ -47,7 +47,19 @@ import {
   getPendingSegmentApproval,
   submitForApproval,
   reviewApproval,
+  createVersionSnapshot,
 } from '@/lib/workflow-service'
+import {
+  getDraftChangeOrder,
+  getSubmittedChangeOrder,
+  createChangeOrder,
+  updateChangeOrderBaseline,
+  submitChangeOrder,
+  approveChangeOrder,
+  rejectChangeOrder,
+  formatCONumber,
+} from '@/lib/change-order-service'
+import type { ChangeOrder } from '@/types/change-order'
 import { transitionSegmentStatus, getSegmentEditRules, getRecapActuals, upsertRecapActual, getVarianceReport } from '@/lib/segment-status-service'
 import { useUser } from '@/lib/auth'
 import { hasPermission } from '@/lib/permissions'
@@ -2347,6 +2359,8 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
   const [aiPanelOpen, setAiPanelOpen] = useState(false)
   const [historyOpen, setHistoryOpen] = useState(false)
   const [segmentApprovals, setSegmentApprovals] = useState<Record<string, ApprovalRequest | null>>({})
+  const [draftChangeOrders, setDraftChangeOrders] = useState<Record<string, ChangeOrder | null>>({})
+  const [submittedChangeOrders, setSubmittedChangeOrders] = useState<Record<string, ChangeOrder | null>>({})
   const [gpThreshold, setGpThreshold] = useState(20)
   const [loading, setLoading] = useState(true)
 
@@ -2395,6 +2409,20 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
         }
       }))
       setSegmentApprovals(approvalsMap)
+
+      // Load draft and submitted change orders for active/estimate segments
+      const draftCOs: Record<string, ChangeOrder | null> = {}
+      const submittedCOs: Record<string, ChangeOrder | null> = {}
+      await Promise.all(logs.map(async (log) => {
+        if (log.status === 'estimate') {
+          draftCOs[log.id] = await getDraftChangeOrder(log.id)
+        }
+        if (log.status === 'in_review') {
+          submittedCOs[log.id] = await getSubmittedChangeOrder(log.id)
+        }
+      }))
+      setDraftChangeOrders(draftCOs)
+      setSubmittedChangeOrders(submittedCOs)
 
       // Set active location (preserve current selection if still valid)
       if (logs.length > 0) {
@@ -2793,7 +2821,7 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
 
     // "Submit for Review" goes through the approval workflow
     if (toStatus === 'in_review') {
-      const result = await submitForApproval(estimateId, userId, activeLocationId)
+      const result = await submitForApproval(estimateId, userId, activeLocationId, comment)
       if (result.error) return { success: false, error: result.error }
       await loadData()
       return { success: true }
@@ -2804,16 +2832,67 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
     return result
   }
 
-  async function handleApprove(approvalId: string) {
-    const result = await reviewApproval(approvalId, 'approved', userId, userRole)
+  async function handleApprove(approvalId: string, notes?: string) {
+    if (!activeLocationId) return { success: false, error: 'No segment selected' }
+    const co = submittedChangeOrders[activeLocationId]
+    if (co) {
+      const result = await approveChangeOrder(co.id, approvalId, userId, userRole, notes)
+      if (result.success) await loadData()
+      return result
+    }
+    const result = await reviewApproval(approvalId, 'approved', userId, userRole, notes)
     if (result.success) await loadData()
     return result
   }
 
   async function handleReject(approvalId: string, notes: string) {
+    if (!activeLocationId) return { success: false, error: 'No segment selected' }
+    const co = submittedChangeOrders[activeLocationId]
+    if (co) {
+      const result = await rejectChangeOrder(co.id, approvalId, estimateId, activeLocationId, userId, userRole, notes)
+      if (result.success) await loadData()
+      return result
+    }
     const result = await reviewApproval(approvalId, 'rejected', userId, userRole, notes)
     if (result.success) await loadData()
     return result
+  }
+
+  async function handleCreateChangeOrder(description: string) {
+    if (!activeLocationId) return { success: false, error: 'No segment selected' }
+    try {
+      // 1. Create the CO record
+      const co = await createChangeOrder({ estimate_id: estimateId, labor_log_id: activeLocationId, description, created_by: userId })
+      // 2. Capture baseline version snapshot
+      const { versionId, error: snapErr } = await createVersionSnapshot(estimateId, userId, `${formatCONumber(co.co_number)} baseline: ${description}`)
+      if (snapErr) return { success: false, error: snapErr }
+      // 3. Store baseline version ID and total on the CO
+      await updateChangeOrderBaseline(co.id, versionId, 0)
+      // 4. Transition segment to estimate for editing
+      const result = await transitionSegmentStatus(activeLocationId, 'estimate', `Change Order ${formatCONumber(co.co_number)}: ${description}`, userId)
+      if (result.success) await loadData()
+      return result
+    } catch (err) {
+      return { success: false, error: err instanceof Error ? err.message : 'Failed to create change order' }
+    }
+  }
+
+  async function handleSubmitChangeOrder() {
+    if (!activeLocationId) return { success: false, error: 'No segment selected' }
+    const co = draftChangeOrders[activeLocationId]
+    if (!co) return { success: false, error: 'No draft change order found' }
+    try {
+      // 1. Compute delta + create revised snapshot + update CO to submitted
+      const { error: submitErr } = await submitChangeOrder(co.id, estimateId, activeLocationId, userId)
+      if (submitErr) return { success: false, error: submitErr }
+      // 2. Route through approval workflow
+      const result = await submitForApproval(estimateId, userId, activeLocationId)
+      if (result.error) return { success: false, error: result.error }
+      await loadData()
+      return { success: true }
+    } catch (err) {
+      return { success: false, error: err instanceof Error ? err.message : 'Failed to submit change order' }
+    }
   }
 
   // Segment-aware edit rules: derive from the active segment's status
@@ -2870,7 +2949,19 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
           userRole={userRole}
           onApprove={handleApprove}
           onReject={handleReject}
+          changeOrder={submittedChangeOrders[activeLocationId] ?? undefined}
         />
+      )}
+
+      {/* Change Order in-progress banner */}
+      {activeLocationId && draftChangeOrders[activeLocationId] && activeSegmentStatus === 'estimate' && (
+        <div className="flex items-center gap-2 px-3 py-2 bg-blue-50 border border-blue-200/60 rounded text-[11px] text-blue-700">
+          <Sparkles className="h-3.5 w-3.5 shrink-0" />
+          <span className="font-medium">
+            {formatCONumber(draftChangeOrders[activeLocationId]!.co_number)} in progress
+          </span>
+          <span className="text-blue-600/70">— {draftChangeOrders[activeLocationId]!.description}</span>
+        </div>
       )}
 
       {activeLog && (
@@ -2879,6 +2970,9 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
           status={activeSegmentStatus}
           userRole={userRole}
           onTransition={handleSegmentTransition}
+          onCreateChangeOrder={handleCreateChangeOrder}
+          onSubmitChangeOrder={handleSubmitChangeOrder}
+          hasDraftCO={!!(activeLocationId && draftChangeOrders[activeLocationId])}
           unnamedStaffCount={
             activeSegmentStatus === 'recap' && activeLocationId
               ? (scheduleEntriesMap[activeLocationId] ?? []).filter((e) => !e.person_name?.trim()).length

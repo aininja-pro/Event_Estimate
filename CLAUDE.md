@@ -95,6 +95,10 @@ Current mode: Directed
 - Recap mode renders additional columns when `editRules.actuals === true`. Original estimate data is never modified — actuals are separate records in recap_actuals.
 - Receipts stored in Supabase Storage bucket 'receipts' with path pattern: receipts/{estimate_id}/{line_item_id}/{timestamp}_{filename}.
 - Name validation gate: recap → invoiced transition blocked until all schedule_entries have person_name filled. Enforced in both service layer and SegmentTransitionBar UI.
+- Change orders are per-segment. CO numbers are sequential per estimate × segment (CO-001, CO-002).
+- Delta computation compares version snapshots — baseline (at CO creation) vs current state (at submission). Match entries by rate_card_item_id first, then by name.
+- Lightweight edit uses "Request Edit" — no CO record, just version history. Formal change order uses "Create Change Order" — produces a numbered CO with auto-computed delta.
+- CO approval routing: EstimateBuilderPage detects submitted COs and routes approve/reject through approveChangeOrder/rejectChangeOrder instead of plain reviewApproval.
 
 ## Avoid
 
@@ -136,25 +140,27 @@ Current mode: Directed
 | Wk 10 | Nudge auto-refresh fix: Supabase-direct fetch, cache bypass, pre-computed staffing mismatches, schedule-driven segment handling, attendance parsing | Mode 2 chat assistant | Nudge refresh complete |
 | Wk 10-11 | AI Chat Assistant (Mode 2) + Scoping Bridge (Mode 3): conversational chat in Intelligence panel with cross-client data, AI Scoping page restyled and moved to Production sidebar, Create Estimate from scope with schedule auto-generation, scope generation moved to backend with client-specific rate cards | Outputs sprint | AI Intelligence phase complete |
 | Wk 11 | Recap Entry: actuals columns on Labor Log + line items, variance display on Summary, name validation gate, receipt upload via Supabase Storage | Change Orders sprint | Recap mode complete |
+| Wk 11-12 | Change Orders: lightweight edit + formal CO with auto-delta, CO tracking in version history, per-segment CO numbering | PDF generation | Change orders complete |
 
 ## Current State
 
-- Phase 2, Week 11. Recap Entry sprint complete. Outputs sprint started.
+- Phase 2, Week 11-12. Change Orders sprint complete. Outputs sprint continuing.
 - **Completed this session:**
-  - **Recap UI on Labor Log tab:** When a segment is in "recap" status, 4 new columns appear (Act Days, Act Cost, Variance, Var%) with on-blur save to `recap_actuals` table. Works for both schedule-driven rollup rows and manual labor entries.
-  - **Recap UI on line item tabs:** All 6 line item tabs (Production, Travel, Creative, Access, Misc, Fees) show Actual, Variance, and Receipt columns in recap mode. Actuals save on blur.
-  - **Receipt uploads:** Paperclip icon per line item opens file picker. Files upload to Supabase Storage bucket "receipts" with metadata in `receipt_attachments` table. Click to view (signed URL), X to delete. Validation: 10MB max, PDF/JPG/PNG/XLSX/CSV only.
-  - **Variance Summary on Summary tab:** When any segment is in recap or invoiced status, a "Recap: Estimated vs Actual" section appears below the P&L table. Shows per-section estimated/actual/variance with color-coded green/red totals. Supports schedule-driven labor variance.
-  - **Name validation gate:** "Mark Invoiced" button disabled with amber warning when staff names are missing. Enforced in both SegmentTransitionBar UI and `transitionSegmentStatus()` service layer. Progress counter on Labor Log: "6 of 8 names assigned".
-  - **Receipt service layer:** New `receipt-service.ts` with upload, get, getByEstimate, getUrl, delete functions following existing CRUD patterns.
-  - **Database:** `receipt_attachments` table + `receipts` Supabase Storage bucket created. `recap_actuals` table already existed from prior migration.
-- **Previously completed:** AI Intelligence (Modes 1-3), Financial Controls, Auth, Workflow, Schedule, Estimate Builder, Rate Cards.
+  - **Lightweight "Request Edit" flow:** "Request Edit" button on active segments. Requires reason, captures version snapshot, transitions segment back to `estimate` for editing. No CO record — version history is the audit trail. Re-submission goes through normal approval flow.
+  - **Formal "Create Change Order" flow:** "Create Change Order" button on active segments. Creates numbered CO record (CO-001, CO-002), captures baseline snapshot, unlocks segment for editing. Blue banner shows CO in progress. "Submit Change Order" replaces normal submit button.
+  - **Auto-computed delta:** On CO submission, `computeDelta()` diffs baseline snapshot vs current state. Compares labor entries, line items, and schedule entries. Categorizes changes as added/removed/modified with dollar amounts. Handles both schedule-driven and manual labor segments.
+  - **CO approval routing:** `handleApprove`/`handleReject` in EstimateBuilderPage detect submitted COs and route through `approveChangeOrder`/`rejectChangeOrder` which wrap `reviewApproval` and handle CO record lifecycle. Rejection rolls back to baseline and returns segment to active.
+  - **Delta display in ApprovalBanner:** When a submitted CO exists, ApprovalBanner shows a collapsible delta summary section (added/removed/modified items with dollar amounts) so reviewers see exactly what changed.
+  - **Change Order history tab:** VersionHistoryPanel has a third "COs" tab. Shows running total (Original → Current with total delta), timeline of all COs newest-first with status badges, and expandable delta detail per CO.
+  - **Database:** `change_orders` table created with co_number, baseline/revised version references, delta_summary JSONB, status machine (draft/submitted/approved/rejected).
+  - **Service layer:** `change-order-service.ts` with full CRUD, delta computation, submit/approve/reject lifecycle.
+  - **Status transitions:** Added `active` → `estimate` (for reopening) and `estimate` → `active` (for CO rejection rollback) to valid transitions map.
+- **Previously completed:** Recap Entry, AI Intelligence (Modes 1-3), Financial Controls, Auth, Workflow, Schedule, Estimate Builder, Rate Cards.
 - **Deferred:** Admin Settings UI for GP/approval thresholds (GitHub issue captured). Location-aware historical patterns (logged as enhancement).
-- **Next:** Change Orders sprint, then PDF generation.
+- **Next:** PDF generation sprint.
 
 ### New Tables Added This Sprint
-- `recap_actuals` (estimate_id, labor_log_id, labor_entry_id, schedule_entry_id, line_item_id, actual_quantity, actual_days, actual_hours, actual_unit_cost, actual_total, notes)
-- `receipt_attachments` (estimate_id, line_item_id, labor_entry_id, file_name, file_path, file_size, mime_type, uploaded_by, uploaded_at)
+- `change_orders` (estimate_id, labor_log_id, co_number, description, baseline_version_id, revised_version_id, delta_summary JSONB, baseline_total, revised_total, delta_amount, status, created_by, approved_by, approved_at)
 
 ### Tables Added in Prior Sprints
 - `estimate_nudge_dismissals` (estimate_id, nudge_id, dismissed_by, dismissed_at)
@@ -207,9 +213,10 @@ Current mode: Directed
 - `ai_scope_gen_service.py` (backend) — Scope generation using client-specific rate card from Supabase
 - `ai_scope_service.py` (backend) — Scope-to-estimate matching: role name fuzzy matching, section mapping
 - `receipt-service.ts` — Receipt upload/download/delete via Supabase Storage
+- `change-order-service.ts` — Change order CRUD, delta computation, CO lifecycle (create/submit/approve/reject)
 
 ### Supabase Tables
-clients, rate_card_sections, rate_card_items, fee_types, profiles, notifications, estimates, labor_logs (segments with per-segment status), labor_entries, estimate_line_items, schedule_entries, schedule_day_entries, schedule_day_types, estimate_versions, approval_requests, status_transitions, system_settings, estimate_nudge_dismissals, historical_events, historical_patterns, recap_actuals, receipt_attachments
+clients, rate_card_sections, rate_card_items, fee_types, profiles, notifications, estimates, labor_logs (segments with per-segment status), labor_entries, estimate_line_items, schedule_entries, schedule_day_entries, schedule_day_types, estimate_versions, approval_requests, status_transitions, system_settings, estimate_nudge_dismissals, historical_events, historical_patterns, recap_actuals, receipt_attachments, change_orders
 
 ## Environment Variables
 
@@ -268,5 +275,5 @@ DriveShop maintains separate rate cards per OEM client. Each client's MSA define
 | Workflow | 6-7 | Approvals, versioning, notifications | Complete |
 | Auth | 8 | Authentication, roles, permissions | Complete |
 | Intelligence | 9-11 | AI scoping, historical data, chat, scoping bridge | Complete |
-| Outputs | 10-11 | Change orders, recaps, PDF gen | Recaps Complete |
+| Outputs | 10-12 | Change orders, recaps, PDF gen | Change Orders + Recaps Complete |
 | Delivery | 12 | Intacct, pipeline dashboard, QA | Not Started |

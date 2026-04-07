@@ -17,7 +17,10 @@ import {
   getApprovalHistory,
   rollbackToVersion,
 } from '@/lib/workflow-service'
+import { getChangeOrders, formatCONumber } from '@/lib/change-order-service'
+import { supabase } from '@/lib/supabase'
 import type { EstimateVersion, ApprovalRequest } from '@/types/workflow'
+import type { ChangeOrder } from '@/types/change-order'
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -49,6 +52,37 @@ const STATUS_COLOR: Record<string, string> = {
   recalled: 'bg-zinc-200 text-zinc-600',
 }
 
+// ── UUID → Display Name Resolution ──────────────────────────────────────────
+
+const UUID_REGEX = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/g
+
+async function buildProfileNameMap(
+  versions: EstimateVersion[],
+  approvals: ApprovalRequest[]
+): Promise<Map<string, string>> {
+  const uuids = new Set<string>()
+  for (const v of versions) {
+    if (v.changed_by?.match(UUID_REGEX)) uuids.add(v.changed_by)
+    const summaryMatches = v.change_summary?.match(UUID_REGEX) || []
+    for (const m of summaryMatches) uuids.add(m)
+  }
+  for (const a of approvals) {
+    if (a.requested_by?.match(UUID_REGEX)) uuids.add(a.requested_by)
+    if (a.reviewed_by?.match(UUID_REGEX)) uuids.add(a.reviewed_by)
+  }
+  if (uuids.size === 0 || !supabase) return new Map()
+
+  const { data: profiles } = await supabase
+    .from('profiles')
+    .select('id, full_name')
+    .in('id', Array.from(uuids))
+  return new Map((profiles || []).map((p: { id: string; full_name: string }) => [p.id, p.full_name]))
+}
+
+function replaceUuidsInText(text: string, nameMap: Map<string, string>): string {
+  return text.replace(UUID_REGEX, (uuid) => nameMap.get(uuid) || uuid)
+}
+
 // ── Panel Component ─────────────────────────────────────────────────────────
 
 interface VersionHistoryPanelProps {
@@ -62,7 +96,8 @@ export function VersionHistoryPanel({ estimateId, open, onClose, onRollback }: V
   const { displayName } = useUser()
   const [versions, setVersions] = useState<EstimateVersion[]>([])
   const [approvals, setApprovals] = useState<ApprovalRequest[]>([])
-  const [activeTab, setActiveTab] = useState<'versions' | 'approvals'>('versions')
+  const [changeOrders, setChangeOrders] = useState<ChangeOrder[]>([])
+  const [activeTab, setActiveTab] = useState<'versions' | 'approvals' | 'change_orders'>('versions')
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [snapshotVersion, setSnapshotVersion] = useState<EstimateVersion | null>(null)
   const [rollbackTarget, setRollbackTarget] = useState<EstimateVersion | null>(null)
@@ -107,7 +142,27 @@ export function VersionHistoryPanel({ estimateId, open, onClose, onRollback }: V
           getVersionHistory(estimateId),
           getApprovalHistory(estimateId),
         ])
+
+        // Resolve UUIDs to display names across all history entries
+        const nameMap = await buildProfileNameMap(v, a)
+        for (const ver of v) {
+          ver.changed_by = nameMap.get(ver.changed_by) || ver.changed_by
+          if (ver.change_summary) {
+            ver.change_summary = replaceUuidsInText(ver.change_summary, nameMap)
+          }
+        }
+        // Approvals already resolved by getApprovalHistory, but replace any remaining UUIDs
+        for (const ap of a) {
+          ap.requested_by = nameMap.get(ap.requested_by) || ap.requested_by
+          if (ap.reviewed_by) ap.reviewed_by = nameMap.get(ap.reviewed_by) || ap.reviewed_by
+        }
+
         if (!cancelled) { setVersions(v); setApprovals(a) }
+        // Load COs separately so a failure doesn't break versions/approvals
+        try {
+          const co = await getChangeOrders(estimateId)
+          if (!cancelled) setChangeOrders(co)
+        } catch (coErr) { console.error('Failed to load change orders:', coErr) }
       } catch (err) { if (!cancelled) console.error(err) }
       if (!cancelled) setLoading(false)
     }
@@ -170,6 +225,16 @@ export function VersionHistoryPanel({ estimateId, open, onClose, onRollback }: V
             }`}
           >
             Approvals ({approvals.length})
+          </button>
+          <button
+            onClick={() => setActiveTab('change_orders')}
+            className={`flex-1 py-2 text-[11px] font-medium text-center transition-colors ${
+              activeTab === 'change_orders'
+                ? 'text-foreground border-b-2 border-foreground'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            COs ({changeOrders.length})
           </button>
         </div>
 
@@ -293,39 +358,49 @@ export function VersionHistoryPanel({ estimateId, open, onClose, onRollback }: V
                 })
               )}
             </div>
-          ) : (
+          ) : activeTab === 'approvals' ? (
             /* Approvals tab */
             <div className="divide-y divide-zinc-100">
               {approvals.length === 0 ? (
                 <p className="text-[11px] text-muted-foreground/60 text-center py-8">No approvals yet</p>
               ) : (
-                approvals.map((a) => (
-                  <div key={a.id} className="px-4 py-2.5">
-                    <div className="flex items-center gap-2">
-                      <span className={`text-[9px] px-1.5 py-0.5 rounded font-medium ${STATUS_COLOR[a.status] || 'bg-zinc-100 text-zinc-600'}`}>
-                        {a.status}
-                      </span>
-                      {a.threshold_triggered && (
-                        <span className="text-[9px] text-muted-foreground">{a.threshold_triggered}</span>
+                approvals.map((a) => {
+                  const gateLabel = a.approval_gate === 'executive' ? 'Executive Review'
+                    : a.approval_gate === 'client' ? 'Client Approval'
+                    : 'AM Review'
+                  return (
+                    <div key={a.id} className="px-4 py-2.5">
+                      <div className="flex items-center gap-2">
+                        <span className={`text-[9px] px-1.5 py-0.5 rounded font-medium ${STATUS_COLOR[a.status] || 'bg-zinc-100 text-zinc-600'}`}>
+                          {a.status}
+                        </span>
+                        <span className="text-[10px] font-medium text-foreground/70">{gateLabel}</span>
+                        {a.threshold_triggered && (
+                          <span className="text-[9px] text-muted-foreground">{a.threshold_triggered}</span>
+                        )}
+                      </div>
+                      <p className="text-[10px] text-muted-foreground mt-0.5">
+                        Requested by <span className="font-medium text-foreground/70">{a.requested_by}</span> · {formatDate(a.requested_at)}
+                      </p>
+                      {a.reviewed_by && (
+                        <p className="text-[10px] text-muted-foreground">
+                          {a.status === 'approved' ? 'Approved' : a.status === 'rejected' ? 'Rejected' : 'Reviewed'} by{' '}
+                          <span className="font-medium text-foreground/70">{a.reviewed_by}</span> · {a.reviewed_at ? formatDate(a.reviewed_at) : ''}
+                        </p>
+                      )}
+                      {a.notes && (
+                        <p className="text-[11px] text-foreground/80 mt-1 bg-zinc-50 px-2 py-1.5 rounded border border-zinc-100">
+                          {a.notes}
+                        </p>
                       )}
                     </div>
-                    <p className="text-[10px] text-muted-foreground mt-0.5">
-                      Requested by {a.requested_by} · {formatDate(a.requested_at)}
-                    </p>
-                    {a.reviewed_by && (
-                      <p className="text-[10px] text-muted-foreground">
-                        Reviewed by {a.reviewed_by} · {a.reviewed_at ? formatDate(a.reviewed_at) : ''}
-                      </p>
-                    )}
-                    {a.notes && (
-                      <p className="text-[11px] text-foreground/80 mt-1 bg-zinc-50 px-2 py-1.5 rounded border border-zinc-100">
-                        {a.notes}
-                      </p>
-                    )}
-                  </div>
-                ))
+                  )
+                })
               )}
             </div>
+          ) : (
+            /* Change Orders tab */
+            <ChangeOrdersTab changeOrders={changeOrders} />
           )}
         </div>
       </div>
@@ -374,6 +449,146 @@ export function VersionHistoryPanel({ estimateId, open, onClose, onRollback }: V
       </Dialog>
     </>
   )
+}
+
+// ── Change Orders Tab ───────────────────────────────────────────────────────
+
+const CO_STATUS_COLOR: Record<string, string> = {
+  draft: 'bg-zinc-200 text-zinc-600',
+  submitted: 'bg-amber-100 text-amber-700',
+  approved: 'bg-emerald-100 text-emerald-700',
+  rejected: 'bg-red-100 text-red-700',
+}
+
+function ChangeOrdersTab({ changeOrders }: { changeOrders: ChangeOrder[] }) {
+  const [expandedId, setExpandedId] = useState<string | null>(null)
+
+  if (changeOrders.length === 0) {
+    return <p className="text-[11px] text-muted-foreground/60 text-center py-8">No change orders yet</p>
+  }
+
+  // Compute running total from approved COs
+  const approvedCOs = changeOrders.filter((co) => co.status === 'approved')
+  const totalDelta = approvedCOs.reduce((sum, co) => sum + (co.delta_amount ?? 0), 0)
+  const firstApproved = approvedCOs[0]
+  const originalTotal = firstApproved?.baseline_total ?? 0
+  const currentTotal = originalTotal + totalDelta
+
+  return (
+    <div>
+      {/* Running total summary */}
+      {approvedCOs.length > 0 && (
+        <div className="px-4 py-2.5 bg-zinc-50 border-b border-zinc-100">
+          <div className="text-[11px] text-foreground/80">
+            <span className="font-medium">Original:</span> {formatDollar(originalTotal)}
+            <span className="mx-1.5">→</span>
+            <span className="font-medium">Current:</span> {formatDollar(currentTotal)}
+          </div>
+          <div className="text-[10px] text-muted-foreground mt-0.5">
+            {approvedCOs.length} change order{approvedCOs.length !== 1 ? 's' : ''},{' '}
+            <span className={totalDelta >= 0 ? 'text-red-600' : 'text-emerald-600'}>
+              {totalDelta >= 0 ? '+' : ''}{formatDollar(totalDelta)}
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* CO timeline (newest first) */}
+      <div className="divide-y divide-zinc-100">
+        {[...changeOrders].reverse().map((co) => {
+          const isExpanded = expandedId === co.id
+          const delta = co.delta_summary
+          return (
+            <div key={co.id} className="px-4 py-2.5">
+              <button
+                onClick={() => setExpandedId(isExpanded ? null : co.id)}
+                className="w-full flex items-start gap-2 text-left"
+              >
+                <div className="mt-0.5 shrink-0">
+                  {isExpanded
+                    ? <ChevronDown className="h-3 w-3 text-muted-foreground" />
+                    : <ChevronRight className="h-3 w-3 text-muted-foreground" />
+                  }
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[12px] font-semibold text-blue-700">{formatCONumber(co.co_number)}</span>
+                    <span className={`text-[9px] px-1.5 py-0.5 rounded font-medium ${CO_STATUS_COLOR[co.status] || 'bg-zinc-100 text-zinc-600'}`}>
+                      {co.status}
+                    </span>
+                    {co.delta_amount != null && co.status !== 'draft' && (
+                      <span className={`text-[10px] font-mono font-medium ${co.delta_amount >= 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+                        {co.delta_amount >= 0 ? '+' : ''}{formatDollar(co.delta_amount)}
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-foreground/80 mt-0.5">{co.description}</p>
+                  <p className="text-[10px] text-muted-foreground mt-0.5">
+                    Created {formatDate(co.created_at)}{co.created_by_name ? ` by ${co.created_by_name}` : ''}
+                  </p>
+                  {co.approved_at && (
+                    <p className="text-[10px] text-muted-foreground">
+                      Approved {formatDate(co.approved_at)}{co.approved_by_name ? ` by ${co.approved_by_name}` : ''}
+                    </p>
+                  )}
+                  {co.baseline_total != null && co.revised_total != null && co.status !== 'draft' && (
+                    <p className="text-[10px] text-muted-foreground mt-0.5">
+                      {formatDollar(co.baseline_total)} → {formatDollar(co.revised_total)}
+                    </p>
+                  )}
+                </div>
+              </button>
+
+              {/* Expanded delta detail */}
+              {isExpanded && delta && (delta.added.length > 0 || delta.removed.length > 0 || delta.modified.length > 0) && (
+                <div className="ml-5 mt-2 space-y-1.5 text-[11px] bg-zinc-50 rounded px-3 py-2 border border-zinc-100">
+                  {delta.added.length > 0 && (
+                    <div>
+                      <div className="text-[10px] uppercase tracking-wider text-emerald-600/70 font-medium">Added</div>
+                      {delta.added.map((item, i) => (
+                        <div key={i} className="flex justify-between text-emerald-700">
+                          <span>+ {item.item_name}{item.section ? ` (${item.section})` : ''}{item.quantity ? ` × ${item.quantity}` : ''}</span>
+                          <span className="font-mono">+{formatDollar(item.total)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {delta.removed.length > 0 && (
+                    <div>
+                      <div className="text-[10px] uppercase tracking-wider text-red-600/70 font-medium">Removed</div>
+                      {delta.removed.map((item, i) => (
+                        <div key={i} className="flex justify-between text-red-700">
+                          <span>- {item.item_name}{item.section ? ` (${item.section})` : ''}</span>
+                          <span className="font-mono">-{formatDollar(item.total)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {delta.modified.length > 0 && (
+                    <div>
+                      <div className="text-[10px] uppercase tracking-wider text-amber-600/70 font-medium">Modified</div>
+                      {delta.modified.map((item, i) => (
+                        <div key={i} className="flex justify-between text-amber-800">
+                          <span>~ {item.item_name} {item.field}: {item.from} → {item.to}</span>
+                          <span className={`font-mono ${item.delta >= 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+                            {item.delta >= 0 ? '+' : ''}{formatDollar(item.delta)}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+function formatDollar(amount: number): string {
+  return '$' + Math.abs(amount).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
 }
 
 // ── Trigger Button ──────────────────────────────────────────────────────────

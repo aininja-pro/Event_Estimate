@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { AlertCircle, Check, Undo2, ShieldCheck, Globe } from 'lucide-react'
+import { AlertCircle, Check, Undo2, ShieldCheck, Globe, ChevronDown, ChevronUp } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -11,7 +11,9 @@ import {
 } from '@/components/ui/dialog'
 import { Textarea } from '@/components/ui/textarea'
 import type { ApprovalRequest, ApprovalGate } from '@/types/workflow'
+import type { ChangeOrder } from '@/types/change-order'
 import { canUserApprove } from '@/lib/workflow-service'
+import { formatCONumber } from '@/lib/change-order-service'
 
 // ── Gate-specific config ──────────────────────────────────────────────────────
 
@@ -84,15 +86,17 @@ function getGateConfig(gate: ApprovalGate, threshold: string | null): GateConfig
 interface ApprovalBannerProps {
   approval: ApprovalRequest
   userRole: string
-  onApprove: (approvalId: string) => Promise<{ success: boolean; error?: string }>
+  onApprove: (approvalId: string, notes?: string) => Promise<{ success: boolean; error?: string }>
   onReject: (approvalId: string, notes: string) => Promise<{ success: boolean; error?: string }>
+  changeOrder?: ChangeOrder
 }
 
-export function ApprovalBanner({ approval, userRole, onApprove, onReject }: ApprovalBannerProps) {
+export function ApprovalBanner({ approval, userRole, onApprove, onReject, changeOrder }: ApprovalBannerProps) {
   const [action, setAction] = useState<'approve' | 'reject' | null>(null)
   const [notes, setNotes] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [deltaExpanded, setDeltaExpanded] = useState(false)
 
   const requestedDate = new Date(approval.requested_at).toLocaleDateString('en-US', {
     month: 'short', day: 'numeric', year: 'numeric',
@@ -110,7 +114,7 @@ export function ApprovalBanner({ approval, userRole, onApprove, onReject }: Appr
     setError(null)
 
     const result = action === 'approve'
-      ? await onApprove(approval.id)
+      ? await onApprove(approval.id, notes.trim() || undefined)
       : await onReject(approval.id, notes.trim())
 
     setSubmitting(false)
@@ -169,6 +173,68 @@ export function ApprovalBanner({ approval, userRole, onApprove, onReject }: Appr
         )}
       </div>
 
+      {/* Change Order delta summary (collapsible) */}
+      {changeOrder && changeOrder.delta_summary && (
+        <div className="border border-blue-200/60 rounded bg-blue-50/50 text-[11px]">
+          <button
+            className="w-full flex items-center gap-2 px-3 py-2 text-left text-blue-800 hover:bg-blue-100/50"
+            onClick={() => setDeltaExpanded(!deltaExpanded)}
+          >
+            {deltaExpanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+            <span className="font-medium">{formatCONumber(changeOrder.co_number)} Delta</span>
+            <span className="text-blue-600/70">— {changeOrder.description}</span>
+            <span className={`ml-auto font-mono font-medium ${(changeOrder.delta_amount ?? 0) >= 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+              {(changeOrder.delta_amount ?? 0) >= 0 ? '+' : ''}{formatDollar(changeOrder.delta_amount ?? 0)}
+            </span>
+          </button>
+          {deltaExpanded && (
+            <div className="px-3 pb-2 space-y-1.5 border-t border-blue-200/40">
+              {changeOrder.delta_summary.added.length > 0 && (
+                <div className="pt-1.5">
+                  <div className="text-[10px] uppercase tracking-wider text-emerald-600/70 font-medium mb-0.5">Added</div>
+                  {changeOrder.delta_summary.added.map((item, i) => (
+                    <div key={i} className="flex justify-between text-emerald-700">
+                      <span>+ {item.item_name}{item.section ? ` (${item.section})` : ''}{item.quantity ? ` × ${item.quantity}` : ''}</span>
+                      <span className="font-mono">+{formatDollar(item.total)}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {changeOrder.delta_summary.removed.length > 0 && (
+                <div className="pt-1.5">
+                  <div className="text-[10px] uppercase tracking-wider text-red-600/70 font-medium mb-0.5">Removed</div>
+                  {changeOrder.delta_summary.removed.map((item, i) => (
+                    <div key={i} className="flex justify-between text-red-700">
+                      <span>- {item.item_name}{item.section ? ` (${item.section})` : ''}</span>
+                      <span className="font-mono">-{formatDollar(item.total)}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {changeOrder.delta_summary.modified.length > 0 && (
+                <div className="pt-1.5">
+                  <div className="text-[10px] uppercase tracking-wider text-amber-600/70 font-medium mb-0.5">Modified</div>
+                  {changeOrder.delta_summary.modified.map((item, i) => (
+                    <div key={i} className="flex justify-between text-amber-800">
+                      <span>~ {item.item_name} {item.field}: {item.from} → {item.to}</span>
+                      <span className={`font-mono ${item.delta >= 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+                        {item.delta >= 0 ? '+' : ''}{formatDollar(item.delta)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div className="flex justify-between pt-1.5 border-t border-blue-200/40 font-medium text-blue-900">
+                <span>Net Change</span>
+                <span className="font-mono">
+                  {formatDollar(changeOrder.baseline_total ?? 0)} → {formatDollar(changeOrder.revised_total ?? 0)}
+                </span>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Confirmation dialog */}
       <Dialog open={!!action} onOpenChange={(o) => { if (!o) setAction(null) }}>
         <DialogContent className="sm:max-w-md">
@@ -181,14 +247,12 @@ export function ApprovalBanner({ approval, userRole, onApprove, onReject }: Appr
             </DialogDescription>
           </DialogHeader>
 
-          {action === 'reject' && (
-            <Textarea
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              placeholder="What needs to change? (required)"
-              className="text-xs min-h-[80px]"
-            />
-          )}
+          <Textarea
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            placeholder={action === 'reject' ? 'What needs to change? (required)' : 'Optional notes...'}
+            className="text-xs min-h-[80px]"
+          />
 
           {error && <p className="text-[11px] text-red-600">{error}</p>}
 
@@ -212,4 +276,8 @@ export function ApprovalBanner({ approval, userRole, onApprove, onReject }: Appr
       </Dialog>
     </>
   )
+}
+
+function formatDollar(amount: number): string {
+  return '$' + Math.abs(amount).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
 }
