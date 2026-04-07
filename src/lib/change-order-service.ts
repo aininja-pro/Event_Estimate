@@ -164,58 +164,15 @@ export async function computeDelta(
   let revisedTotal = 0
 
   if (isScheduleDriven) {
-    // Compare schedule-based rollups
+    // Compare individual schedule entries by ID for precise tracking
+    const baselineDayEntries = snapshot.schedule_day_entries || []
+    compareScheduleEntries(baselineScheduleEntries, currentScheduleEntries, baselineDayEntries, added, removed, modified)
+
+    // Compute totals from rollups
     const baseRollup = computeScheduleRollupFromSnapshot(baselineScheduleEntries, snapshot)
     const currentRollup = computeScheduleRollup(currentScheduleEntries)
-
-    for (const curr of currentRollup) {
-      const base = baseRollup.find((b) => b.role_name === curr.role_name && b.day_rate === curr.day_rate)
-      if (!base) {
-        added.push({
-          type: 'schedule',
-          item_name: curr.role_name,
-          quantity: curr.quantity,
-          days: curr.total_days,
-          unit_rate: curr.day_rate,
-          total: curr.revenue_total,
-        })
-      } else {
-        if (base.revenue_total !== curr.revenue_total) {
-          // Determine the most significant change field
-          if (base.quantity !== curr.quantity) {
-            modified.push({
-              type: 'schedule', item_name: curr.role_name, field: 'quantity',
-              from: base.quantity, to: curr.quantity, delta: curr.revenue_total - base.revenue_total,
-            })
-          } else if (base.total_days !== curr.total_days) {
-            modified.push({
-              type: 'schedule', item_name: curr.role_name, field: 'days',
-              from: base.total_days, to: curr.total_days, delta: curr.revenue_total - base.revenue_total,
-            })
-          } else {
-            modified.push({
-              type: 'schedule', item_name: curr.role_name, field: 'total',
-              from: base.revenue_total, to: curr.revenue_total, delta: curr.revenue_total - base.revenue_total,
-            })
-          }
-        }
-      }
-      revisedTotal += curr.revenue_total
-    }
-    for (const base of baseRollup) {
-      const curr = currentRollup.find((c) => c.role_name === base.role_name && c.day_rate === base.day_rate)
-      if (!curr) {
-        removed.push({
-          type: 'schedule',
-          item_name: base.role_name,
-          quantity: base.quantity,
-          days: base.total_days,
-          unit_rate: base.day_rate,
-          total: base.revenue_total,
-        })
-      }
-      baselineTotal += base.revenue_total
-    }
+    for (const r of baseRollup) baselineTotal += r.revenue_total
+    for (const r of currentRollup) revisedTotal += r.revenue_total
   } else {
     // Compare manual labor entries
     compareLaborEntries(baselineLaborEntries, currentLaborEntries, added, removed, modified)
@@ -346,6 +303,124 @@ function compareLineItems(
 }
 
 // ---- Matching helpers ----
+
+function compareScheduleEntries(
+  baseline: Record<string, unknown>[],
+  current: { id: string; role_name: string; person_name: string | null; day_rate: number; cost_rate: number; day_entries?: { hours: number }[] }[],
+  baselineDayEntries: Record<string, unknown>[],
+  added: DeltaItem[],
+  removed: DeltaItem[],
+  modified: DeltaModifiedItem[]
+) {
+  const matched = new Set<string>()
+
+  // Build baseline day entries lookup
+  const baseDayEntriesByEntry = new Map<string, Record<string, unknown>[]>()
+  for (const de of baselineDayEntries) {
+    const seId = (de as Record<string, unknown>).schedule_entry_id as string
+    const list = baseDayEntriesByEntry.get(seId) || []
+    list.push(de as Record<string, unknown>)
+    baseDayEntriesByEntry.set(seId, list)
+  }
+
+  // Compute revenue for a single baseline schedule entry
+  function baseEntryRevenue(se: Record<string, unknown>): { totalHours: number; revenue: number; workedDays: number } {
+    const dayRate = num(se.day_rate)
+    const des = baseDayEntriesByEntry.get(se.id as string) || []
+    let revenue = 0
+    let totalHours = 0
+    let workedDays = 0
+    for (const de of des) {
+      const hours = num(de.hours)
+      if (hours <= 0) continue
+      workedDays++
+      totalHours += hours
+      const otHours = Math.max(hours - 10, 0)
+      revenue += dayRate + (otHours * (dayRate / 10))
+    }
+    return { totalHours, revenue, workedDays }
+  }
+
+  // Compute revenue for a current schedule entry
+  function currEntryRevenue(se: { day_rate: number; day_entries?: { hours: number }[] }): { totalHours: number; revenue: number; workedDays: number } {
+    const des = se.day_entries || []
+    let revenue = 0
+    let totalHours = 0
+    let workedDays = 0
+    for (const de of des) {
+      if (de.hours <= 0) continue
+      workedDays++
+      totalHours += de.hours
+      const otHours = Math.max(de.hours - 10, 0)
+      revenue += se.day_rate + (otHours * (se.day_rate / 10))
+    }
+    return { totalHours, revenue, workedDays }
+  }
+
+  // Match current entries to baseline by ID
+  for (const curr of current) {
+    const base = baseline.find((b) => (b as Record<string, unknown>).id === curr.id)
+    if (!base) {
+      // New entry — added
+      const { revenue, workedDays } = currEntryRevenue(curr)
+      const label = curr.person_name ? `${curr.role_name} (${curr.person_name})` : curr.role_name
+      added.push({
+        type: 'schedule',
+        item_name: label,
+        days: workedDays,
+        unit_rate: curr.day_rate,
+        total: revenue,
+      })
+    } else {
+      matched.add(base.id as string)
+      const baseRev = baseEntryRevenue(base)
+      const currRev = currEntryRevenue(curr)
+      const label = curr.person_name ? `${curr.role_name} (${curr.person_name})` : curr.role_name
+
+      if (Math.abs(baseRev.revenue - currRev.revenue) > 0.01) {
+        // Report all changes for this entry
+        if (baseRev.totalHours !== currRev.totalHours) {
+          modified.push({
+            type: 'schedule', item_name: label, field: 'hours',
+            from: baseRev.totalHours, to: currRev.totalHours, delta: currRev.revenue - baseRev.revenue,
+          })
+        } else if (baseRev.workedDays !== currRev.workedDays) {
+          modified.push({
+            type: 'schedule', item_name: label, field: 'days',
+            from: baseRev.workedDays, to: currRev.workedDays, delta: currRev.revenue - baseRev.revenue,
+          })
+        } else if (num(base.day_rate) !== curr.day_rate) {
+          modified.push({
+            type: 'schedule', item_name: label, field: 'day_rate',
+            from: num(base.day_rate), to: curr.day_rate, delta: currRev.revenue - baseRev.revenue,
+          })
+        } else {
+          modified.push({
+            type: 'schedule', item_name: label, field: 'total',
+            from: baseRev.revenue, to: currRev.revenue, delta: currRev.revenue - baseRev.revenue,
+          })
+        }
+      }
+    }
+  }
+
+  // Entries in baseline but not in current — removed
+  for (const base of baseline) {
+    if (!matched.has(base.id as string)) {
+      const { revenue, workedDays } = baseEntryRevenue(base)
+      const personName = str(base.person_name)
+      const roleName = str(base.role_name)
+      const label = personName ? `${roleName} (${personName})` : roleName
+      removed.push({
+        type: 'schedule',
+        item_name: label,
+        days: workedDays,
+        unit_rate: num(base.day_rate),
+        total: revenue,
+      })
+    }
+  }
+}
 
 function findMatch(
   entries: Record<string, unknown>[],

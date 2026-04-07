@@ -905,6 +905,15 @@ export async function getPendingSegmentApproval(laborLogId: string): Promise<App
     .limit(1)
     .maybeSingle()
   if (error) throw error
+  if (!data) return null
+
+  // Resolve UUIDs to display names
+  if (data.requested_by) {
+    data.requested_by = await resolveDisplayName(data.requested_by)
+  }
+  if (data.reviewed_by) {
+    data.reviewed_by = await resolveDisplayName(data.reviewed_by)
+  }
   return data
 }
 

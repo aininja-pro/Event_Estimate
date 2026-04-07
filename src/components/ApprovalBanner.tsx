@@ -194,7 +194,7 @@ export function ApprovalBanner({ approval, userRole, onApprove, onReject, change
                   <div className="text-[10px] uppercase tracking-wider text-emerald-600/70 font-medium mb-0.5">Added</div>
                   {changeOrder.delta_summary.added.map((item, i) => (
                     <div key={i} className="flex justify-between text-emerald-700">
-                      <span>+ {item.item_name}{item.section ? ` (${item.section})` : ''}{item.quantity ? ` × ${item.quantity}` : ''}</span>
+                      <span>+ {item.item_name}{item.section ? ` (${item.section})` : ''}{item.quantity ? ` × ${item.quantity}` : ''}{item.days ? ` × ${item.days}d` : ''}{item.unit_rate ? ` @ $${item.unit_rate.toLocaleString()}` : ''}</span>
                       <span className="font-mono">+{formatDollar(item.total)}</span>
                     </div>
                   ))}
@@ -205,7 +205,7 @@ export function ApprovalBanner({ approval, userRole, onApprove, onReject, change
                   <div className="text-[10px] uppercase tracking-wider text-red-600/70 font-medium mb-0.5">Removed</div>
                   {changeOrder.delta_summary.removed.map((item, i) => (
                     <div key={i} className="flex justify-between text-red-700">
-                      <span>- {item.item_name}{item.section ? ` (${item.section})` : ''}</span>
+                      <span>- {item.item_name}{item.section ? ` (${item.section})` : ''}{item.days ? ` × ${item.days}d` : ''}{item.unit_rate ? ` @ $${item.unit_rate.toLocaleString()}` : ''}</span>
                       <span className="font-mono">-{formatDollar(item.total)}</span>
                     </div>
                   ))}

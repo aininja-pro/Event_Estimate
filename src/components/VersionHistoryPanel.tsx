@@ -323,7 +323,7 @@ export function VersionHistoryPanel({ estimateId, open, onClose, onRollback }: V
                             {formatDate(v.created_at)} · {v.changed_by}
                           </p>
                           {v.change_summary && (
-                            <p className="text-[11px] text-foreground/80 mt-0.5 line-clamp-2">{v.change_summary}</p>
+                            <p className={`text-[11px] text-foreground/80 mt-0.5 ${isExpanded ? '' : 'line-clamp-2'}`}>{v.change_summary}</p>
                           )}
                         </div>
                       </button>
@@ -547,7 +547,7 @@ function ChangeOrdersTab({ changeOrders }: { changeOrders: ChangeOrder[] }) {
                       <div className="text-[10px] uppercase tracking-wider text-emerald-600/70 font-medium">Added</div>
                       {delta.added.map((item, i) => (
                         <div key={i} className="flex justify-between text-emerald-700">
-                          <span>+ {item.item_name}{item.section ? ` (${item.section})` : ''}{item.quantity ? ` × ${item.quantity}` : ''}</span>
+                          <span>+ {item.item_name}{item.section ? ` (${item.section})` : ''}{item.quantity ? ` × ${item.quantity}` : ''}{item.days ? ` × ${item.days}d` : ''}{item.unit_rate ? ` @ $${item.unit_rate.toLocaleString()}` : ''}</span>
                           <span className="font-mono">+{formatDollar(item.total)}</span>
                         </div>
                       ))}
@@ -558,7 +558,7 @@ function ChangeOrdersTab({ changeOrders }: { changeOrders: ChangeOrder[] }) {
                       <div className="text-[10px] uppercase tracking-wider text-red-600/70 font-medium">Removed</div>
                       {delta.removed.map((item, i) => (
                         <div key={i} className="flex justify-between text-red-700">
-                          <span>- {item.item_name}{item.section ? ` (${item.section})` : ''}</span>
+                          <span>- {item.item_name}{item.section ? ` (${item.section})` : ''}{item.days ? ` × ${item.days}d` : ''}{item.unit_rate ? ` @ $${item.unit_rate.toLocaleString()}` : ''}</span>
                           <span className="font-mono">-{formatDollar(item.total)}</span>
                         </div>
                       ))}
