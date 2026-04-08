@@ -25,8 +25,8 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { FileSpreadsheet, MoreVertical, ChevronUp, ChevronDown, Search, X } from 'lucide-react'
-import { getEstimates, createEstimate, createLaborLog, createAutoFeeLines, updateEstimate, deleteEstimate } from '@/lib/estimate-service'
+import { FileSpreadsheet, MoreVertical, ChevronUp, ChevronDown, Search, X, Copy } from 'lucide-react'
+import { getEstimates, createEstimate, createLaborLog, createAutoFeeLines, updateEstimate, deleteEstimate, duplicateEstimate } from '@/lib/estimate-service'
 import { getClients } from '@/lib/rate-card-service'
 import { useUser } from '@/lib/auth'
 import { hasPermission } from '@/lib/permissions'
@@ -139,6 +139,7 @@ export function EstimatesListPage() {
   const [menuPos, setMenuPos] = useState<{ top: number; right: number }>({ top: 0, right: 0 })
   const [deleteTarget, setDeleteTarget] = useState<EstimateWithSegments | null>(null)
   const [deleting, setDeleting] = useState(false)
+  const [duplicatingId, setDuplicatingId] = useState<string | null>(null)
   const [sortKey, setSortKey] = useState<SortKey | null>(null)
   const [sortDir, setSortDir] = useState<SortDir>(null)
   const [searchQuery, setSearchQuery] = useState('')
@@ -311,6 +312,19 @@ export function EstimatesListPage() {
       console.error('Failed to delete estimate:', err)
     } finally {
       setDeleting(false)
+    }
+  }
+
+  async function handleDuplicate(est: EstimateWithSegments) {
+    setOpenMenuId(null)
+    setDuplicatingId(est.id)
+    try {
+      const { newEstimateId } = await duplicateEstimate(est.id, profile?.id || '')
+      navigate(`/estimates/${newEstimateId}`)
+    } catch (err) {
+      console.error('Failed to duplicate estimate:', err)
+    } finally {
+      setDuplicatingId(null)
     }
   }
 
@@ -532,9 +546,19 @@ export function EstimatesListPage() {
                         {openMenuId === est.id && (
                           <div
                             ref={menuRef}
-                            className="fixed z-[9999] bg-white dark:bg-zinc-900 border border-border/50 rounded-md shadow-lg py-1 w-[120px]"
+                            className="fixed z-[9999] bg-white dark:bg-zinc-900 border border-border/50 rounded-md shadow-lg py-1 w-[140px]"
                             style={{ top: menuPos.top, right: menuPos.right }}
                           >
+                            {!isArchived && (
+                              <button
+                                onClick={(e) => { e.stopPropagation(); handleDuplicate(est) }}
+                                disabled={duplicatingId === est.id}
+                                className="flex items-center gap-2 w-full text-left px-3 py-1.5 text-[13px] hover:bg-muted/50 transition-colors disabled:opacity-50"
+                              >
+                                <Copy className="h-3.5 w-3.5" />
+                                {duplicatingId === est.id ? 'Duplicating...' : 'Duplicate'}
+                              </button>
+                            )}
                             {isArchived ? (
                               <button
                                 onClick={(e) => { e.stopPropagation(); handleUnarchive(est) }}
