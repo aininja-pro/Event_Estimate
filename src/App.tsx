@@ -3,6 +3,7 @@ import { AuthProvider, useAuth } from '@/lib/auth'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { StakeholderLayout } from '@/components/layout/StakeholderLayout'
 import { DashboardPage } from '@/pages/DashboardPage'
+import { PipelineDashboardPage } from '@/pages/PipelineDashboardPage'
 import { RateCardPage } from '@/pages/RateCardPage'
 import { AIScopingPage } from '@/pages/AIScopingPage'
 import { SystemArchitecturePage } from '@/pages/SystemArchitecturePage'
@@ -62,6 +63,7 @@ function App() {
             <Route path="/" element={<AppLayout />}>
               <Route index element={<Navigate to="/estimates" replace />} />
               <Route path="/dashboard" element={<DashboardPage />} />
+              <Route path="/pipeline-dashboard" element={<PipelineDashboardPage />} />
               <Route path="/rate-card" element={<RateCardPage />} />
               <Route path="/ai-assistant" element={<AIScopingPage />} />
               <Route path="/system-architecture" element={<SystemArchitecturePage />} />

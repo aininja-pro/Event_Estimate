@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { NavLink } from 'react-router-dom'
-import { BarChart3, ClipboardList, Bot, Layers, Database, GitBranch, Map, FileSpreadsheet, DollarSign, MessageSquare, Briefcase, Users, ChevronsLeft, ChevronsRight } from 'lucide-react'
+import { BarChart3, ClipboardList, Bot, Layers, Database, GitBranch, Map, FileSpreadsheet, DollarSign, MessageSquare, Briefcase, Users, ChevronsLeft, ChevronsRight, LayoutDashboard } from 'lucide-react'
 import { Separator } from '@/components/ui/separator'
 import { useAuth } from '@/lib/auth'
 
@@ -17,6 +17,7 @@ const deliverableItems = [
 ]
 
 const productionItems = [
+  { to: '/pipeline-dashboard', label: 'Pipeline Dashboard', icon: LayoutDashboard },
   { to: '/estimates', label: 'Estimates', icon: Briefcase },
   { to: '/rate-card-management', label: 'Rate Cards', icon: DollarSign },
   { to: '/ai-assistant', label: 'AI Scoping', icon: Bot },

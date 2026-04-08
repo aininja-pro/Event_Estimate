@@ -16,7 +16,7 @@ Tool Ladder Level: 3 (VS Code + Claude Code)
 - Database: PostgreSQL via Supabase
 - Backend: Python + FastAPI (/api directory)
 - AI: Claude API (Anthropic)
-- PDF: WeasyPrint (to be added)
+- PDF: WeasyPrint (api/templates/ for HTML templates, Jinja2 rendering)
 - Accounting: Sage Intacct API (to be added)
 - Deployment: Render (static site with SPA rewrite)
 
@@ -99,6 +99,8 @@ Current mode: Directed
 - Delta computation compares version snapshots — baseline (at CO creation) vs current state (at submission). Match entries by rate_card_item_id first, then by name.
 - Lightweight edit uses "Request Edit" — no CO record, just version history. Formal change order uses "Create Change Order" — produces a numbered CO with auto-computed delta.
 - CO approval routing: EstimateBuilderPage detects submitted COs and routes approve/reject through approveChangeOrder/rejectChangeOrder instead of plain reviewApproval.
+- PDF generation: all PDF rendering happens server-side via FastAPI. Frontend calls `generatePDF()` from `pdf-service.ts`. Templates are Jinja2 HTML in `api/templates/`. Data gathering in `pdf_data_service.py`, rendering in `pdf_render_service.py`.
+- PDF filename convention: `{ClientName}_{EventName}_{Type}_{Date}.pdf`.
 
 ## Avoid
 
@@ -141,26 +143,19 @@ Current mode: Directed
 | Wk 10-11 | AI Chat Assistant (Mode 2) + Scoping Bridge (Mode 3): conversational chat in Intelligence panel with cross-client data, AI Scoping page restyled and moved to Production sidebar, Create Estimate from scope with schedule auto-generation, scope generation moved to backend with client-specific rate cards | Outputs sprint | AI Intelligence phase complete |
 | Wk 11 | Recap Entry: actuals columns on Labor Log + line items, variance display on Summary, name validation gate, receipt upload via Supabase Storage | Change Orders sprint | Recap mode complete |
 | Wk 11-12 | Change Orders: lightweight edit + formal CO with auto-delta, CO tracking in version history, per-segment CO numbering | PDF generation | Change orders complete |
+| Wk 12 | PDF Generation: WeasyPrint integration, 4 PDF types (client summary/detailed, internal P&L, change order, recap variance), Export dropdown on Estimate Builder, Jinja2 templates, PDF data service | Pipeline Dashboard | PDF export complete |
+| Wk 12 | Pipeline Dashboard: summary cards (pipeline/active/recap/invoiced), status breakdown chart, client breakdown table, monthly volume chart, recent activity feed, loading/empty/error states | QA + Intacct | Dashboard complete |
 
 ## Current State
 
-- Phase 2, Week 11-12. Change Orders sprint complete. PDF generation sprint next.
+- Phase 2, Week 12. Pipeline Dashboard sprint complete. QA + Intacct next.
 - **Completed this session:**
-  - **Lightweight "Request Edit" flow:** "Request Edit" button on active segments. Requires reason, captures version snapshot, transitions segment back to `estimate` for editing. No CO record — version history is the audit trail. Re-submission goes through normal approval flow.
-  - **Formal "Create Change Order" flow:** "Create Change Order" button on active segments. Creates numbered CO record (CO-001, CO-002), captures baseline snapshot, unlocks segment for editing. Blue banner shows CO in progress. "Submit Change Order" replaces normal submit button when draft CO exists.
-  - **Auto-computed delta (entry-level):** On CO submission, `computeDelta()` diffs baseline snapshot vs current state. For schedule-driven segments, compares individual entries by ID (not rollups) — detects exact person removed, hours added, rate changed. For manual labor, matches by `rate_card_item_id` then `role_name`. Line items matched by `rate_card_item_id` then `item_name` + `section`. Delta detail shows days, rate, and dollar amounts.
-  - **CO approval routing:** `handleApprove`/`handleReject` in EstimateBuilderPage detect submitted COs and route through `approveChangeOrder`/`rejectChangeOrder` which wrap `reviewApproval` and handle CO record lifecycle. Rejection uses targeted `rollbackSegmentData()` that restores child data without deleting the labor log — preserves approval history, change orders, and segment activities.
-  - **Delta display in ApprovalBanner:** When a submitted CO exists, ApprovalBanner shows a collapsible delta summary section (added/removed/modified items with days, rates, dollar amounts) so reviewers see exactly what changed before approving.
-  - **Change Order history tab:** VersionHistoryPanel has a third "COs" tab. Shows running total (Original → Current with total delta), timeline of all COs newest-first with status badges, and expandable delta detail per CO with rate/days breakdown.
-  - **UUID → display name resolution:** All history views resolve profile UUIDs to `full_name` at display time. Covers version history `changed_by` + `change_summary` text, approval `requested_by`/`reviewed_by`, live approval banners, and CO created/approved names. Uses batch resolution via `buildProfileNameMap()` for history panels and `resolveDisplayName()` for live data.
-  - **Improved version history summaries:** Approval notes now flow through all paths — submit comment stored on approval_request and in version snapshot summary, approver notes (optional textarea) stored and included in snapshot. Intermediate gate approvals (AM, executive) create their own version snapshots. Summaries show human-readable text: "Submitted for review by Dan — ready for review", "AM review approved by Tad — Looks good — advancing to client approval", "Client approved by Derek".
-  - **Expandable version entries:** Clicking a version entry in the History panel removes the 2-line clamp so full summaries are readable.
-  - **Database:** `change_orders` table with co_number, baseline/revised version references, delta_summary JSONB, status machine (draft/submitted/approved/rejected).
-  - **Service layer:** `change-order-service.ts` with full CRUD, entry-level delta computation, targeted segment rollback, submit/approve/reject lifecycle.
-  - **Status transitions:** Added `active` → `estimate` (for reopening) and `estimate` → `active` (for CO rejection rollback) to valid transitions map. Comment guard requires reason when reopening active segments.
-- **Previously completed:** Recap Entry, AI Intelligence (Modes 1-3), Financial Controls, Auth, Workflow, Schedule, Estimate Builder, Rate Cards.
-- **Deferred:** Admin Settings UI for GP/approval thresholds (GitHub issue captured). Location-aware historical patterns (logged as enhancement).
-- **Next:** PDF generation sprint.
+  - **Pipeline Dashboard page** (`src/pages/PipelineDashboardPage.tsx`): Executive-level pipeline view at `/pipeline-dashboard`. Four summary cards (Pipeline, Active, In Recap, Invoiced this quarter) with count + revenue. Status breakdown horizontal bar chart (Recharts, color-coded per status). Client breakdown table (top 8 by revenue). Monthly estimate volume bar chart (last 12 months). Recent activity feed (last 10 status changes, clickable to navigate to estimate). Loading skeleton, empty state, error state with retry.
+  - **Dashboard service** (`src/lib/dashboard-service.ts`): Single `getDashboardData()` function runs 3 parallel Supabase queries — estimates with clients/labor_logs, latest estimate_versions for revenue totals, segment_activities for recent changes. Computes all aggregations client-side.
+  - **Routing + sidebar:** Route at `/pipeline-dashboard`, sidebar link under Production section (above Estimates) with LayoutDashboard icon.
+- **Previously completed:** PDF Generation, Change Orders, Recap Entry, AI Intelligence (Modes 1-3), Financial Controls, Auth, Workflow, Schedule, Estimate Builder, Rate Cards.
+- **Deferred:** Admin Settings UI for GP/approval thresholds (GitHub issue captured). Location-aware historical patterns (logged as enhancement). Default landing page setting (dashboard vs estimates).
+- **Next:** QA + Intacct.
 
 ### New Tables Added This Sprint
 - `change_orders` (estimate_id, labor_log_id, co_number, description, baseline_version_id, revised_version_id, delta_summary JSONB, baseline_total, revised_total, delta_amount, status, created_by, approved_by, approved_at)
@@ -180,7 +175,9 @@ Current mode: Directed
 ### Known Issues / Tech Debt
 - Email notifications wired but Resend integration not deployed yet (Edge Function needed).
 - SMS notifications deferred pending feedback.
-- PDF generation (WeasyPrint) not yet implemented.
+- PDF templates use text-based DriveShop branding. Logo image can be added later.
+- WeasyPrint requires system dependencies — on macOS: `DYLD_FALLBACK_LIBRARY_PATH=/opt/homebrew/lib`; on Render: add `apt-get install -y libpango-1.0-0 libpangocairo-1.0-0 libgdk-pixbuf2.0-0 libcairo2` to build command.
+- Export dropdown currently shows 3 PDF types (client summary/detailed, internal). Change Order and Recap PDF options can be added when those flows are more commonly used.
 - Sage Intacct integration not yet started.
 - DriveShop internal rate card needs real rate values from Derek/HR (structure in place, $0 placeholders).
 - Historical patterns are pre-computed aggregates — rerun scripts/compute_historical_patterns.py after adding new event data.
@@ -217,6 +214,10 @@ Current mode: Directed
 - `ai_scope_service.py` (backend) — Scope-to-estimate matching: role name fuzzy matching, section mapping
 - `receipt-service.ts` — Receipt upload/download/delete via Supabase Storage
 - `change-order-service.ts` — Change order CRUD, delta computation, CO lifecycle (create/submit/approve/reject)
+- `pdf-service.ts` — Frontend PDF generation (POST to backend, blob download)
+- `pdf_data_service.py` (backend) — Gathers estimate/CO/recap data from Supabase for PDF rendering
+- `pdf_render_service.py` (backend) — Jinja2 template rendering + WeasyPrint PDF generation
+- `dashboard-service.ts` — Aggregated pipeline queries for dashboard (estimates, versions, activities)
 
 ### Supabase Tables
 clients, rate_card_sections, rate_card_items, fee_types, profiles, notifications, estimates, labor_logs (segments with per-segment status), labor_entries, estimate_line_items, schedule_entries, schedule_day_entries, schedule_day_types, estimate_versions, approval_requests, status_transitions, system_settings, estimate_nudge_dismissals, historical_events, historical_patterns, recap_actuals, receipt_attachments, change_orders
@@ -279,4 +280,4 @@ DriveShop maintains separate rate cards per OEM client. Each client's MSA define
 | Auth | 8 | Authentication, roles, permissions | Complete |
 | Intelligence | 9-11 | AI scoping, historical data, chat, scoping bridge | Complete |
 | Outputs | 10-12 | Change orders, recaps, PDF gen | Change Orders + Recaps Complete |
-| Delivery | 12 | Intacct, pipeline dashboard, QA | Not Started |
+| Delivery | 12 | Intacct, pipeline dashboard, QA | Pipeline Dashboard Complete |
