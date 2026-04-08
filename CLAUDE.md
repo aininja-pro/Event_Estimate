@@ -101,6 +101,8 @@ Current mode: Directed
 - CO approval routing: EstimateBuilderPage detects submitted COs and routes approve/reject through approveChangeOrder/rejectChangeOrder instead of plain reviewApproval.
 - PDF generation: all PDF rendering happens server-side via FastAPI. Frontend calls `generatePDF()` from `pdf-service.ts`. Templates are Jinja2 HTML in `api/templates/`. Data gathering in `pdf_data_service.py`, rendering in `pdf_render_service.py`.
 - PDF filename convention: `{ClientName}_{EventName}_{Type}_{Date}.pdf`.
+- Duplicate estimate clears person_name fields and skips auto-generated fee lines (agency fee re-generates fresh).
+- Historical event search on AI Scoping page pre-fills the Generate New form — does not create estimates directly.
 
 ## Avoid
 
@@ -145,15 +147,16 @@ Current mode: Directed
 | Wk 11-12 | Change Orders: lightweight edit + formal CO with auto-delta, CO tracking in version history, per-segment CO numbering | PDF generation | Change orders complete |
 | Wk 12 | PDF Generation: WeasyPrint integration, 4 PDF types (client summary/detailed, internal P&L, change order, recap variance), Export dropdown on Estimate Builder, Jinja2 templates, PDF data service | Pipeline Dashboard | PDF export complete |
 | Wk 12 | Pipeline Dashboard: summary cards (pipeline/active/recap/invoiced), status breakdown chart, client breakdown table, monthly volume chart, recent activity feed, loading/empty/error states | QA + Intacct | Dashboard complete |
+| Wk 12 | Bug fix: replaced window.location.reload() with React key-based remount on CO rejection | QA + Intacct | CO rejection smooth refresh |
+| Wk 12 | Estimate Duplication + Historical Event Search: deep-copy from Estimates list, "From History" tab on AI Scoping with search/filter/template flow | QA polish | Duplicate & history complete |
 
 ## Current State
 
-- Phase 2, Week 12. Pipeline Dashboard sprint complete. QA + Intacct next.
+- Phase 2, Week 12. QA phase.
 - **Completed this session:**
-  - **Pipeline Dashboard page** (`src/pages/PipelineDashboardPage.tsx`): Executive-level pipeline view at `/pipeline-dashboard`. Four summary cards (Pipeline, Active, In Recap, Invoiced this quarter) with count + revenue. Status breakdown horizontal bar chart (Recharts, color-coded per status). Client breakdown table (top 8 by revenue). Monthly estimate volume bar chart (last 12 months). Recent activity feed (last 10 status changes, clickable to navigate to estimate). Loading skeleton, empty state, error state with retry.
-  - **Dashboard service** (`src/lib/dashboard-service.ts`): Single `getDashboardData()` function runs 3 parallel Supabase queries — estimates with clients/labor_logs, latest estimate_versions for revenue totals, segment_activities for recent changes. Computes all aggregations client-side.
-  - **Routing + sidebar:** Route at `/pipeline-dashboard`, sidebar link under Production section (above Estimates) with LayoutDashboard icon.
-- **Previously completed:** PDF Generation, Change Orders, Recap Entry, AI Intelligence (Modes 1-3), Financial Controls, Auth, Workflow, Schedule, Estimate Builder, Rate Cards.
+  - **Estimate Duplication** (`src/lib/estimate-service.ts`, `src/pages/EstimatesListPage.tsx`): `duplicateEstimate()` deep-copies estimate header, labor logs, labor entries, line items, schedule entries + day entries, and day types. Clears person_name on schedule entries, skips auto-generated fee lines (agency fee re-generates fresh), sets status to pipeline. "Duplicate" option in three-dot menu on Estimates list.
+  - **Historical Event Search** (`src/lib/historical-service.ts`, `src/pages/AIScopingPage.tsx`): "From History" tab on AI Scoping page. Search/filter 1,674 historical events by name, client, type, location. Expandable detail with section breakdown bars, common roles, financial summary with variance. "Use as Template" pre-fills the Generate New form with client, event type, location, and historical context note.
+- **Previously completed:** CO rejection fix, Pipeline Dashboard, PDF Generation, Change Orders, Recap Entry, AI Intelligence (Modes 1-3), Financial Controls, Auth, Workflow, Schedule, Estimate Builder, Rate Cards.
 - **Deferred:** Admin Settings UI for GP/approval thresholds (GitHub issue captured). Location-aware historical patterns (logged as enhancement). Default landing page setting (dashboard vs estimates).
 - **Next:** QA + Intacct.
 
@@ -218,6 +221,7 @@ Current mode: Directed
 - `pdf_data_service.py` (backend) — Gathers estimate/CO/recap data from Supabase for PDF rendering
 - `pdf_render_service.py` (backend) — Jinja2 template rendering + WeasyPrint PDF generation
 - `dashboard-service.ts` — Aggregated pipeline queries for dashboard (estimates, versions, activities)
+- `historical-service.ts` — Historical event search and filtering for "From History" tab
 
 ### Supabase Tables
 clients, rate_card_sections, rate_card_items, fee_types, profiles, notifications, estimates, labor_logs (segments with per-segment status), labor_entries, estimate_line_items, schedule_entries, schedule_day_entries, schedule_day_types, estimate_versions, approval_requests, status_transitions, system_settings, estimate_nudge_dismissals, historical_events, historical_patterns, recap_actuals, receipt_attachments, change_orders
