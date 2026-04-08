@@ -2421,6 +2421,7 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
   const [lineItemsMap, setLineItemsMap] = useState<Record<string, EstimateLineItem[]>>({})
   const [rateCardData, setRateCardData] = useState<RateCardItemsBySection[]>([])
   const [scheduleEntriesMap, setScheduleEntriesMap] = useState<Record<string, ScheduleEntry[]>>({})
+  const [scheduleRefreshKey, setScheduleRefreshKey] = useState(0)
   const [dayTypesMap, setDayTypesMap] = useState<Record<string, ScheduleDayType[]>>({})
   const [activeTab, setActiveTab] = useState('schedule')
   const [aiPanelOpen, setAiPanelOpen] = useState(false)
@@ -2918,9 +2919,8 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
     if (co) {
       const result = await rejectChangeOrder(co.id, approvalId, estimateId, activeLocationId, userId, userRole, notes)
       if (result.success) {
-        // Force full reload — rollback replaces schedule entries with new IDs,
-        // ScheduleGrid caches old IDs in React state and loadData alone isn't enough
-        window.location.reload()
+        await loadData()
+        setScheduleRefreshKey((k) => k + 1)
         return result
       }
       return result
@@ -3120,6 +3120,7 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
                 />
                 {activeLocationId && laborLogs.find((l) => l.id === activeLocationId) && (
                   <ScheduleGrid
+                    key={scheduleRefreshKey}
                     laborLog={laborLogs.find((l) => l.id === activeLocationId)!}
                     estimate={estimate}
                     rateCardData={rateCardData}
