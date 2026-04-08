@@ -36,6 +36,7 @@ import {
   RefreshCw,
   CheckCircle,
   AlertTriangle,
+  Download,
 } from 'lucide-react'
 import { ScheduleGrid } from '@/components/schedule/ScheduleGrid'
 import { EstimateStatusBar } from '@/components/EstimateStatusBar'
@@ -92,6 +93,7 @@ import type { EstimateWithClient, EstimateUpdate, LaborLog, LaborEntry, Estimate
 import type { RateCardItemsBySection } from '@/types/rate-card'
 import type { Nudge } from '@/types/nudge'
 import { fetchNudges, fetchFreshEstimateState, sendChatMessage, dismissNudge, getDismissedNudges } from '@/lib/ai-nudge-service'
+import { generatePDF, type PDFType } from '@/lib/pdf-service'
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -2342,6 +2344,71 @@ function SummaryTab({
   )
 }
 
+// ── Export PDF Button ────────────────────────────────────────────────────────
+
+function ExportButton({ estimateId }: { estimateId: string }) {
+  const [open, setOpen] = useState(false)
+  const [generating, setGenerating] = useState<PDFType | null>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    function handleClick(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [open])
+
+  async function handleExport(pdfType: PDFType) {
+    setGenerating(pdfType)
+    setOpen(false)
+    try {
+      await generatePDF(estimateId, pdfType)
+    } catch (err) {
+      console.error('PDF generation failed:', err)
+    } finally {
+      setGenerating(null)
+    }
+  }
+
+  const options: { type: PDFType; label: string }[] = [
+    { type: 'client_summary', label: 'Client Estimate (Summary)' },
+    { type: 'client_detailed', label: 'Client Estimate (Detailed)' },
+    { type: 'internal', label: 'Internal P&L' },
+  ]
+
+  return (
+    <div className="relative" ref={menuRef}>
+      <Button
+        variant="outline"
+        size="sm"
+        className="h-7 text-[11px] gap-1.5"
+        onClick={() => setOpen(!open)}
+        disabled={generating !== null}
+      >
+        <Download className="h-3 w-3" />
+        {generating ? 'Generating...' : 'Export'}
+      </Button>
+      {open && (
+        <div className="absolute right-0 top-8 z-50 min-w-[200px] bg-white border border-gray-200 rounded-md shadow-lg py-1">
+          {options.map((opt) => (
+            <button
+              key={opt.type}
+              className="w-full text-left px-3 py-1.5 text-[12px] hover:bg-gray-50 text-gray-700"
+              onClick={() => handleExport(opt.type)}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Main Page ────────────────────────────────────────────────────────────────
 
 function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
@@ -2850,7 +2917,12 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
     const co = submittedChangeOrders[activeLocationId]
     if (co) {
       const result = await rejectChangeOrder(co.id, approvalId, estimateId, activeLocationId, userId, userRole, notes)
-      if (result.success) await loadData()
+      if (result.success) {
+        // Force full reload — rollback replaces schedule entries with new IDs,
+        // ScheduleGrid caches old IDs in React state and loadData alone isn't enough
+        window.location.reload()
+        return result
+      }
       return result
     }
     const result = await reviewApproval(approvalId, 'rejected', userId, userRole, notes)
@@ -2938,7 +3010,10 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
           <h1 className="text-lg font-semibold tracking-tight">{estimate.event_name}</h1>
           <p className="text-sm text-muted-foreground">{estimate.clients.name} · Estimate Builder</p>
         </div>
-        <HistoryButton onClick={() => setHistoryOpen(true)} />
+        <div className="flex items-center gap-2">
+          <ExportButton estimateId={estimateId} />
+          <HistoryButton onClick={() => setHistoryOpen(true)} />
+        </div>
       </div>
 
       <EstimateStatusBar status={activeSegmentStatus} />

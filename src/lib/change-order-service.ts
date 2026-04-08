@@ -153,8 +153,9 @@ export async function computeDelta(
   const currentLineItems = await getLineItemsByLocation(laborLogId)
   const currentScheduleEntries = await getScheduleEntries(laborLogId)
 
-  // 4. Determine if schedule-driven (has schedule entries, empty labor entries in baseline)
-  const isScheduleDriven = baselineScheduleEntries.length > 0 && baselineLaborEntries.length === 0
+  // 4. Determine if schedule-driven: has schedule entries in either baseline or current
+  const isScheduleDriven = baselineScheduleEntries.length > 0 || currentScheduleEntries.length > 0
+
 
   const added: DeltaItem[] = []
   const removed: DeltaItem[] = []
@@ -173,6 +174,11 @@ export async function computeDelta(
     const currentRollup = computeScheduleRollup(currentScheduleEntries)
     for (const r of baseRollup) baselineTotal += r.revenue_total
     for (const r of currentRollup) revisedTotal += r.revenue_total
+
+    // Also compare custom labor entries (added via modal on schedule-driven segments)
+    compareLaborEntries(baselineLaborEntries, currentLaborEntries, added, removed, modified)
+    baselineTotal += sumLaborRevenue(baselineLaborEntries)
+    revisedTotal += sumLaborRevenue(currentLaborEntries.map((e) => e as unknown as Record<string, unknown>))
   } else {
     // Compare manual labor entries
     compareLaborEntries(baselineLaborEntries, currentLaborEntries, added, removed, modified)
