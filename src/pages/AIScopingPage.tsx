@@ -407,7 +407,7 @@ export function AIScopingPage() {
         </TabsList>
 
         <TabsContent value="generate">
-      <div className="border border-border/50 rounded-md px-4 py-3">
+      <div className="border-l-[3px] border-l-foreground/12 border border-border/40 rounded-lg px-5 py-4 bg-gradient-to-br from-zinc-50/80 via-stone-50/40 to-white shadow-[0_1px_3px_rgba(0,0,0,0.06),0_4px_12px_rgba(0,0,0,0.03)]">
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-4 gap-x-5 gap-y-2">
             <div>
@@ -556,7 +556,7 @@ export function AIScopingPage() {
             />
           </div>
 
-          <Button type="submit" variant="outline" size="sm" disabled={isLoading || !clientId} className="text-[13px]">
+          <Button type="submit" variant="outline" size="sm" disabled={isLoading || !clientId} className="text-[13px] shadow-sm bg-white hover:bg-stone-50 border-border/60">
             {isLoading ? (
               <Loader2 className="size-3.5 animate-spin" />
             ) : (
@@ -600,29 +600,29 @@ export function AIScopingPage() {
       {showStructured && (
         <div className="space-y-4">
           {/* a. Summary */}
-          <div className="border border-border/50 rounded-md px-4 py-3">
+          <div className="border-l-2 border-l-foreground/8 border border-border/50 rounded-md px-5 py-3 bg-gradient-to-r from-stone-50/50 to-transparent shadow-sm">
             <p className="text-[10px] font-medium uppercase tracking-widest text-muted-foreground/50 mb-1">Scope Summary</p>
             <p className="text-[13px] leading-relaxed">{parsedEstimate.summary}</p>
           </div>
 
           {/* b. Total Estimate KPIs */}
           <div className="grid grid-cols-3 gap-3">
-            <div className="border border-border/50 rounded-md px-4 py-3">
+            <div className="border border-border/50 rounded-md px-4 py-3 shadow-sm bg-gradient-to-br from-stone-50/30 to-transparent">
               <p className="text-[10px] font-medium uppercase tracking-widest text-muted-foreground/50">Low Estimate</p>
               <p className="text-xl font-bold mt-0.5">{formatCurrency(parsedEstimate.totalEstimate.low)}</p>
             </div>
-            <div className="border border-indigo-200 bg-indigo-50/30 rounded-md px-4 py-3">
-              <p className="text-[10px] font-medium uppercase tracking-widest text-indigo-600/70">Mid Estimate</p>
-              <p className="text-2xl font-bold text-indigo-700 mt-0.5">{formatCurrency(parsedEstimate.totalEstimate.mid)}</p>
+            <div className="border border-stone-200 bg-gradient-to-br from-stone-100/60 to-stone-50/30 rounded-md px-4 py-3 shadow-sm">
+              <p className="text-[10px] font-medium uppercase tracking-widest text-stone-500">Mid Estimate</p>
+              <p className="text-2xl font-bold text-foreground mt-0.5">{formatCurrency(parsedEstimate.totalEstimate.mid)}</p>
             </div>
-            <div className="border border-border/50 rounded-md px-4 py-3">
+            <div className="border border-border/50 rounded-md px-4 py-3 shadow-sm bg-gradient-to-br from-stone-50/30 to-transparent">
               <p className="text-[10px] font-medium uppercase tracking-widest text-muted-foreground/50">High Estimate</p>
               <p className="text-xl font-bold mt-0.5">{formatCurrency(parsedEstimate.totalEstimate.high)}</p>
             </div>
           </div>
 
           {/* c. Staffing Recommendations Table */}
-          <div className="border border-border/50 rounded-md px-4 py-3">
+          <div className="border border-border/50 rounded-md px-4 py-3 shadow-sm">
             <p className="text-[10px] font-medium uppercase tracking-widest text-muted-foreground/50 mb-2">Staffing Recommendations</p>
               <Table>
                 <TableHeader>
@@ -660,7 +660,7 @@ export function AIScopingPage() {
           </div>
 
           {/* d. Cost Breakdown by Section */}
-          <div className="border border-border/50 rounded-md px-4 py-3">
+          <div className="border border-border/50 rounded-md px-4 py-3 shadow-sm">
             <p className="text-[10px] font-medium uppercase tracking-widest text-muted-foreground/50 mb-2">Cost Breakdown by Section</p>
               <Table>
                 <TableHeader>
@@ -707,7 +707,7 @@ export function AIScopingPage() {
           </div>
 
           {/* e. Confidence & Assumptions */}
-          <div className="border border-border/50 rounded-md px-4 py-3">
+          <div className="border border-border/50 rounded-md px-4 py-3 shadow-sm">
             <p className="text-[10px] font-medium uppercase tracking-widest text-muted-foreground/50 mb-2">Confidence & Assumptions</p>
             <ul className="space-y-1.5">
               {parsedEstimate.confidenceNotes.map((note, i) => (
@@ -720,10 +720,10 @@ export function AIScopingPage() {
           </div>
 
           {/* f. Margin Recommendation */}
-          <div className="border border-border/50 rounded-md px-4 py-3">
+          <div className="border-l-2 border-l-green-700/20 border border-border/50 rounded-md px-5 py-3 shadow-sm bg-gradient-to-r from-green-50/20 to-transparent">
             <p className="text-[10px] font-medium uppercase tracking-widest text-muted-foreground/50 mb-2">Margin Recommendation</p>
             <div className="flex items-baseline gap-3">
-              <span className="text-3xl font-bold text-green-700">
+              <span className="text-3xl font-bold text-green-800/80">
                 {parsedEstimate.marginRecommendation.suggestedMarginPct}%
               </span>
               <span className="text-[13px] text-muted-foreground">suggested margin</span>
@@ -740,7 +740,7 @@ export function AIScopingPage() {
               Start Over
             </Button>
             {clientId && (
-              <Button variant="outline" size="sm" onClick={handleCreateEstimate} disabled={creating} className="text-[13px]">
+              <Button variant="outline" size="sm" onClick={handleCreateEstimate} disabled={creating} className="text-[13px] shadow-sm bg-white hover:bg-green-800/10 border-border/60 hover:border-green-800/30 hover:text-green-800/80">
                 {creating ? (
                   <Loader2 className="size-3.5 animate-spin" />
                 ) : (
@@ -769,7 +769,7 @@ export function AIScopingPage() {
 
         <TabsContent value="history">
           {/* Search & Filters */}
-          <div className="border border-border/50 rounded-md px-4 py-3">
+          <div className="border-l-[3px] border-l-foreground/12 border border-border/40 rounded-lg px-5 py-4 bg-gradient-to-br from-zinc-50/80 via-stone-50/40 to-white shadow-[0_1px_3px_rgba(0,0,0,0.06),0_4px_12px_rgba(0,0,0,0.03)]">
             <div className="flex items-center gap-3">
               <div className="relative flex-1">
                 <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground/40" />
@@ -850,7 +850,7 @@ export function AIScopingPage() {
           )}
 
           {!histLoading && histResults.length > 0 && (
-            <div className="border border-border/40 rounded-md overflow-hidden">
+            <div className="border border-border/40 rounded-lg overflow-hidden shadow-[0_1px_3px_rgba(0,0,0,0.06),0_4px_12px_rgba(0,0,0,0.03)]">
               <Table>
                 <TableHeader>
                   <TableRow className="border-b border-border/40 bg-slate-50 dark:bg-slate-800/30 hover:bg-slate-50 dark:hover:bg-slate-800/30">
@@ -900,9 +900,9 @@ export function AIScopingPage() {
                         </TableRow>
 
                         {isExpanded && (
-                          <TableRow className="bg-slate-50/70 hover:bg-slate-50/70 border-b border-border/30">
+                          <TableRow className="bg-gradient-to-b from-zinc-50/80 to-stone-50/40 hover:bg-gradient-to-b border-b border-border/30">
                             <TableCell colSpan={8} className="p-0">
-                              <div className="px-8 py-5">
+                              <div className="px-8 py-5 border-l-[3px] border-l-foreground/8">
                                 <div className="grid grid-cols-3 gap-6">
                                   {/* Section Breakdown */}
                                   <div className="col-span-2">
@@ -918,8 +918,8 @@ export function AIScopingPage() {
                                               return (
                                                 <div key={sec.canonical_name} className="flex items-center gap-3">
                                                   <span className="text-[12px] text-foreground/70 w-[150px] truncate">{sec.canonical_name}</span>
-                                                  <div className="flex-1 h-1.5 bg-border/30 rounded-full">
-                                                    <div className="h-1.5 bg-foreground/15 rounded-full transition-all" style={{ width: `${Math.min(pct, 100)}%` }} />
+                                                  <div className="flex-1 h-2 bg-zinc-100 rounded-full">
+                                                    <div className="h-2 bg-zinc-300 rounded-full transition-all" style={{ width: `${Math.min(pct, 100)}%` }} />
                                                   </div>
                                                   <span className="text-[12px] tabular-nums font-medium w-[70px] text-right">{formatDollar(sec.bid_total)}</span>
                                                   <span className="text-[11px] tabular-nums text-muted-foreground/50 w-[35px] text-right">{pct.toFixed(0)}%</span>
@@ -936,7 +936,7 @@ export function AIScopingPage() {
                                         <p className="text-[10px] uppercase tracking-widest text-muted-foreground font-medium mb-1.5">Roles ({event.labor_roles.length})</p>
                                         <div className="flex flex-wrap gap-1.5">
                                           {event.labor_roles.map((r, i) => (
-                                            <span key={i} className="text-[11px] px-1.5 py-0.5 rounded bg-white border border-border/40 text-muted-foreground">
+                                            <span key={i} className="text-[11px] px-2 py-0.5 rounded-md bg-white border border-border/50 text-foreground/70 shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
                                               {r.role}
                                             </span>
                                           ))}
