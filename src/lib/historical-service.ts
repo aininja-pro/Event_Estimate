@@ -14,6 +14,7 @@ export interface HistoricalSearchParams {
   client?: string
   event_type?: string
   limit?: number
+  offset?: number
 }
 
 export interface HistoricalEventSummary {
@@ -64,9 +65,11 @@ export async function searchHistoricalEvents(
     query = query.eq('event_type', params.event_type)
   }
 
+  const offset = params.offset ?? 0
+
   const { data, error } = await query
     .order('grand_total', { ascending: false, nullsFirst: false })
-    .limit(limit)
+    .range(offset, offset + limit - 1)
 
   if (error) throw error
   return (data ?? []) as HistoricalEventSummary[]

@@ -103,7 +103,9 @@ export function AIScopingPage() {
   const [histTypeFilter, setHistTypeFilter] = useState('')
   const [histResults, setHistResults] = useState<HistoricalEventSummary[]>([])
   const [histLoading, setHistLoading] = useState(false)
+  const [histLoadingMore, setHistLoadingMore] = useState(false)
   const [histSearched, setHistSearched] = useState(false)
+  const [histHasMore, setHistHasMore] = useState(false)
   const [expandedEventId, setExpandedEventId] = useState<string | null>(null)
 
   useEffect(() => { getClients().then(setClients) }, [])
@@ -146,6 +148,8 @@ export function AIScopingPage() {
     setError('')
   }
 
+  const PAGE_SIZE = 20
+
   const handleHistoricalSearch = useCallback(async () => {
     setHistLoading(true)
     setHistSearched(true)
@@ -155,16 +159,38 @@ export function AIScopingPage() {
         query: histSearchQuery || undefined,
         client: histClientFilter && histClientFilter !== 'all_clients' ? histClientFilter : undefined,
         event_type: histTypeFilter && histTypeFilter !== 'all_types' ? histTypeFilter : undefined,
-        limit: 20,
+        limit: PAGE_SIZE,
+        offset: 0,
       })
       setHistResults(results)
+      setHistHasMore(results.length === PAGE_SIZE)
     } catch (err) {
       console.error('Historical search failed:', err)
       setHistResults([])
+      setHistHasMore(false)
     } finally {
       setHistLoading(false)
     }
   }, [histSearchQuery, histClientFilter, histTypeFilter])
+
+  async function handleLoadMore() {
+    setHistLoadingMore(true)
+    try {
+      const more = await searchHistoricalEvents({
+        query: histSearchQuery || undefined,
+        client: histClientFilter && histClientFilter !== 'all_clients' ? histClientFilter : undefined,
+        event_type: histTypeFilter && histTypeFilter !== 'all_types' ? histTypeFilter : undefined,
+        limit: PAGE_SIZE,
+        offset: histResults.length,
+      })
+      setHistResults((prev) => [...prev, ...more])
+      setHistHasMore(more.length === PAGE_SIZE)
+    } catch (err) {
+      console.error('Load more failed:', err)
+    } finally {
+      setHistLoadingMore(false)
+    }
+  }
 
   // Debounced search on filter changes
   useEffect(() => {
@@ -1007,6 +1033,15 @@ export function AIScopingPage() {
                   })}
                 </TableBody>
               </Table>
+            </div>
+          )}
+
+          {!histLoading && histResults.length > 0 && histHasMore && (
+            <div className="flex justify-center pt-2">
+              <Button variant="outline" size="sm" onClick={handleLoadMore} disabled={histLoadingMore} className="text-[13px] shadow-sm">
+                {histLoadingMore ? <Loader2 className="size-3.5 animate-spin" /> : null}
+                {histLoadingMore ? 'Loading...' : `Load more results`}
+              </Button>
             </div>
           )}
         </TabsContent>
