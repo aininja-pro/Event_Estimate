@@ -382,11 +382,16 @@ export function AIScopingPage() {
 
   return (
     <div className="space-y-4">
-      <div>
-        <h1 className="text-lg font-semibold tracking-tight">AI Scoping</h1>
-        <p className="text-[13px] text-muted-foreground">
-          Generate scope estimates from {aiContext.totalEvents.toLocaleString()} historical events.
-        </p>
+      <div className="flex items-end justify-between">
+        <div>
+          <h1 className="text-lg font-semibold tracking-tight">AI Scoping</h1>
+          <p className="text-[13px] text-muted-foreground">
+            Generate scope estimates from {aiContext.totalEvents.toLocaleString()} historical events.
+          </p>
+        </div>
+        {activeTab === 'history' && histResults.length > 0 && (
+          <p className="text-[11px] text-muted-foreground/60 tabular-nums">{histResults.length} result{histResults.length !== 1 ? 's' : ''}</p>
+        )}
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
@@ -764,50 +769,52 @@ export function AIScopingPage() {
 
         <TabsContent value="history">
           {/* Search & Filters */}
-          <div className="border border-border/50 rounded-md px-4 py-3 space-y-3">
+          <div className="border border-border/50 rounded-md px-4 py-3">
             <div className="flex items-center gap-3">
               <div className="relative flex-1">
-                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground/50" />
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground/40" />
                 <input
                   type="text"
                   placeholder="Search events by name, client, or location..."
                   value={histSearchQuery}
                   onChange={(e) => setHistSearchQuery(e.target.value)}
                   onKeyDown={(e) => { if (e.key === 'Enter') handleHistoricalSearch() }}
-                  className="h-8 w-full rounded-md border border-border/50 bg-white pl-8 pr-8 text-[13px] placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-ring/30 transition-colors"
+                  className="h-7 w-full rounded-none border-0 border-b border-border/40 bg-transparent pl-7 pr-7 text-[13px] font-medium placeholder:text-muted-foreground/40 placeholder:font-normal focus:outline-none focus:border-foreground/40 transition-colors"
                 />
                 {histSearchQuery && (
                   <button
                     onClick={() => { setHistSearchQuery(''); handleHistoricalSearch() }}
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground/50 hover:text-foreground transition-colors"
+                    className="absolute right-1 top-1/2 -translate-y-1/2 text-muted-foreground/40 hover:text-foreground transition-colors"
                   >
                     <X className="h-3.5 w-3.5" />
                   </button>
                 )}
               </div>
-              <Select value={histClientFilter} onValueChange={setHistClientFilter}>
-                <SelectTrigger className="h-8 w-[180px] text-[13px] border-border/50">
-                  <SelectValue placeholder="All clients" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all_clients">All clients</SelectItem>
-                  {historicalClients.map((c) => (
-                    <SelectItem key={c} value={c} className="text-[13px]">{c}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Select value={histTypeFilter} onValueChange={setHistTypeFilter}>
-                <SelectTrigger className="h-8 w-[160px] text-[13px] border-border/50">
-                  <SelectValue placeholder="All types" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all_types">All types</SelectItem>
-                  {EVENT_TYPES.map((t) => (
-                    <SelectItem key={t} value={t} className="text-[13px]">{t}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Button variant="outline" size="sm" onClick={handleHistoricalSearch} disabled={histLoading} className="text-[13px] h-8">
+              <div className="flex items-center gap-2">
+                <Select value={histClientFilter} onValueChange={setHistClientFilter}>
+                  <SelectTrigger className="h-7 w-[170px] text-[13px] font-medium rounded-none border-0 border-b border-border/40 bg-transparent hover:border-border/60 focus-visible:border-foreground/40 focus-visible:ring-0 px-0 transition-colors">
+                    <SelectValue placeholder="All clients" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all_clients">All clients</SelectItem>
+                    {historicalClients.map((c) => (
+                      <SelectItem key={c} value={c} className="text-[13px]">{c}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Select value={histTypeFilter} onValueChange={setHistTypeFilter}>
+                  <SelectTrigger className="h-7 w-[150px] text-[13px] font-medium rounded-none border-0 border-b border-border/40 bg-transparent hover:border-border/60 focus-visible:border-foreground/40 focus-visible:ring-0 px-0 transition-colors">
+                    <SelectValue placeholder="All types" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all_types">All types</SelectItem>
+                    {EVENT_TYPES.map((t) => (
+                      <SelectItem key={t} value={t} className="text-[13px]">{t}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <Button variant="outline" size="sm" onClick={handleHistoricalSearch} disabled={histLoading} className="text-[13px] h-7 px-3">
                 {histLoading ? <Loader2 className="size-3.5 animate-spin" /> : <Search className="size-3.5" />}
                 Search
               </Button>
@@ -816,16 +823,29 @@ export function AIScopingPage() {
 
           {/* Results */}
           {histLoading && (
-            <div className="flex items-center justify-center py-12">
-              <Loader2 className="size-5 animate-spin text-muted-foreground" />
-              <span className="ml-2 text-[13px] text-muted-foreground">Searching historical events...</span>
+            <div className="flex items-center justify-center py-16">
+              <Loader2 className="size-4 animate-spin text-muted-foreground/50" />
+              <span className="ml-2 text-[13px] text-muted-foreground/60">Searching {aiContext.totalEvents.toLocaleString()} historical events...</span>
+            </div>
+          )}
+
+          {!histLoading && !histSearched && (
+            <div className="flex flex-col items-center justify-center py-16">
+              <div className="size-10 rounded-full bg-muted/50 flex items-center justify-center mb-3">
+                <History className="size-5 text-muted-foreground/40" />
+              </div>
+              <p className="text-[13px] font-medium text-muted-foreground/70">Search DriveShop's event archive</p>
+              <p className="text-[12px] text-muted-foreground/40 mt-1">Find past events to use as templates for new estimates</p>
             </div>
           )}
 
           {!histLoading && histSearched && histResults.length === 0 && (
-            <div className="flex flex-col items-center justify-center py-12">
-              <History className="size-8 text-muted-foreground/40 mb-2" />
-              <p className="text-[13px] text-muted-foreground">No historical events found matching your search.</p>
+            <div className="flex flex-col items-center justify-center py-16">
+              <div className="size-10 rounded-full bg-muted/50 flex items-center justify-center mb-3">
+                <Search className="size-5 text-muted-foreground/40" />
+              </div>
+              <p className="text-[13px] font-medium text-muted-foreground/70">No events found</p>
+              <p className="text-[12px] text-muted-foreground/40 mt-1">Try a different search term or adjust filters</p>
             </div>
           )}
 
@@ -833,15 +853,15 @@ export function AIScopingPage() {
             <div className="border border-border/40 rounded-md overflow-hidden">
               <Table>
                 <TableHeader>
-                  <TableRow className="bg-slate-50 hover:bg-slate-50">
-                    <TableHead className="text-[10px] uppercase tracking-wider font-medium w-6" />
-                    <TableHead className="text-[10px] uppercase tracking-wider font-medium">Event Name</TableHead>
-                    <TableHead className="text-[10px] uppercase tracking-wider font-medium">Client</TableHead>
-                    <TableHead className="text-[10px] uppercase tracking-wider font-medium">Type</TableHead>
-                    <TableHead className="text-[10px] uppercase tracking-wider font-medium">Location</TableHead>
-                    <TableHead className="text-[10px] uppercase tracking-wider font-medium text-right">Total</TableHead>
-                    <TableHead className="text-[10px] uppercase tracking-wider font-medium text-right">Staff</TableHead>
-                    <TableHead className="text-[10px] uppercase tracking-wider font-medium text-center">Recap</TableHead>
+                  <TableRow className="border-b border-border/40 bg-slate-50 dark:bg-slate-800/30 hover:bg-slate-50 dark:hover:bg-slate-800/30">
+                    <TableHead className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium w-6 py-2" />
+                    <TableHead className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium py-2">Event Name</TableHead>
+                    <TableHead className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium py-2">Client</TableHead>
+                    <TableHead className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium py-2">Type</TableHead>
+                    <TableHead className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium py-2">Location</TableHead>
+                    <TableHead className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium text-right py-2">Total</TableHead>
+                    <TableHead className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium text-right py-2">Staff</TableHead>
+                    <TableHead className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium text-center py-2">Recap</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -854,98 +874,129 @@ export function AIScopingPage() {
                     return (
                       <React.Fragment key={event.id}>
                         <TableRow
-                          className="cursor-pointer hover:bg-muted/30 transition-colors border-b border-border/30"
+                          className={`cursor-pointer transition-colors border-b border-border/30 ${isExpanded ? 'bg-muted/20 hover:bg-muted/20' : 'hover:bg-muted/30'}`}
                           onClick={() => setExpandedEventId(isExpanded ? null : event.id)}
                         >
-                          <TableCell className="py-2 px-2">
-                            {isExpanded ? <ChevronDown className="size-3.5 text-muted-foreground" /> : <ChevronRight className="size-3.5 text-muted-foreground" />}
+                          <TableCell className="py-2.5 px-2">
+                            <ChevronRight className={`size-3.5 text-muted-foreground/50 transition-transform duration-150 ${isExpanded ? 'rotate-90' : ''}`} />
                           </TableCell>
-                          <TableCell className="text-[13px] font-medium py-2">{event.event_name || 'Unnamed'}</TableCell>
-                          <TableCell className="text-[13px] py-2">{event.client}</TableCell>
-                          <TableCell className="text-[13px] text-muted-foreground py-2">{event.event_type}</TableCell>
-                          <TableCell className="text-[13px] text-muted-foreground py-2">{event.location || '—'}</TableCell>
-                          <TableCell className="text-[13px] tabular-nums text-right py-2">{event.grand_total ? formatDollar(event.grand_total) : '—'}</TableCell>
-                          <TableCell className="text-[13px] tabular-nums text-right py-2">{staffCount || '—'}</TableCell>
-                          <TableCell className="text-center py-2">
-                            {event.has_recap_data && <Check className="size-3.5 text-green-600 mx-auto" />}
+                          <TableCell className="text-[13px] font-medium py-2.5">{event.event_name || 'Unnamed'}</TableCell>
+                          <TableCell className="text-[13px] py-2.5">{event.client}</TableCell>
+                          <TableCell className="py-2.5">
+                            <span className="inline-flex text-[11px] font-medium px-1.5 py-0.5 rounded bg-muted/60 text-muted-foreground">
+                              {event.event_type}
+                            </span>
+                          </TableCell>
+                          <TableCell className="text-[13px] text-muted-foreground py-2.5">{event.location || '—'}</TableCell>
+                          <TableCell className="text-[13px] tabular-nums text-right py-2.5 font-medium">{event.grand_total ? formatDollar(event.grand_total) : '—'}</TableCell>
+                          <TableCell className="text-[13px] tabular-nums text-right py-2.5 text-muted-foreground">{staffCount || '—'}</TableCell>
+                          <TableCell className="text-center py-2.5">
+                            {event.has_recap_data && (
+                              <span className="inline-flex items-center justify-center size-5 rounded-full bg-green-50">
+                                <Check className="size-3 text-green-600" />
+                              </span>
+                            )}
                           </TableCell>
                         </TableRow>
 
                         {isExpanded && (
-                          <TableRow className="bg-slate-50/50 hover:bg-slate-50/50">
+                          <TableRow className="bg-slate-50/70 hover:bg-slate-50/70 border-b border-border/30">
                             <TableCell colSpan={8} className="p-0">
-                              <div className="px-6 py-4 space-y-4">
-                                {/* Section Breakdown */}
-                                {sections.length > 0 && (
-                                  <div>
-                                    <p className="text-[10px] uppercase tracking-widest text-muted-foreground/60 font-medium mb-2">Section Breakdown</p>
-                                    <div className="space-y-1.5">
-                                      {sections
-                                        .filter((s) => s.bid_total > 0)
-                                        .sort((a, b) => b.bid_total - a.bid_total)
-                                        .map((sec) => {
-                                          const pct = totalBid > 0 ? (sec.bid_total / totalBid) * 100 : 0
-                                          return (
-                                            <div key={sec.canonical_name} className="flex items-center gap-3">
-                                              <span className="text-[12px] text-muted-foreground w-[160px] truncate">{sec.canonical_name}</span>
-                                              <span className="text-[12px] tabular-nums w-[80px] text-right">{formatDollar(sec.bid_total)}</span>
-                                              <span className="text-[11px] tabular-nums text-muted-foreground/60 w-[45px] text-right">({pct.toFixed(0)}%)</span>
-                                              <div className="flex-1 h-2 bg-muted rounded-full max-w-[200px]">
-                                                <div className="h-2 bg-foreground/20 rounded-full" style={{ width: `${Math.min(pct, 100)}%` }} />
-                                              </div>
-                                            </div>
-                                          )
-                                        })}
-                                    </div>
-                                  </div>
-                                )}
+                              <div className="px-8 py-5">
+                                <div className="grid grid-cols-3 gap-6">
+                                  {/* Section Breakdown */}
+                                  <div className="col-span-2">
+                                    {sections.filter((s) => s.bid_total > 0).length > 0 && (
+                                      <div>
+                                        <p className="text-[10px] uppercase tracking-widest text-muted-foreground font-medium mb-3">Section Breakdown</p>
+                                        <div className="space-y-2">
+                                          {sections
+                                            .filter((s) => s.bid_total > 0)
+                                            .sort((a, b) => b.bid_total - a.bid_total)
+                                            .map((sec) => {
+                                              const pct = totalBid > 0 ? (sec.bid_total / totalBid) * 100 : 0
+                                              return (
+                                                <div key={sec.canonical_name} className="flex items-center gap-3">
+                                                  <span className="text-[12px] text-foreground/70 w-[150px] truncate">{sec.canonical_name}</span>
+                                                  <div className="flex-1 h-1.5 bg-border/30 rounded-full">
+                                                    <div className="h-1.5 bg-foreground/15 rounded-full transition-all" style={{ width: `${Math.min(pct, 100)}%` }} />
+                                                  </div>
+                                                  <span className="text-[12px] tabular-nums font-medium w-[70px] text-right">{formatDollar(sec.bid_total)}</span>
+                                                  <span className="text-[11px] tabular-nums text-muted-foreground/50 w-[35px] text-right">{pct.toFixed(0)}%</span>
+                                                </div>
+                                              )
+                                            })}
+                                        </div>
+                                      </div>
+                                    )}
 
-                                {/* Common Roles */}
-                                {event.labor_roles && event.labor_roles.length > 0 && (
-                                  <div>
-                                    <p className="text-[10px] uppercase tracking-widest text-muted-foreground/60 font-medium mb-1.5">Common Roles</p>
-                                    <p className="text-[13px] text-muted-foreground leading-relaxed">
-                                      {event.labor_roles.map((r) => r.role).join(', ')}
-                                    </p>
-                                  </div>
-                                )}
-
-                                {/* Financial Summary */}
-                                {event.has_recap_data && (
-                                  <div>
-                                    <p className="text-[10px] uppercase tracking-widest text-muted-foreground/60 font-medium mb-1.5">Financial Summary</p>
-                                    <div className="flex items-center gap-4 text-[13px]">
-                                      <span>Estimated: <span className="font-medium">{event.grand_total ? formatDollar(event.grand_total) : '—'}</span></span>
-                                      <span className="text-muted-foreground/30">|</span>
-                                      <span>Actual: <span className="font-medium">{event.final_invoice_amount ? formatDollar(event.final_invoice_amount) : '—'}</span></span>
-                                      {event.grand_total && event.final_invoice_amount && (() => {
-                                        const variance = event.grand_total - event.final_invoice_amount
-                                        const pct = (variance / event.grand_total) * 100
-                                        const isUnder = variance > 0
-                                        return (
-                                          <>
-                                            <span className="text-muted-foreground/30">|</span>
-                                            <span className={isUnder ? 'text-green-700' : 'text-red-600'}>
-                                              Variance: {isUnder ? '+' : ''}{formatDollar(variance)} ({Math.abs(pct).toFixed(1)}% {isUnder ? 'under' : 'over'} budget)
+                                    {/* Common Roles */}
+                                    {event.labor_roles && event.labor_roles.length > 0 && (
+                                      <div className="mt-4">
+                                        <p className="text-[10px] uppercase tracking-widest text-muted-foreground font-medium mb-1.5">Roles ({event.labor_roles.length})</p>
+                                        <div className="flex flex-wrap gap-1.5">
+                                          {event.labor_roles.map((r, i) => (
+                                            <span key={i} className="text-[11px] px-1.5 py-0.5 rounded bg-white border border-border/40 text-muted-foreground">
+                                              {r.role}
                                             </span>
-                                          </>
-                                        )
-                                      })()}
-                                    </div>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    )}
                                   </div>
-                                )}
 
-                                {/* Use as Template button */}
-                                <div className="pt-1">
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={(e) => { e.stopPropagation(); handleUseAsTemplate(event) }}
-                                    className="text-[13px]"
-                                  >
-                                    <ArrowRight className="size-3.5" />
-                                    Use as Template
-                                  </Button>
+                                  {/* Right column: Financials + Action */}
+                                  <div className="space-y-4">
+                                    {/* Financial Summary */}
+                                    {event.has_recap_data && event.grand_total && (
+                                      <div className="border border-border/40 rounded-md px-3 py-2.5 bg-white">
+                                        <p className="text-[10px] uppercase tracking-widest text-muted-foreground font-medium mb-2">Financials</p>
+                                        <div className="space-y-1.5">
+                                          <div className="flex justify-between text-[12px]">
+                                            <span className="text-muted-foreground">Estimated</span>
+                                            <span className="font-medium tabular-nums">{formatDollar(event.grand_total)}</span>
+                                          </div>
+                                          {event.final_invoice_amount && (
+                                            <div className="flex justify-between text-[12px]">
+                                              <span className="text-muted-foreground">Actual</span>
+                                              <span className="font-medium tabular-nums">{formatDollar(event.final_invoice_amount)}</span>
+                                            </div>
+                                          )}
+                                          {event.final_invoice_amount && (() => {
+                                            const variance = event.grand_total - event.final_invoice_amount
+                                            const pct = (variance / event.grand_total) * 100
+                                            const isUnder = variance > 0
+                                            return (
+                                              <div className={`flex justify-between text-[12px] pt-1.5 border-t border-border/30 ${isUnder ? 'text-green-700' : 'text-red-600'}`}>
+                                                <span>Variance</span>
+                                                <span className="font-medium tabular-nums">{isUnder ? '+' : ''}{formatDollar(variance)} ({Math.abs(pct).toFixed(1)}%)</span>
+                                              </div>
+                                            )
+                                          })()}
+                                        </div>
+                                      </div>
+                                    )}
+
+                                    {/* Grand total card when no recap */}
+                                    {!event.has_recap_data && event.grand_total && (
+                                      <div className="border border-border/40 rounded-md px-3 py-2.5 bg-white">
+                                        <p className="text-[10px] uppercase tracking-widest text-muted-foreground font-medium mb-1">Total</p>
+                                        <p className="text-lg font-bold tabular-nums">{formatDollar(event.grand_total)}</p>
+                                        <p className="text-[11px] text-muted-foreground/50 mt-0.5">Estimate only — no recap data</p>
+                                      </div>
+                                    )}
+
+                                    {/* Use as Template button */}
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={(e) => { e.stopPropagation(); handleUseAsTemplate(event) }}
+                                      className="w-full text-[13px] bg-white hover:bg-green-800/10 text-foreground border border-border/50 hover:border-green-800/30 hover:text-green-800/80 shadow-sm"
+                                    >
+                                      <ArrowRight className="size-3.5" />
+                                      Use as Template
+                                    </Button>
+                                  </div>
                                 </div>
                               </div>
                             </TableCell>
