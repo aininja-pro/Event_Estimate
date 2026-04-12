@@ -331,6 +331,7 @@ export async function duplicateEstimate(
         gl_code: entry.gl_code,
         notes: entry.notes,
         resource_type: entry.resource_type,
+        is_unplanned: entry.is_unplanned,
         display_order: entry.display_order,
       })
     }
@@ -376,6 +377,7 @@ export async function duplicateEstimate(
         gl_code: se.gl_code,
         notes: se.notes,
         resource_type: se.resource_type,
+        is_unplanned: se.is_unplanned,
       })
 
       if (se.day_entries && se.day_entries.length > 0) {

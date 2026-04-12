@@ -18,6 +18,7 @@ export interface ScheduleEntry {
   gl_code: string | null
   notes: string | null
   resource_type: 'internal' | 'external' | 'vendor'
+  is_unplanned: boolean
   created_at: string
   updated_at: string
   // Nested day entries (loaded via separate query)
@@ -47,6 +48,7 @@ export interface ScheduleDayType {
   work_date: string
   day_type: 'event' | 'setup' | 'training' | 'travel' | 'off'
   display_order: number
+  is_unplanned: boolean
   created_at: string
   updated_at: string
 }
@@ -71,4 +73,8 @@ export interface LaborRollupRow {
   actual_days: number
   actual_revenue_total: number
   actual_cost_total: number
+  // TRUE when this rollup row came from schedule_entries flagged as unplanned
+  // (added during recap). Planned totals are zero by construction; the row
+  // contributes only to the actual side so overruns flow into variance.
+  is_unplanned: boolean
 }

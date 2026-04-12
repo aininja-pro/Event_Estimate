@@ -75,14 +75,17 @@ function AddStaffModal({
   onOpenChange,
   rateCardData,
   estimate,
+  mode = 'planned',
   onAdd,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
   rateCardData: RateCardItemsBySection[]
   estimate: EstimateWithClient
+  mode?: 'planned' | 'unplanned'
   onAdd: (entries: { role_name: string; day_rate: number; cost_rate: number; gl_code: string | null; rate_card_item_id: string | null }[]) => void
 }) {
+  const isUnplannedMode = mode === 'unplanned'
   const [search, setSearch] = useState('')
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [showCustom, setShowCustom] = useState(false)
@@ -160,8 +163,17 @@ function AddStaffModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[500px] max-h-[80vh] flex flex-col">
         <DialogHeader>
-          <DialogTitle className="text-sm font-semibold">Add Staff to Schedule</DialogTitle>
-          <DialogDescription className="text-xs">Select roles from the rate card to add to the staffing grid</DialogDescription>
+          <DialogTitle className="text-sm font-semibold flex items-center gap-2">
+            {isUnplannedMode ? 'Add Unplanned Staff' : 'Add Staff to Schedule'}
+            {isUnplannedMode && (
+              <span className="text-[9px] uppercase tracking-widest font-medium text-rose-600 bg-rose-50 px-1.5 py-0.5 rounded">Unplanned</span>
+            )}
+          </DialogTitle>
+          <DialogDescription className="text-xs">
+            {isUnplannedMode
+              ? 'Not part of the approved staff plan. Click cells after adding to enter actual hours for each day worked.'
+              : 'Select roles from the rate card to add to the staffing grid'}
+          </DialogDescription>
         </DialogHeader>
         <div className="relative">
           <Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-muted-foreground/50" />
@@ -212,9 +224,15 @@ function AddStaffModal({
             size="sm"
             disabled={totalSelected === 0}
             onClick={handleAddSelected}
-            className="text-[13px] bg-white hover:bg-green-800/10 text-foreground border border-border/50 hover:border-green-800/30 hover:text-green-800/80 shadow-sm"
+            className={`text-[13px] bg-white text-foreground border border-border/50 shadow-sm ${
+              isUnplannedMode
+                ? 'hover:bg-rose-50 hover:border-rose-400 hover:text-rose-700'
+                : 'hover:bg-green-800/10 hover:border-green-800/30 hover:text-green-800/80'
+            }`}
           >
-            {totalSelected === 0 ? 'Select Roles' : `Add ${totalSelected} Staff`}
+            {totalSelected === 0
+              ? 'Select Roles'
+              : (isUnplannedMode ? `Add ${totalSelected} Unplanned` : `Add ${totalSelected} Staff`)}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -418,7 +436,14 @@ function RecapGridCell({
 
   function handleClick() {
     if (editing) return
-    setEditValue(fullyBlank ? '' : displayHours.toString())
+    // Fully blank cell (no plan, no actual) — single click fills 10h, matching
+    // the non-recap build flow. Second click on the now-filled cell opens the
+    // edit input so users can change it.
+    if (fullyBlank) {
+      onSetActual(STANDARD_HOURS)
+      return
+    }
+    setEditValue(displayHours.toString())
     setEditing(true)
   }
 
@@ -556,6 +581,7 @@ export function ScheduleGrid({
   const [dayTypes, setDayTypes] = useState<ScheduleDayType[]>([])
   const [loading, setLoading] = useState(true)
   const [showAddStaff, setShowAddStaff] = useState(false)
+  const [showAddUnplannedStaff, setShowAddUnplannedStaff] = useState(false)
   const [showAddDate, setShowAddDate] = useState(false)
   const [newDate, setNewDate] = useState('')
   const [showFillConfirm, setShowFillConfirm] = useState<string | null>(null)
@@ -639,7 +665,10 @@ export function ScheduleGrid({
 
   // ── Handlers ──
 
-  async function handleAddStaff(roles: { role_name: string; day_rate: number; cost_rate: number; gl_code: string | null; rate_card_item_id: string | null }[]) {
+  async function handleAddStaff(
+    roles: { role_name: string; day_rate: number; cost_rate: number; gl_code: string | null; rate_card_item_id: string | null }[],
+    isUnplanned = false,
+  ) {
     const baseIndex = entries.length
 
     // Generate a group ID per unique role (so same-role entries group together in rollup)
@@ -660,14 +689,15 @@ export function ScheduleGrid({
         person_name: null,
         row_index: baseIndex + i,
         staff_group_id: roleGroupIds.get(groupKey) ?? null,
-        needs_airfare: true,
-        needs_hotel: true,
-        needs_per_diem: true,
+        needs_airfare: !isUnplanned,
+        needs_hotel: !isUnplanned,
+        needs_per_diem: !isUnplanned,
         day_rate: role.day_rate,
         cost_rate: role.cost_rate,
         gl_code: role.gl_code,
         notes: null,
         resource_type: 'external',
+        is_unplanned: isUnplanned,
       })
       created.push({ ...entry, day_entries: [] })
     }
@@ -809,7 +839,9 @@ export function ScheduleGrid({
     if (!newDate) return
     const existing = dayTypes.find((d) => d.work_date === newDate)
     if (existing) { setShowAddDate(false); setNewDate(''); return }
-    const dt = await upsertScheduleDayType(laborLog.id, newDate, 'event', dayTypes.length)
+    // In recap mode this dialog adds an unplanned day (event ran longer than
+    // planned). In normal mode it adds a regular planned day.
+    const dt = await upsertScheduleDayType(laborLog.id, newDate, 'event', dayTypes.length, recapMode === true)
     setDayTypes((prev) => [...prev, dt])
     setShowAddDate(false)
     setNewDate('')
@@ -900,6 +932,21 @@ export function ScheduleGrid({
               <Plus className="h-3 w-3 mr-1" /> Add Date
             </Button>
           </div>
+        ) : recapMode ? (
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowAddUnplannedStaff(true)}
+              className="h-7 px-2.5 text-[11px] text-rose-600/80 hover:text-rose-700 border border-dashed border-rose-300/70 hover:border-rose-400 rounded inline-flex items-center transition-colors"
+            >
+              <Plus className="h-3 w-3 mr-1" /> Add Unplanned Staff
+            </button>
+            <button
+              onClick={() => setShowAddDate(true)}
+              className="h-7 px-2.5 text-[11px] text-rose-600/80 hover:text-rose-700 border border-dashed border-rose-300/70 hover:border-rose-400 rounded inline-flex items-center transition-colors"
+            >
+              <Plus className="h-3 w-3 mr-1" /> Add Unplanned Day
+            </button>
+          </div>
         ) : <div />}
         <p className="text-[10px] text-muted-foreground/50">
           {recapMode
@@ -929,28 +976,34 @@ export function ScheduleGrid({
               <th className="sticky left-[220px] z-20 bg-slate-100 text-left px-1 py-1.5 text-[10px] uppercase tracking-widest text-muted-foreground font-medium w-[70px] border-b border-r border-slate-200">Type</th>
               {sortedDates.map((dt) => {
                 const d = formatDate(dt.work_date)
+                const headerBg = dt.is_unplanned
+                  ? 'bg-rose-50/60'
+                  : (DAY_TYPE_COLORS[dt.day_type as DayType]?.bg ?? '')
+                const canRemoveInRecap = recapMode && dt.is_unplanned
                 return (
-                  <th key={dt.work_date} className={`px-1 py-1 border-b border-r border-slate-200 min-w-[56px] text-center ${DAY_TYPE_COLORS[dt.day_type as DayType]?.bg ?? ''}`}>
+                  <th key={dt.work_date} className={`px-1 py-1 border-b border-r border-slate-200 min-w-[56px] text-center ${headerBg}`}>
                     <div className="flex flex-col items-center gap-0.5">
                       <div className="flex items-center gap-1">
-                        {readOnly ? (
+                        {readOnly && !canRemoveInRecap ? (
                           <span className="text-[11px] font-semibold text-foreground/80">{d.month} {d.day}</span>
                         ) : (
                           <>
                             <button
-                              onClick={() => setShowFillConfirm(dt.work_date)}
-                              className="text-[11px] font-semibold text-foreground/80 hover:text-blue-600 transition-colors"
-                              title="Click to fill all staff"
+                              onClick={() => { if (!readOnly) setShowFillConfirm(dt.work_date) }}
+                              className={`text-[11px] font-semibold text-foreground/80 transition-colors ${readOnly ? 'cursor-default' : 'hover:text-blue-600'}`}
+                              title={readOnly ? '' : 'Click to fill all staff'}
                             >
                               {d.month} {d.day}
                             </button>
-                            <button
-                              onClick={() => handleRemoveDate(dt.work_date)}
-                              className="opacity-0 group-hover:opacity-100 hover:opacity-100 text-muted-foreground/40 hover:text-red-500 transition-all"
-                              title="Remove date"
-                            >
-                              <X className="h-2.5 w-2.5" />
-                            </button>
+                            {(!readOnly || canRemoveInRecap) && (
+                              <button
+                                onClick={() => handleRemoveDate(dt.work_date)}
+                                className="opacity-0 group-hover:opacity-100 hover:opacity-100 text-muted-foreground/40 hover:text-red-500 transition-all"
+                                title="Remove date"
+                              >
+                                <X className="h-2.5 w-2.5" />
+                              </button>
+                            )}
                           </>
                         )}
                       </div>
@@ -961,6 +1014,11 @@ export function ScheduleGrid({
                         </span>
                       ) : (
                         <DayTypeDropdown value={dt.day_type as DayType} onChange={(type) => handleDayTypeChange(dt.work_date, type)} />
+                      )}
+                      {dt.is_unplanned && (
+                        <span className="px-1 py-0 rounded text-[8px] font-medium uppercase tracking-widest text-rose-600 bg-rose-100/70 border border-rose-200">
+                          Unplanned
+                        </span>
                       )}
                     </div>
                   </th>
@@ -987,10 +1045,17 @@ export function ScheduleGrid({
                 </td>
               </tr>
             ) : (
-              sortedEntries.map((entry, rowIdx) => (
-                <tr key={entry.id} className={`group/row ${rowIdx % 2 === 1 ? 'bg-slate-50/50' : ''} hover:bg-slate-50`}>
+              sortedEntries.map((entry, rowIdx) => {
+                const rowBgBase = rowIdx % 2 === 1 ? 'bg-slate-50/50' : 'bg-white'
+                const rowBgHover = entry.is_unplanned ? 'hover:bg-rose-50/40' : 'hover:bg-slate-50'
+                const rowTint = entry.is_unplanned ? 'bg-rose-50/20' : ''
+                const nameCellBg = entry.is_unplanned
+                  ? (rowIdx % 2 === 1 ? 'bg-rose-50/40' : 'bg-rose-50/30')
+                  : rowBgBase
+                return (
+                <tr key={entry.id} className={`group/row ${rowBgBase} ${rowTint} ${rowBgHover}`}>
                   {/* Name (frozen) */}
-                  <td className={`sticky left-0 z-10 border-b border-r border-slate-200 px-1 ${rowIdx % 2 === 1 ? 'bg-slate-50/50' : 'bg-white'}`}>
+                  <td className={`sticky left-0 z-10 border-b border-r border-slate-200 px-1 ${nameCellBg} ${entry.is_unplanned ? 'border-l-[3px] border-l-rose-400' : ''}`}>
                     <input
                       value={entry.person_name ?? ''}
                       onChange={(e) => setEntries((prev) => prev.map((en) => en.id === entry.id ? { ...en, person_name: e.target.value } : en))}
@@ -1001,8 +1066,13 @@ export function ScheduleGrid({
                     />
                   </td>
                   {/* Role (frozen) */}
-                  <td className={`sticky left-[120px] z-10 border-b border-r border-slate-200 px-2 py-1.5 ${rowIdx % 2 === 1 ? 'bg-slate-50/50' : 'bg-white'}`}>
-                    <span className="text-[12px] font-medium text-foreground/80 truncate block">{entry.role_name}</span>
+                  <td className={`sticky left-[120px] z-10 border-b border-r border-slate-200 px-2 py-1.5 ${nameCellBg}`}>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[12px] font-medium text-foreground/80 truncate">{entry.role_name}</span>
+                      {entry.is_unplanned && (
+                        <span className="text-[8px] uppercase tracking-widest font-medium text-rose-600 bg-rose-50 px-1 py-0.5 rounded border border-rose-200 shrink-0">Unplanned</span>
+                      )}
+                    </div>
                   </td>
                   {/* Resource type (frozen) */}
                   <td className={`sticky left-[220px] z-10 border-b border-r border-slate-200 px-1 py-1 ${rowIdx % 2 === 1 ? 'bg-slate-50/50' : 'bg-white'}`}>
@@ -1120,7 +1190,8 @@ export function ScheduleGrid({
                     )}
                   </td>
                 </tr>
-              ))
+                )
+              })
             )}
             {/* Staff/Day totals row */}
             {entries.length > 0 && (
@@ -1192,13 +1263,24 @@ export function ScheduleGrid({
       <Dialog open={showAddDate} onOpenChange={setShowAddDate}>
         <DialogContent className="sm:max-w-[300px]">
           <DialogHeader>
-            <DialogTitle className="text-sm">Add Date</DialogTitle>
-            <DialogDescription className="text-xs">Add a date column to the schedule</DialogDescription>
+            <DialogTitle className="text-sm flex items-center gap-2">
+              {recapMode ? 'Add Unplanned Day' : 'Add Date'}
+              {recapMode && (
+                <span className="text-[9px] uppercase tracking-widest font-medium text-rose-600 bg-rose-50 px-1.5 py-0.5 rounded">Unplanned</span>
+              )}
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              {recapMode
+                ? 'Event ran longer than planned. Day added for recap actuals only.'
+                : 'Add a date column to the schedule'}
+            </DialogDescription>
           </DialogHeader>
           <Input type="date" value={newDate} onChange={(e) => setNewDate(e.target.value)} className="h-8 text-sm" autoFocus />
           <DialogFooter>
             <Button variant="outline" size="sm" onClick={() => { setShowAddDate(false); setNewDate('') }} className="text-[13px]">Cancel</Button>
-            <Button size="sm" disabled={!newDate} onClick={handleAddDate} className="text-[13px]">Add Date</Button>
+            <Button size="sm" disabled={!newDate} onClick={handleAddDate} className="text-[13px]">
+              {recapMode ? 'Add Unplanned Day' : 'Add Date'}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -1209,7 +1291,17 @@ export function ScheduleGrid({
         onOpenChange={setShowAddStaff}
         rateCardData={rateCardData}
         estimate={estimate}
-        onAdd={handleAddStaff}
+        onAdd={(roles) => handleAddStaff(roles, false)}
+      />
+
+      {/* Add Unplanned Staff modal (recap only) */}
+      <AddStaffModal
+        open={showAddUnplannedStaff}
+        onOpenChange={setShowAddUnplannedStaff}
+        rateCardData={rateCardData}
+        estimate={estimate}
+        mode="unplanned"
+        onAdd={(roles) => handleAddStaff(roles, true)}
       />
     </div>
   )

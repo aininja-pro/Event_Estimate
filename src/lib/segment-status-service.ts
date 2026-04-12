@@ -422,12 +422,14 @@ export async function getVarianceReport(laborLogId: string): Promise<VarianceRow
       })
     }
   } else {
-    // Build variance rows from manual labor entries
+    // Build variance rows from manual labor entries. Unplanned roles (added
+    // during recap) contribute 0 to the approved estimate so their full actual
+    // lands as overrun.
     for (const entry of (laborEntries || [])) {
       const qty = (entry.quantity as number) || 0
       const days = (entry.days as number) || 0
       const rate = (entry.unit_rate as number) || 0
-      const estimatedTotal = qty * days * rate
+      const estimatedTotal = entry.is_unplanned ? 0 : qty * days * rate
 
       const actual = (actuals || []).find(
         (a: RecapActual) => a.labor_entry_id === entry.id

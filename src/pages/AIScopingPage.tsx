@@ -284,6 +284,7 @@ export function AIScopingPage() {
           overtime_hours: null,
           notes: null,
           resource_type: entry.resource_type || 'external',
+          is_unplanned: false,
           display_order: entry.display_order,
         })
       }
@@ -343,6 +344,7 @@ export function AIScopingPage() {
               gl_code: entry.gl_code || null,
               notes: null,
               resource_type: entry.resource_type || 'external',
+              is_unplanned: false,
             })
 
             // Fill in 10 hours for each day this role works

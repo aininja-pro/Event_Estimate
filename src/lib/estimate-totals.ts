@@ -75,14 +75,18 @@ export function computeEstimateTotals(
       for (const log of laborLogs) {
         const schedEntries = scheduleEntriesMap[log.id] ?? []
         if (schedEntries.length > 0) {
-          const rollup = computeScheduleRollup(schedEntries)
+          // Unplanned rollup rows already have revenue_total=0 (planned hours=0
+          // on every day_entry), but filter defensively so a future rollup
+          // tweak can't leak them into approved-budget numbers.
+          const rollup = computeScheduleRollup(schedEntries).filter((r) => !r.is_unplanned)
           for (const r of rollup) {
             if (scheduleRoleSection(r.role_name, schedEntries) !== sec.name) continue
             totalRevenue += r.revenue_total
             totalCost += r.cost_total
           }
         } else {
-          const entries = (allEntriesMap[log.id] ?? []).filter((e) => laborSectionFor(e) === sec.name)
+          // Manual labor — unplanned entries contribute 0 to approved budget.
+          const entries = (allEntriesMap[log.id] ?? []).filter((e) => laborSectionFor(e) === sec.name && !e.is_unplanned)
           for (const e of entries) {
             const rate = e.override_rate ?? e.unit_rate
             totalRevenue += e.quantity * e.days * rate

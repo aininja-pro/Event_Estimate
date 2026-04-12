@@ -68,6 +68,7 @@ export interface LaborEntry {
   gl_code: string | null
   notes: string | null
   resource_type: 'internal' | 'external' | 'vendor'
+  is_unplanned: boolean
   display_order: number
   created_at: string
   updated_at: string

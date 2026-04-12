@@ -550,6 +550,205 @@ function EventHeader({
   )
 }
 
+// ── Add Unplanned Labor Entry Modal (Recap, manual segments only) ────────────
+// Single-item form mirroring AddUnplannedLineItemModal. No qty/days/rate entry
+// on the estimate side — unplanned roles have no approved budget, only an
+// actual cost. Role name can be picked from the rate card (inherits GL code +
+// rate_card_item_id + day rate for reference) or typed free-text.
+
+function AddUnplannedLaborEntryModal({
+  open,
+  onOpenChange,
+  rateCardData,
+  onAdd,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  rateCardData: RateCardItemsBySection[]
+  onAdd: (data: { role_name: string; description: string; actual_cost: number; gl_code: string | null; rate_card_item_id: string | null; day_rate: number }) => Promise<void>
+}) {
+  const [search, setSearch] = useState('')
+  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [showCustom, setShowCustom] = useState(false)
+  const [customName, setCustomName] = useState('')
+  const [customRate, setCustomRate] = useState('')
+  const [description, setDescription] = useState('')
+  const [actualCost, setActualCost] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    if (!open) {
+      setSearch('')
+      setSelectedId(null)
+      setShowCustom(false)
+      setCustomName('')
+      setCustomRate('')
+      setDescription('')
+      setActualCost('')
+      setSaving(false)
+    }
+  }, [open])
+
+  const laborSections = rateCardData.filter((s) => s.section.cost_type === 'labor')
+  const allRoles = laborSections.flatMap((s) => s.items.map((item) => ({ ...item, sectionName: s.section.name })))
+  const filtered = search
+    ? allRoles.filter((r) => r.name.toLowerCase().includes(search.toLowerCase()))
+    : allRoles
+
+  const isCustom = selectedId === '__custom__'
+  const picked = allRoles.find((r) => r.id === selectedId)
+  const resolvedName = isCustom ? customName.trim() : (picked?.name ?? '')
+  const resolvedGlCode: string | null = isCustom ? null : (picked?.gl_code ?? null)
+  const resolvedRcId: string | null = isCustom || !picked ? null : picked.id
+  const resolvedDayRate = isCustom ? (parseFloat(customRate) || 0) : (picked?.unit_rate ?? 0)
+
+  const costNum = parseFloat(actualCost)
+  const valid = resolvedName.length > 0 && !isNaN(costNum) && costNum > 0
+
+  function pickRole(id: string) {
+    setSelectedId(id)
+    setShowCustom(false)
+  }
+
+  function openCustom() {
+    setSelectedId('__custom__')
+    setShowCustom(true)
+  }
+
+  async function handleSave() {
+    if (!valid || saving) return
+    setSaving(true)
+    try {
+      await onAdd({
+        role_name: resolvedName,
+        description: description.trim(),
+        actual_cost: costNum,
+        gl_code: resolvedGlCode,
+        rate_card_item_id: resolvedRcId,
+        day_rate: resolvedDayRate,
+      })
+      onOpenChange(false)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[480px]">
+        <DialogHeader>
+          <DialogTitle className="text-sm font-semibold flex items-center gap-2">
+            Add Unplanned Role
+            <span className="text-[9px] uppercase tracking-widest font-medium text-rose-600 bg-rose-50 px-1.5 py-0.5 rounded">Unplanned</span>
+          </DialogTitle>
+          <DialogDescription className="text-xs">
+            Recap-only. Pick the role and enter the actual cost paid. This role wasn't part of the approved staff plan.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="relative">
+          <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-muted-foreground/50" />
+          <Input placeholder="Search roles..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9 h-8 text-sm border-border/30" autoFocus />
+        </div>
+
+        <div className="max-h-[240px] overflow-y-auto space-y-0.5">
+          {filtered.length === 0 && !isCustom && (
+            <p className="text-xs text-muted-foreground/50 text-center py-4">No roles found — use Custom below</p>
+          )}
+          {filtered.map((role) => {
+            const selected = selectedId === role.id
+            return (
+              <button
+                key={role.id}
+                onClick={() => pickRole(role.id)}
+                className={`w-full text-left px-3 py-1.5 rounded-sm transition-colors flex items-start gap-2.5 ${selected ? 'bg-rose-50/70' : 'hover:bg-muted/40'}`}
+              >
+                <div className={`mt-1 flex-shrink-0 w-3.5 h-3.5 rounded-full border ${selected ? 'border-rose-500 bg-rose-500' : 'border-border/50'} flex items-center justify-center`}>
+                  {selected && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[13px] font-medium text-foreground/90">{role.name}</span>
+                    <span className="text-[13px] text-muted-foreground/60 tabular-nums">${role.unit_rate?.toLocaleString() ?? '0'}/day</span>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground/70">{role.sectionName}{role.gl_code ? ` · GL ${role.gl_code}` : ''}</p>
+                </div>
+              </button>
+            )
+          })}
+        </div>
+
+        {showCustom ? (
+          <div className="border border-border/40 rounded-md p-2.5 space-y-2 bg-rose-50/30">
+            <p className="text-[11px] font-medium text-rose-700/80 uppercase tracking-wider">Custom Unplanned Role</p>
+            <div className="flex gap-2">
+              <Input
+                placeholder="Role name"
+                value={customName}
+                onChange={(e) => setCustomName(e.target.value)}
+                className="h-7 text-[13px] border-border/40 flex-1"
+                autoFocus
+              />
+              <Input
+                type="number"
+                placeholder="Day rate"
+                value={customRate}
+                onChange={(e) => setCustomRate(e.target.value)}
+                className="h-7 text-[13px] border-border/40 w-24"
+              />
+            </div>
+          </div>
+        ) : (
+          <button
+            onClick={openCustom}
+            className="flex items-center gap-1.5 text-[11px] text-muted-foreground/60 hover:text-foreground/80 transition-colors"
+          >
+            <Plus className="h-3 w-3" />
+            Add custom role (not in rate card)
+          </button>
+        )}
+
+        <div className="space-y-2 pt-1 border-t border-border/30">
+          <div className="space-y-1">
+            <Label className="text-[11px] uppercase tracking-wider text-muted-foreground">Description (optional)</Label>
+            <Input
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="e.g., Last-minute backup A/V tech"
+              className="h-8 text-sm border-border/30"
+            />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-[11px] uppercase tracking-wider text-muted-foreground">Actual Cost *</Label>
+            <div className="relative">
+              <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-sm text-muted-foreground/60">$</span>
+              <Input
+                type="number"
+                inputMode="decimal"
+                value={actualCost}
+                onChange={(e) => setActualCost(e.target.value)}
+                placeholder="0.00"
+                className="h-8 text-sm border-border/30 pl-6"
+              />
+            </div>
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button
+            onClick={handleSave}
+            disabled={!valid || saving}
+            size="sm"
+            className="text-xs bg-white hover:bg-rose-50 text-foreground border border-border/50 hover:border-rose-400 hover:text-rose-700 shadow-sm"
+          >
+            {saving ? 'Adding…' : (valid ? `Add Unplanned · $${costNum.toLocaleString()}` : 'Pick a role and enter a cost')}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 // ── Add Role Modal ───────────────────────────────────────────────────────────
 
 function AddRoleModal({
@@ -904,6 +1103,7 @@ function LaborLogTab({
   onDeleteLocation,
   onRenameLocation,
   onAddEntry,
+  onAddUnplannedLaborEntry,
   onUpdateEntry,
   onDeleteEntry,
   onSwitchToSchedule,
@@ -924,6 +1124,7 @@ function LaborLogTab({
   onDeleteLocation: (id: string) => void
   onRenameLocation: (id: string, name: string) => void
   onAddEntry: (entries: { role_name: string; unit_rate: number; cost_rate: number | null; gl_code: string | null; rate_card_item_id: string | null }[]) => void
+  onAddUnplannedLaborEntry?: (data: { role_name: string; unit_rate: number; cost_rate: number | null; gl_code: string | null; rate_card_item_id: string | null }) => Promise<LaborEntry | null>
   onUpdateEntry: (id: string, updates: Partial<LaborEntry>) => void
   onDeleteEntry: (id: string) => void
   onSwitchToSchedule: () => void
@@ -933,6 +1134,7 @@ function LaborLogTab({
   estimateId?: string
 }) {
   const [showAddRole, setShowAddRole] = useState(false)
+  const [showAddUnplannedRole, setShowAddUnplannedRole] = useState(false)
   const [recapMap, setRecapMap] = useState<Record<string, RecapActual>>({})
   const isRecapMode = editRules?.actuals === true
 
@@ -994,6 +1196,32 @@ function LaborLogTab({
       setRecapMap((prev) => ({ ...prev, [key]: result }))
     } catch (err) {
       console.error('Failed to save recap actual:', err)
+    }
+  }
+
+  async function handleSubmitUnplannedLaborEntry(data: { role_name: string; description: string; actual_cost: number; gl_code: string | null; rate_card_item_id: string | null; day_rate: number }) {
+    if (!onAddUnplannedLaborEntry || !activeLocationId || !estimateId) return
+    const newEntry = await onAddUnplannedLaborEntry({
+      role_name: data.role_name,
+      unit_rate: data.day_rate,
+      cost_rate: null,
+      gl_code: data.gl_code,
+      rate_card_item_id: data.rate_card_item_id,
+    })
+    if (!newEntry) return
+    try {
+      const result = await upsertRecapActual({
+        estimate_id: estimateId,
+        labor_log_id: activeLocationId,
+        labor_entry_id: newEntry.id,
+        schedule_entry_id: null,
+        line_item_id: null,
+        actual_total: data.actual_cost,
+        notes: data.description || null,
+      })
+      setRecapMap((prev) => ({ ...prev, [`labor_${newEntry.id}`]: result }))
+    } catch (err) {
+      console.error('Failed to record unplanned labor actual:', err)
     }
   }
 
@@ -1083,17 +1311,28 @@ function LaborLogTab({
                   const gp = row.revenue_total - row.cost_total
                   const schedEntryId = rollupEntryIds[idx]
                   const recapKey = `schedule_${schedEntryId}`
+                  const rowClass = row.is_unplanned
+                    ? "border-b border-border/10 hover:bg-rose-50/40 bg-rose-50/20 [&>td:first-child]:border-l-[3px] [&>td:first-child]:border-l-rose-400"
+                    : "border-b border-border/10 hover:bg-muted/30"
+                  const dash = <span className="text-muted-foreground/40 tabular-nums">—</span>
                   return (
-                    <TableRow key={idx} className="border-b border-border/10 hover:bg-muted/30">
-                      <TableCell className="py-1.5 text-[13px] font-medium">{row.role_name}</TableCell>
-                      <TableCell className="py-1.5 text-[13px] text-center tabular-nums">{row.quantity}</TableCell>
-                      <TableCell className="py-1.5 text-[13px] text-center tabular-nums">{row.total_days}</TableCell>
-                      <TableCell className="py-1.5 text-[13px] text-right tabular-nums">{fmt(row.day_rate)}</TableCell>
-                      <TableCell className="py-1.5 text-[13px] text-right tabular-nums">{fmt(row.revenue_total)}</TableCell>
-                      <TableCell className="py-1.5 text-[13px] text-right tabular-nums">{fmt(row.cost_rate)}</TableCell>
-                      <TableCell className="py-1.5 text-[13px] text-right tabular-nums">{fmt(row.cost_total)}</TableCell>
-                      <TableCell className="py-1.5 text-[13px] text-right tabular-nums text-green-800/60 font-medium">{fmt(gp)}</TableCell>
-                      <TableCell className="py-1.5 text-[13px] text-right tabular-nums">{pct(gp, row.revenue_total)}</TableCell>
+                    <TableRow key={idx} className={rowClass}>
+                      <TableCell className="py-1.5 text-[13px] font-medium">
+                        <div className="flex items-center gap-1.5">
+                          <span>{row.role_name}</span>
+                          {row.is_unplanned && (
+                            <span className="text-[9px] uppercase tracking-widest font-medium text-rose-600 bg-rose-50 px-1 py-0.5 rounded">Unplanned</span>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell className="py-1.5 text-[13px] text-center tabular-nums">{row.is_unplanned ? dash : row.quantity}</TableCell>
+                      <TableCell className="py-1.5 text-[13px] text-center tabular-nums">{row.is_unplanned ? dash : row.total_days}</TableCell>
+                      <TableCell className="py-1.5 text-[13px] text-right tabular-nums">{row.is_unplanned ? dash : fmt(row.day_rate)}</TableCell>
+                      <TableCell className="py-1.5 text-[13px] text-right tabular-nums">{row.is_unplanned ? dash : fmt(row.revenue_total)}</TableCell>
+                      <TableCell className="py-1.5 text-[13px] text-right tabular-nums">{row.is_unplanned ? dash : fmt(row.cost_rate)}</TableCell>
+                      <TableCell className="py-1.5 text-[13px] text-right tabular-nums">{row.is_unplanned ? dash : fmt(row.cost_total)}</TableCell>
+                      <TableCell className="py-1.5 text-[13px] text-right tabular-nums text-green-800/60 font-medium">{row.is_unplanned ? dash : fmt(gp)}</TableCell>
+                      <TableCell className="py-1.5 text-[13px] text-right tabular-nums">{row.is_unplanned ? dash : pct(gp, row.revenue_total)}</TableCell>
                       {isRecapMode && (
                         <RecapComputedCells
                           estimatedTotal={row.revenue_total}
@@ -1157,6 +1396,21 @@ function LaborLogTab({
             + Add Role
           </button>
         ))}
+        {isRecapMode && onAddUnplannedLaborEntry && (hasScheduleData ? (
+          <button
+            onClick={onSwitchToSchedule}
+            className="mt-1.5 ml-3 text-[11px] text-rose-600/80 hover:text-rose-700 border border-dashed border-rose-300/70 hover:border-rose-400 rounded px-2 py-0.5 transition-colors"
+          >
+            + Add Unplanned Staff on Schedule →
+          </button>
+        ) : (
+          <button
+            onClick={() => setShowAddUnplannedRole(true)}
+            className="mt-1.5 ml-3 text-[11px] text-rose-600/80 hover:text-rose-700 border border-dashed border-rose-300/70 hover:border-rose-400 rounded px-2 py-0.5 transition-colors"
+          >
+            + Add Unplanned Role
+          </button>
+        ))}
       </div>
 
       {/* Name progress counter (recap mode) */}
@@ -1201,13 +1455,21 @@ function LaborLogTab({
 
       {/* Modals (only used in manual mode) */}
       {!hasScheduleData && (
-        <AddRoleModal
-          open={showAddRole}
-          onOpenChange={setShowAddRole}
-          rateCardData={rateCardData}
-          estimate={estimate}
-          onAdd={onAddEntry}
-        />
+        <>
+          <AddRoleModal
+            open={showAddRole}
+            onOpenChange={setShowAddRole}
+            rateCardData={rateCardData}
+            estimate={estimate}
+            onAdd={onAddEntry}
+          />
+          <AddUnplannedLaborEntryModal
+            open={showAddUnplannedRole}
+            onOpenChange={setShowAddUnplannedRole}
+            rateCardData={rateCardData}
+            onAdd={handleSubmitUnplannedLaborEntry}
+          />
+        </>
       )}
     </div>
   )
@@ -1319,64 +1581,81 @@ function LaborEntryRow({
 
   const cellInput = "h-6 text-[13px] bg-transparent border-0 focus-visible:ring-0 focus-visible:bg-muted/50 rounded-sm transition-colors tabular-nums"
 
+  const isUnplanned = entry.is_unplanned
+  const rowClass = isUnplanned
+    ? "group border-b border-border/30 hover:bg-rose-50/40 bg-rose-50/20 [&>td:first-child]:border-l-[3px] [&>td:first-child]:border-l-rose-400"
+    : "group border-b border-border/30 hover:bg-muted/30"
+  const dash = <span className="text-[13px] text-muted-foreground/40 tabular-nums">—</span>
+
   return (
-    <TableRow className="group border-b border-border/30 hover:bg-muted/30">
+    <TableRow className={rowClass}>
       <TableCell className="py-1">
         <span className="text-[13px] text-foreground">{entry.role_name}</span>
         {isOverridden && <span className="ml-1 text-[9px] text-amber-600 font-medium">*</span>}
+        {isUnplanned && (
+          <span className="ml-1.5 text-[9px] uppercase tracking-widest font-medium text-rose-600 bg-rose-50 px-1 py-0.5 rounded">Unplanned</span>
+        )}
       </TableCell>
       <TableCell className="text-center py-1">
-        <StepperInput value={qty} onChange={setQty} onBlur={saveQty} onStep={(v) => onUpdate(entry.id, { quantity: v })} min={0} className={cellInput} disabled={readOnly} />
+        {isUnplanned ? dash : (
+          <StepperInput value={qty} onChange={setQty} onBlur={saveQty} onStep={(v) => onUpdate(entry.id, { quantity: v })} min={0} className={cellInput} disabled={readOnly} />
+        )}
       </TableCell>
       <TableCell className="text-center py-1">
-        <StepperInput value={days} onChange={setDays} onBlur={saveDays} onStep={(v) => onUpdate(entry.id, { days: v })} min={0} className={cellInput} disabled={readOnly} />
+        {isUnplanned ? dash : (
+          <StepperInput value={days} onChange={setDays} onBlur={saveDays} onStep={(v) => onUpdate(entry.id, { days: v })} min={0} className={cellInput} disabled={readOnly} />
+        )}
       </TableCell>
       <TableCell className="text-right py-1">
-        <div className="relative w-[72px] ml-auto">
-          <span className="absolute left-1 top-1/2 -translate-y-1/2 text-[13px] text-muted-foreground/60 pointer-events-none">$</span>
-          <Input
-            value={rate}
-            onChange={(e) => setRate(e.target.value)}
-            onBlur={saveRate}
-            onFocus={selectOnFocus}
-            className={`${cellInput} w-full text-right pl-4 ${isOverridden ? 'text-amber-600' : ''}`}
-            readOnly={readOnly}
-          />
-        </div>
-      </TableCell>
-      <TableCell className="text-right py-1">
-        <span className="text-[13px] font-medium tabular-nums text-foreground">{fmt(lineTotal)}</span>
-      </TableCell>
-      <TableCell className="text-right py-1">
-        {isOffice ? (
-          <span className="text-[13px] text-muted-foreground/50 tabular-nums">{fmt(effectiveCost)}</span>
-        ) : (
+        {isUnplanned ? <div className="text-right pr-1">{dash}</div> : (
           <div className="relative w-[72px] ml-auto">
             <span className="absolute left-1 top-1/2 -translate-y-1/2 text-[13px] text-muted-foreground/60 pointer-events-none">$</span>
-            <Input value={costRate} onChange={(e) => setCostRate(e.target.value)} onBlur={saveCostRate} onFocus={selectOnFocus} className={`${cellInput} w-full text-right pl-4`} readOnly={readOnly} />
+            <Input
+              value={rate}
+              onChange={(e) => setRate(e.target.value)}
+              onBlur={saveRate}
+              onFocus={selectOnFocus}
+              className={`${cellInput} w-full text-right pl-4 ${isOverridden ? 'text-amber-600' : ''}`}
+              readOnly={readOnly}
+            />
           </div>
         )}
       </TableCell>
       <TableCell className="text-right py-1">
-        <span className="text-[13px] font-medium tabular-nums text-foreground">{fmt(costTotal)}</span>
+        {isUnplanned ? dash : <span className="text-[13px] font-medium tabular-nums text-foreground">{fmt(lineTotal)}</span>}
       </TableCell>
       <TableCell className="text-right py-1">
-        <span className="text-[13px] font-medium tabular-nums text-green-800/60">{fmt(gp)}</span>
+        {isUnplanned ? <div className="text-right pr-1">{dash}</div> : (
+          isOffice ? (
+            <span className="text-[13px] text-muted-foreground/50 tabular-nums">{fmt(effectiveCost)}</span>
+          ) : (
+            <div className="relative w-[72px] ml-auto">
+              <span className="absolute left-1 top-1/2 -translate-y-1/2 text-[13px] text-muted-foreground/60 pointer-events-none">$</span>
+              <Input value={costRate} onChange={(e) => setCostRate(e.target.value)} onBlur={saveCostRate} onFocus={selectOnFocus} className={`${cellInput} w-full text-right pl-4`} readOnly={readOnly} />
+            </div>
+          )
+        )}
       </TableCell>
       <TableCell className="text-right py-1">
-        <span className="text-[13px] tabular-nums text-muted-foreground/50">{gpPct}%</span>
+        {isUnplanned ? dash : <span className="text-[13px] font-medium tabular-nums text-foreground">{fmt(costTotal)}</span>}
+      </TableCell>
+      <TableCell className="text-right py-1">
+        {isUnplanned ? dash : <span className="text-[13px] font-medium tabular-nums text-green-800/60">{fmt(gp)}</span>}
+      </TableCell>
+      <TableCell className="text-right py-1">
+        {isUnplanned ? dash : <span className="text-[13px] tabular-nums text-muted-foreground/50">{gpPct}%</span>}
       </TableCell>
       {recapActual !== undefined && onSaveRecapActual && (
         <RecapActualsCells
           recapActual={recapActual}
-          estimatedTotal={lineTotal}
+          estimatedTotal={isUnplanned ? 0 : lineTotal}
           onSave={onSaveRecapActual}
-          autoCalcRate={effectiveRate}
-          autoCalcQty={qtyNum}
+          autoCalcRate={isUnplanned ? undefined : effectiveRate}
+          autoCalcQty={isUnplanned ? undefined : qtyNum}
         />
       )}
       <TableCell className="py-1">
-        {!readOnly && (
+        {(!readOnly || isUnplanned) && (
           <Trash2
             className="h-3 w-3 opacity-0 group-hover:opacity-50 hover:!opacity-100 transition-opacity cursor-pointer text-foreground/60"
             onClick={() => onDelete(entry.id)}
@@ -3044,6 +3323,7 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
             overtime_hours: null,
             notes: null,
             resource_type: 'external',
+            is_unplanned: false,
             display_order: currentCount + i,
           })
         )
@@ -3054,6 +3334,42 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
       }))
     } catch (err) {
       console.error('Failed to add entries:', err)
+    }
+  }
+
+  async function handleAddUnplannedLaborEntry(
+    data: { role_name: string; unit_rate: number; cost_rate: number | null; gl_code: string | null; rate_card_item_id: string | null },
+  ): Promise<LaborEntry | null> {
+    if (!activeLocationId) return null
+    try {
+      const currentCount = laborEntriesMap[activeLocationId]?.length ?? 0
+      const created = await createLaborEntry({
+        labor_log_id: activeLocationId,
+        role_name: data.role_name,
+        unit_rate: data.unit_rate,
+        cost_rate: data.cost_rate,
+        gl_code: data.gl_code,
+        rate_card_item_id: data.rate_card_item_id,
+        quantity: 0,
+        days: 0,
+        override_rate: null,
+        override_reason: null,
+        has_overtime: false,
+        overtime_rate: null,
+        overtime_hours: null,
+        notes: null,
+        resource_type: 'external',
+        is_unplanned: true,
+        display_order: currentCount,
+      })
+      setLaborEntriesMap((prev) => ({
+        ...prev,
+        [activeLocationId]: [...(prev[activeLocationId] ?? []), created],
+      }))
+      return created
+    } catch (err) {
+      console.error('Failed to add unplanned labor entry:', err)
+      return null
     }
   }
 
@@ -3473,6 +3789,7 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
                 onDeleteLocation={handleDeleteLocation}
                 onRenameLocation={handleRenameLocation}
                 onAddEntry={handleAddEntry}
+                onAddUnplannedLaborEntry={handleAddUnplannedLaborEntry}
                 onUpdateEntry={handleUpdateEntry}
                 onDeleteEntry={handleDeleteEntry}
                 onSwitchToSchedule={() => setActiveTab('schedule')}

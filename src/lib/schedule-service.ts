@@ -32,7 +32,8 @@ export async function upsertScheduleDayType(
   laborLogId: string,
   workDate: string,
   dayType: string,
-  displayOrder?: number
+  displayOrder?: number,
+  isUnplanned = false,
 ): Promise<ScheduleDayType> {
   const db = requireSupabase()
   const { data, error } = await db
@@ -43,6 +44,7 @@ export async function upsertScheduleDayType(
         work_date: workDate,
         day_type: dayType,
         display_order: displayOrder ?? 0,
+        is_unplanned: isUnplanned,
       },
       { onConflict: 'labor_log_id,work_date' }
     )
@@ -333,7 +335,10 @@ export function computeScheduleRollup(entries: ScheduleEntry[]): LaborRollupRow[
   // roles could share a group_id if added in the same batch.
   const groups = new Map<string, ScheduleEntry[]>()
   for (const entry of entries) {
-    const key = `${entry.role_name}:${entry.day_rate}:${entry.cost_rate}`
+    // Include is_unplanned in the key so an unplanned copy of the same role+rate
+    // stays as its own rollup row (we want it visible separately so the Labor
+    // Log clearly shows planned vs after-the-fact additions).
+    const key = `${entry.role_name}:${entry.day_rate}:${entry.cost_rate}:${entry.is_unplanned ? 'u' : 'p'}`
     const group = groups.get(key) || []
     group.push(entry)
     groups.set(key, group)
@@ -398,6 +403,7 @@ export function computeScheduleRollup(entries: ScheduleEntry[]): LaborRollupRow[
       actual_days: actualDays,
       actual_revenue_total: actualRevenue,
       actual_cost_total: actualCost,
+      is_unplanned: first.is_unplanned,
     })
   }
 
