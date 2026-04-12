@@ -4,3 +4,5 @@ anthropic>=0.42.0
 python-dotenv>=1.0.0
 httpx>=0.28.0
 supabase>=2.0.0
+weasyprint>=62.0
+jinja2>=3.1.0

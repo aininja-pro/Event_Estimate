@@ -1,0 +1,135 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="internal-banner">INTERNAL — NOT FOR CLIENT DISTRIBUTION</div>
+
+<div class="header">
+  <div class="header-logo">DRIVESHOP</div>
+  <div class="header-badge" style="color: #1a1a2e; border-color: #1a1a2e;">INTERNAL P&amp;L</div>
+</div>
+
+<div class="event-details">
+  <div class="detail-item">
+    <div class="detail-label">Client</div>
+    <div class="detail-value">{{ estimate.client_name }}</div>
+  </div>
+  <div class="detail-item">
+    <div class="detail-label">Event</div>
+    <div class="detail-value">{{ estimate.event_name }}</div>
+  </div>
+  <div class="detail-item">
+    <div class="detail-label">Type</div>
+    <div class="detail-value">{{ estimate.event_type or '—' }}</div>
+  </div>
+  <div class="detail-item">
+    <div class="detail-label">Location</div>
+    <div class="detail-value">{{ estimate.location or '—' }}</div>
+  </div>
+  <div class="detail-item">
+    <div class="detail-label">Dates</div>
+    <div class="detail-value">{{ format_date(estimate.start_date) }}{% if estimate.end_date %} – {{ format_date(estimate.end_date) }}{% endif %}</div>
+  </div>
+  <div class="detail-item">
+    <div class="detail-label">Duration</div>
+    <div class="detail-value">{{ estimate.duration_days or '—' }} days</div>
+  </div>
+  <div class="detail-item">
+    <div class="detail-label">Cost Structure</div>
+    <div class="detail-value">{{ estimate.cost_structure | title }}</div>
+  </div>
+  <div class="detail-item">
+    <div class="detail-label">PO Number</div>
+    <div class="detail-value">{{ estimate.po_number or '—' }}</div>
+  </div>
+</div>
+
+{% for segment in segments %}
+{% if segments|length > 1 %}
+<div class="segment-title">{{ segment.name }}</div>
+{% endif %}
+
+<table>
+  <thead>
+    <tr>
+      <th style="width: 30%">Item</th>
+      <th class="number">Qty</th>
+      <th class="number">Rate</th>
+      <th class="number">Revenue</th>
+      <th class="number">Cost</th>
+      <th class="number">GP</th>
+      <th class="number">GP%</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for section in segment.sections %}
+    <tr class="section-header">
+      <td colspan="7">{{ section.label }}</td>
+    </tr>
+    {% for item in section.line_items %}
+    <tr>
+      <td>{{ item.name }}</td>
+      <td class="number">{{ item.quantity | int if item.quantity == item.quantity | int else item.quantity }}</td>
+      <td class="number">{{ format_currency(item.unit_rate) }}</td>
+      <td class="number">{{ format_currency(item.revenue) }}</td>
+      <td class="number">{{ format_currency(item.cost) }}</td>
+      <td class="number {{ 'gp-positive' if item.gp >= 0 else 'gp-negative' }}">{{ format_currency(item.gp) }}</td>
+      <td class="number {{ 'gp-positive' if item.gp_pct >= 0 else 'gp-negative' }}">{{ format_pct(item.gp_pct) }}</td>
+    </tr>
+    {% endfor %}
+    <tr class="subtotal-row">
+      <td colspan="3">{{ section.label }} Subtotal</td>
+      <td class="number">{{ format_currency(section.subtotal_revenue) }}</td>
+      <td class="number">{{ format_currency(section.subtotal_cost) }}</td>
+      <td class="number {{ 'gp-positive' if section.subtotal_gp >= 0 else 'gp-negative' }}">{{ format_currency(section.subtotal_gp) }}</td>
+      <td class="number {{ 'gp-positive' if section.subtotal_gp_pct >= 0 else 'gp-negative' }}">{{ format_pct(section.subtotal_gp_pct) }}</td>
+    </tr>
+    {% endfor %}
+
+    <tr class="grand-total-row">
+      <td colspan="3">Segment Total</td>
+      <td class="number">{{ format_currency(segment.totals.revenue) }}</td>
+      <td class="number">{{ format_currency(segment.totals.cost) }}</td>
+      <td class="number {{ 'gp-positive' if segment.totals.gp >= 0 else 'gp-negative' }}">{{ format_currency(segment.totals.gp) }}</td>
+      <td class="number {{ 'gp-positive' if segment.totals.gp_pct >= 0 else 'gp-negative' }}">{{ format_pct(segment.totals.gp_pct) }}</td>
+    </tr>
+  </tbody>
+</table>
+{% endfor %}
+
+{% if segments|length > 1 %}
+<table>
+  <tbody>
+    <tr class="grand-total-row">
+      <td colspan="3">Grand Total</td>
+      <td class="number">{{ format_currency(totals.gross_revenue) }}</td>
+      <td class="number">{{ format_currency(totals.total_cost) }}</td>
+      <td class="number {{ 'gp-positive' if totals.gross_profit >= 0 else 'gp-negative' }}">{{ format_currency(totals.gross_profit) }}</td>
+      <td class="number {{ 'gp-positive' if totals.gp_percent >= 0 else 'gp-negative' }}">{{ format_pct(totals.gp_percent) }}</td>
+    </tr>
+  </tbody>
+</table>
+{% endif %}
+
+<div style="margin-top: 16pt; padding: 8pt; background: #f8f9fa; border: 1px solid #e5e7eb;">
+  <table style="margin: 0;">
+    <tbody>
+      <tr>
+        <td style="font-weight: 600; border: none; padding: 3pt 8pt;">Gross Revenue</td>
+        <td class="number" style="border: none; padding: 3pt 8pt;">{{ format_currency(totals.gross_revenue) }}</td>
+      </tr>
+      <tr>
+        <td style="font-weight: 600; border: none; padding: 3pt 8pt;">Total Cost</td>
+        <td class="number" style="border: none; padding: 3pt 8pt;">{{ format_currency(totals.total_cost) }}</td>
+      </tr>
+      <tr>
+        <td style="font-weight: 700; border-top: 1px solid #ccc; padding: 6pt 8pt;">Gross Profit</td>
+        <td class="number {{ 'gp-positive' if totals.gross_profit >= 0 else 'gp-negative' }}" style="font-weight: 700; border-top: 1px solid #ccc; padding: 6pt 8pt;">{{ format_currency(totals.gross_profit) }} ({{ format_pct(totals.gp_percent) }})</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="footer-note">
+  Generated {{ generated_at }} | DriveShop Internal — Not For Distribution
+</div>
+{% endblock %}

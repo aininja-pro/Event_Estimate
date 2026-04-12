@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="header">
+  <div class="header-logo">DRIVESHOP</div>
+  <div class="header-badge">CONFIDENTIAL</div>
+</div>
+
+<div class="event-details">
+  <div class="detail-item">
+    <div class="detail-label">Client</div>
+    <div class="detail-value">{{ estimate.client_name }}</div>
+  </div>
+  <div class="detail-item">
+    <div class="detail-label">Event</div>
+    <div class="detail-value">{{ estimate.event_name }}</div>
+  </div>
+  <div class="detail-item">
+    <div class="detail-label">Type</div>
+    <div class="detail-value">{{ estimate.event_type or '—' }}</div>
+  </div>
+  <div class="detail-item">
+    <div class="detail-label">Location</div>
+    <div class="detail-value">{{ estimate.location or '—' }}</div>
+  </div>
+  <div class="detail-item">
+    <div class="detail-label">Dates</div>
+    <div class="detail-value">{{ format_date(estimate.start_date) }}{% if estimate.end_date %} – {{ format_date(estimate.end_date) }}{% endif %}</div>
+  </div>
+  <div class="detail-item">
+    <div class="detail-label">Duration</div>
+    <div class="detail-value">{{ estimate.duration_days or '—' }} days</div>
+  </div>
+  <div class="detail-item">
+    <div class="detail-label">Attendance</div>
+    <div class="detail-value">{{ estimate.expected_attendance or '—' }}</div>
+  </div>
+  <div class="detail-item">
+    <div class="detail-label">PO Number</div>
+    <div class="detail-value">{{ estimate.po_number or '—' }}</div>
+  </div>
+</div>
+
+{% for segment in segments %}
+{% if segments|length > 1 %}
+<div class="segment-title">{{ segment.name }}</div>
+{% endif %}
+
+<table>
+  <thead>
+    <tr>
+      <th style="width: 50%">Item</th>
+      <th class="number">Qty</th>
+      {% if detailed %}
+      <th class="number">Rate</th>
+      {% endif %}
+      <th class="number">Total</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for section in segment.sections %}
+    <tr class="section-header">
+      <td colspan="{{ 4 if detailed else 3 }}">{{ section.label }}</td>
+    </tr>
+    {% if detailed %}
+      {% for item in section.line_items %}
+      <tr>
+        <td>{{ item.name }}</td>
+        <td class="number">{{ item.quantity | int if item.quantity == item.quantity | int else item.quantity }}</td>
+        <td class="number">{{ format_currency(item.unit_rate) }}</td>
+        <td class="number">{{ format_currency(item.revenue) }}</td>
+      </tr>
+      {% endfor %}
+    {% endif %}
+    <tr class="subtotal-row">
+      <td colspan="{{ 3 if detailed else 2 }}">{{ section.label }} Subtotal</td>
+      <td class="number">{{ format_currency(section.subtotal_revenue) }}</td>
+    </tr>
+    {% endfor %}
+
+    <tr class="grand-total-row">
+      <td colspan="{{ 3 if detailed else 2 }}">Total</td>
+      <td class="number">{{ format_currency(segment.totals.revenue) }}</td>
+    </tr>
+  </tbody>
+</table>
+{% endfor %}
+
+{% if segments|length > 1 %}
+<table>
+  <tbody>
+    <tr class="grand-total-row">
+      <td>Grand Total (All Segments)</td>
+      <td class="number">{{ format_currency(totals.gross_revenue) }}</td>
+    </tr>
+  </tbody>
+</table>
+{% endif %}
+
+<div class="footer-note">
+  Generated {{ generated_at }} | DriveShop Confidential
+</div>
+{% endblock %}

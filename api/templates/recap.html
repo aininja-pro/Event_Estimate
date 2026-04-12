@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="header">
+  <div class="header-logo">DRIVESHOP</div>
+  <div class="header-badge">RECAP REPORT</div>
+</div>
+
+<div class="event-details">
+  <div class="detail-item">
+    <div class="detail-label">Client</div>
+    <div class="detail-value">{{ client_name }}</div>
+  </div>
+  <div class="detail-item">
+    <div class="detail-label">Event</div>
+    <div class="detail-value">{{ event_name }}</div>
+  </div>
+  <div class="detail-item">
+    <div class="detail-label">Report Date</div>
+    <div class="detail-value">{{ format_date(generated_at) }}</div>
+  </div>
+</div>
+
+{% for segment in segments %}
+{% if segments|length > 1 %}
+<div class="segment-title">{{ segment.name }}</div>
+{% endif %}
+
+<table>
+  <thead>
+    <tr>
+      <th style="width: 35%">Item</th>
+      <th class="number">Estimated</th>
+      <th class="number">Actual</th>
+      <th class="number">Variance ($)</th>
+      <th class="number">Variance (%)</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for section in segment.sections %}
+    <tr class="section-header">
+      <td colspan="5">{{ section.label }}</td>
+    </tr>
+    {% for item in section.line_items %}
+    <tr>
+      <td>{{ item.item_name }}</td>
+      <td class="number">{{ format_currency(item.estimated_total) }}</td>
+      <td class="number">{{ format_currency(item.actual_total) }}</td>
+      <td class="number {{ 'variance-positive' if item.variance >= 0 else 'variance-negative' }}">
+        {{ format_signed(item.variance) }}
+      </td>
+      <td class="number {{ 'variance-positive' if item.variance_pct >= 0 else 'variance-negative' }}">
+        {{ format_pct(item.variance_pct) }}
+      </td>
+    </tr>
+    {% endfor %}
+    <tr class="subtotal-row">
+      <td>{{ section.label }} Subtotal</td>
+      <td class="number">{{ format_currency(section.estimated_total) }}</td>
+      <td class="number">{{ format_currency(section.actual_total) }}</td>
+      <td class="number {{ 'variance-positive' if section.variance >= 0 else 'variance-negative' }}">
+        {{ format_signed(section.variance) }}
+      </td>
+      <td class="number {{ 'variance-positive' if section.variance_pct >= 0 else 'variance-negative' }}">
+        {{ format_pct(section.variance_pct) }}
+      </td>
+    </tr>
+    {% endfor %}
+
+    <tr class="grand-total-row">
+      <td>Segment Total</td>
+      <td class="number">{{ format_currency(segment.totals.estimated) }}</td>
+      <td class="number">{{ format_currency(segment.totals.actual) }}</td>
+      <td class="number {{ 'variance-positive' if segment.totals.variance >= 0 else 'variance-negative' }}">
+        {{ format_signed(segment.totals.variance) }}
+      </td>
+      <td class="number {{ 'variance-positive' if segment.totals.variance_pct >= 0 else 'variance-negative' }}">
+        {{ format_pct(segment.totals.variance_pct) }}
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+{% if segment.staff %}
+<table class="staff-table">
+  <thead>
+    <tr>
+      <th>Role</th>
+      <th>Person</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for person in segment.staff %}
+    <tr>
+      <td>{{ person.role }}</td>
+      <td>{{ person.person }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+{% endfor %}
+
+<div class="footer-note">
+  Generated {{ generated_at }} | DriveShop Internal
+</div>
+{% endblock %}

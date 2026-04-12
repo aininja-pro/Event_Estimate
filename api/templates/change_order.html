@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="header">
+  <div class="header-logo">DRIVESHOP</div>
+  <div class="header-badge">CHANGE ORDER</div>
+</div>
+
+<div class="event-details">
+  <div class="detail-item">
+    <div class="detail-label">Client</div>
+    <div class="detail-value">{{ client_name }}</div>
+  </div>
+  <div class="detail-item">
+    <div class="detail-label">Event</div>
+    <div class="detail-value">{{ event_name }}</div>
+  </div>
+  <div class="detail-item">
+    <div class="detail-label">Segment</div>
+    <div class="detail-value">{{ segment_name }}</div>
+  </div>
+  <div class="detail-item">
+    <div class="detail-label">Status</div>
+    <div class="detail-value">
+      {{ status | title }}
+      {% if approved_by %} — {{ approved_by }}{% endif %}
+    </div>
+  </div>
+</div>
+
+<div class="co-header">
+  <div class="co-number">{{ co_number }}</div>
+  <div class="co-description">{{ description or 'No description provided' }}</div>
+</div>
+
+{% if delta.added or delta.removed or delta.modified %}
+<table>
+  <thead>
+    <tr>
+      <th style="width: 5%"></th>
+      <th style="width: 40%">Item</th>
+      <th class="number">Detail</th>
+      <th class="number">Amount</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for item in delta.added %}
+    <tr class="delta-added">
+      <td class="delta-icon">+</td>
+      <td>{{ item.item_name }}</td>
+      <td class="number">
+        {% if item.quantity and item.unit_rate %}
+          {{ item.quantity }} &times; {{ format_currency(item.unit_rate) }}
+        {% elif item.days and item.unit_rate %}
+          {{ item.days }} days &times; {{ format_currency(item.unit_rate) }}
+        {% endif %}
+      </td>
+      <td class="number">{{ format_currency(item.total) }}</td>
+    </tr>
+    {% endfor %}
+
+    {% for item in delta.removed %}
+    <tr class="delta-removed">
+      <td class="delta-icon">&minus;</td>
+      <td>{{ item.item_name }}</td>
+      <td class="number">
+        {% if item.quantity and item.unit_rate %}
+          {{ item.quantity }} &times; {{ format_currency(item.unit_rate) }}
+        {% elif item.days and item.unit_rate %}
+          {{ item.days }} days &times; {{ format_currency(item.unit_rate) }}
+        {% endif %}
+      </td>
+      <td class="number">({{ format_currency(item.total | abs) }})</td>
+    </tr>
+    {% endfor %}
+
+    {% for item in delta.modified %}
+    <tr class="delta-modified">
+      <td class="delta-icon">&Delta;</td>
+      <td>{{ item.item_name }}</td>
+      <td class="number">{{ item.field }}: {{ item.from }} &rarr; {{ item.to }}</td>
+      <td class="number">{{ format_signed(item.delta) }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p style="color: #999; font-style: italic;">No changes recorded in this change order.</p>
+{% endif %}
+
+<div class="net-change">
+  <table style="margin: 0;">
+    <tbody>
+      <tr>
+        <td style="border: none; padding: 3pt 8pt;">Original Total</td>
+        <td class="number" style="border: none; padding: 3pt 8pt;">{{ format_currency(baseline_total) }}</td>
+      </tr>
+      <tr>
+        <td style="border: none; padding: 3pt 8pt;">Revised Total</td>
+        <td class="number" style="border: none; padding: 3pt 8pt;">{{ format_currency(revised_total) }}</td>
+      </tr>
+      <tr>
+        <td style="font-weight: 700; border-top: 1px solid #ccc; padding: 6pt 8pt;">Net Change</td>
+        <td class="number" style="font-weight: 700; border-top: 1px solid #ccc; padding: 6pt 8pt; {{ 'color: #16a34a;' if delta_amount >= 0 else 'color: #dc2626;' }}">
+          {{ format_signed(delta_amount) }}
+        </td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="footer-note">
+  Generated {{ generated_at }} | DriveShop Confidential
+</div>
+{% endblock %}
