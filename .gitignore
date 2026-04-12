@@ -30,5 +30,12 @@ dist-ssr
 # Historical estimate XLSX files (2GB+ source files)
 historical_estimates/
 
-# Python cache
+# Python cache + virtualenvs
 __pycache__/
+api/venv/
+
+# Dev tooling caches
+.playwright-mcp/
+
+# Stray debug screenshots at repo root
+/login_page.png
