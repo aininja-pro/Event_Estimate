@@ -111,6 +111,46 @@ export function RecapActualsCells({
   )
 }
 
+/**
+ * Read-only variant used for schedule-driven labor rollup rows. Values are
+ * computed from schedule_day_entries.actual_hours (see computeScheduleRollup)
+ * and should not be edited here — the schedule grid is the source of truth.
+ */
+export function RecapComputedCells({
+  estimatedTotal,
+  actualDays,
+  actualTotal,
+}: {
+  estimatedTotal: number
+  actualDays: number
+  actualTotal: number
+}) {
+  const variance = estimatedTotal - actualTotal
+  const variancePct = estimatedTotal > 0 ? (variance / estimatedTotal) * 100 : 0
+  return (
+    <>
+      <TableCell className="text-center py-1">
+        <span className="text-[13px] tabular-nums text-muted-foreground/80">{actualDays || '—'}</span>
+      </TableCell>
+      <TableCell className="text-right py-1">
+        <span className="text-[13px] tabular-nums text-muted-foreground/80" title="Computed from schedule actuals">
+          {fmt(actualTotal)}
+        </span>
+      </TableCell>
+      <TableCell className="text-right py-1">
+        <span className={`text-[13px] font-medium tabular-nums ${variance >= 0 ? 'text-green-700' : 'text-red-600'}`}>
+          {variance >= 0 ? '+' : ''}{fmt(variance)}
+        </span>
+      </TableCell>
+      <TableCell className="text-right py-1">
+        <span className={`text-[13px] tabular-nums ${variancePct >= 0 ? 'text-green-700' : 'text-red-600'}`}>
+          {variancePct >= 0 ? '+' : ''}{variancePct.toFixed(1)}%
+        </span>
+      </TableCell>
+    </>
+  )
+}
+
 /** Column headers for recap mode — append after existing headers */
 export function RecapColumnHeaders() {
   const headerClass = "text-[10px] uppercase tracking-widest text-muted-foreground font-medium py-2"

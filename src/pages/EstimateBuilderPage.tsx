@@ -66,7 +66,8 @@ import { useUser } from '@/lib/auth'
 import { hasPermission } from '@/lib/permissions'
 import { getGPThreshold } from '@/lib/system-settings-service'
 import type { ApprovalRequest, SegmentStatus, SegmentEditRules, RecapActual, VarianceRow } from '@/types/workflow'
-import { RecapActualsCells, RecapColumnHeaders } from '@/components/recap/RecapActualsCells'
+import { RecapActualsCells, RecapComputedCells, RecapColumnHeaders } from '@/components/recap/RecapActualsCells'
+import { FinancialSummaryCards } from '@/components/FinancialSummaryCards'
 import { ReceiptCell } from '@/components/recap/ReceiptCell'
 import { VarianceSummary } from '@/components/recap/VarianceSummary'
 import { getReceiptsByEstimate } from '@/lib/receipt-service'
@@ -1094,12 +1095,10 @@ function LaborLogTab({
                       <TableCell className="py-1.5 text-[13px] text-right tabular-nums text-green-800/60 font-medium">{fmt(gp)}</TableCell>
                       <TableCell className="py-1.5 text-[13px] text-right tabular-nums">{pct(gp, row.revenue_total)}</TableCell>
                       {isRecapMode && (
-                        <RecapActualsCells
-                          recapActual={recapMap[recapKey] || null}
+                        <RecapComputedCells
                           estimatedTotal={row.revenue_total}
-                          onSave={(updates) => handleSaveRecapActual(recapKey, { schedule_entry_id: schedEntryId }, updates)}
-                          autoCalcRate={row.day_rate}
-                          autoCalcQty={row.quantity}
+                          actualDays={row.actual_days}
+                          actualTotal={row.actual_revenue_total}
                         />
                       )}
                     </TableRow>
@@ -2033,6 +2032,16 @@ function SummaryTab({
   const hasRecapData = recapLogs.length > 0
   const recapLogIds = recapLogs.map((l) => l.id).join(',')
 
+  // Signal that re-fires when actual_hours change on any schedule cell in a
+  // recap segment, so the variance re-loads (labor actuals are derived from
+  // schedule actuals for schedule-driven segments).
+  const scheduleActualsSignal = recapLogs
+    .map((log) => (scheduleEntriesMap[log.id] ?? [])
+      .flatMap((e) => e.day_entries ?? [])
+      .map((d) => `${d.id || d.work_date}:${d.actual_hours ?? ''}:${d.hours}`)
+      .join('|'))
+    .join('||')
+
   useEffect(() => {
     if (!hasRecapData) return
     const loadVariance = async () => {
@@ -2048,7 +2057,7 @@ function SummaryTab({
     }
     loadVariance()
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hasRecapData, recapLogIds])
+  }, [hasRecapData, recapLogIds, scheduleActualsSignal])
   // Build lookup: rate_card_item_id → rate_card_section name
   const itemSectionMap = new Map<string, string>()
   for (const { section, items } of rateCardData) {
@@ -3062,6 +3071,15 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
         <div className={`min-w-0 space-y-2.5 transition-all duration-200 ${aiPanelOpen ? 'flex-[7]' : 'flex-1'}`}>
           <EventHeader estimate={estimate} onUpdate={handleUpdateEstimate} readOnly={!editRules.event_details} notesEditable={editRules.notes} />
 
+          <FinancialSummaryCards
+            laborLogs={laborLogs}
+            allEntriesMap={laborEntriesMap}
+            scheduleEntriesMap={scheduleEntriesMap}
+            lineItemsMap={lineItemsMap}
+            rateCardData={rateCardData}
+            gpThreshold={gpThreshold}
+          />
+
           <Tabs value={activeTab} onValueChange={async (tab) => {
             setActiveTab(tab)
             // Refresh schedule, labor, and day types when leaving the schedule tab so Labor Log / Summary / AI see latest data
@@ -3126,6 +3144,7 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
                     rateCardData={rateCardData}
                     readOnly={!editRules.schedule_hours}
                     namesEditable={editRules.schedule_names}
+                    recapMode={editRules.actuals}
                     onUpdateDates={async (startDate, endDate) => {
                       const updated = await updateLaborLog(activeLocationId, { start_date: startDate, end_date: endDate })
                       setLaborLogs((prev) => prev.map((l) => l.id === activeLocationId ? updated : l))

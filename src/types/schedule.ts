@@ -33,6 +33,7 @@ export interface ScheduleDayEntry {
   schedule_entry_id: string
   work_date: string
   hours: number
+  actual_hours: number | null
   per_diem_override: boolean | null
   created_at: string
   updated_at: string
@@ -65,4 +66,9 @@ export interface LaborRollupRow {
   cost_total: number
   gp: number
   gp_pct: number
+  // Actuals derived from schedule_day_entries.actual_hours (fallback to hours
+  // when actual_hours is null — matches recap grid display behavior).
+  actual_days: number
+  actual_revenue_total: number
+  actual_cost_total: number
 }

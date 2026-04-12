@@ -182,6 +182,49 @@ export async function upsertScheduleDayEntry(
   return data
 }
 
+/**
+ * Write actual_hours for a single cell during recap. If a day entry already
+ * exists for (schedule_entry_id, work_date), only updates its actual_hours
+ * (preserves planned `hours`). If no row exists — the person wasn't planned
+ * to work this day — inserts a new row with hours=0 to record the unplanned
+ * actual. Pass null to clear the actual.
+ */
+export async function upsertScheduleActualHours(
+  scheduleEntryId: string,
+  workDate: string,
+  actualHours: number | null
+): Promise<void> {
+  const db = requireSupabase()
+
+  const { data: existing, error: selErr } = await db
+    .from('schedule_day_entries')
+    .select('id')
+    .eq('schedule_entry_id', scheduleEntryId)
+    .eq('work_date', workDate)
+    .maybeSingle()
+  if (selErr) throw selErr
+
+  if (existing) {
+    const { error } = await db
+      .from('schedule_day_entries')
+      .update({ actual_hours: actualHours })
+      .eq('id', existing.id)
+    if (error) throw error
+    return
+  }
+
+  // Unplanned day — create a 0-planned row carrying just the actual.
+  const { error } = await db
+    .from('schedule_day_entries')
+    .insert({
+      schedule_entry_id: scheduleEntryId,
+      work_date: workDate,
+      hours: 0,
+      actual_hours: actualHours,
+    })
+  if (error) throw error
+}
+
 export async function deleteScheduleDayEntry(scheduleEntryId: string, workDate: string): Promise<void> {
   const db = requireSupabase()
   const { error } = await db
@@ -213,6 +256,50 @@ export async function bulkFillColumn(laborLogId: string, workDate: string, hours
     .from('schedule_day_entries')
     .upsert(upserts, { onConflict: 'schedule_entry_id,work_date' })
   if (error) throw error
+}
+
+/**
+ * Pre-fill actual_hours = hours for every schedule_day_entry under a labor log.
+ * Only touches rows where actual_hours IS NULL, so it is idempotent and safe
+ * to re-run on repeat recap transitions. Returns the number of rows seeded.
+ */
+export async function prefillScheduleActuals(laborLogId: string): Promise<number> {
+  const db = requireSupabase()
+
+  const { data: entries, error: eErr } = await db
+    .from('schedule_entries')
+    .select('id')
+    .eq('labor_log_id', laborLogId)
+  if (eErr) throw eErr
+  if (!entries || entries.length === 0) return 0
+
+  const entryIds = entries.map((e) => e.id)
+
+  const { data: dayEntries, error: deErr } = await db
+    .from('schedule_day_entries')
+    .select('id, hours')
+    .in('schedule_entry_id', entryIds)
+    .is('actual_hours', null)
+  if (deErr) throw deErr
+  if (!dayEntries || dayEntries.length === 0) return 0
+
+  // Batch updates by distinct hours value (typically 1–2 groups per segment)
+  const groups = new Map<number, string[]>()
+  for (const de of dayEntries) {
+    const ids = groups.get(de.hours) || []
+    ids.push(de.id)
+    groups.set(de.hours, ids)
+  }
+
+  for (const [hours, ids] of groups) {
+    const { error } = await db
+      .from('schedule_day_entries')
+      .update({ actual_hours: hours })
+      .in('id', ids)
+    if (error) throw error
+  }
+
+  return dayEntries.length
 }
 
 /** Fill all given dates for a single person with the specified hours. */
@@ -262,20 +349,33 @@ export function computeScheduleRollup(entries: ScheduleEntry[]): LaborRollupRow[
     let totalOtHours = 0
     let revenueTotal = 0
     let costTotal = 0
+    let actualDays = 0
+    let actualRevenue = 0
+    let actualCost = 0
 
     for (const entry of group) {
       const dayEntries = entry.day_entries || []
       for (const de of dayEntries) {
-        totalDays += 1
-        const stdHours = Math.min(de.hours, 10)
-        const otHours = Math.max(de.hours - 10, 0)
-        totalStandardHours += stdHours
-        totalOtHours += otHours
+        // Planned — skip zero-planned rows (these are placeholders for
+        // unplanned actuals recorded during recap).
+        if (de.hours > 0) {
+          totalDays += 1
+          const stdHours = Math.min(de.hours, 10)
+          const otHours = Math.max(de.hours - 10, 0)
+          totalStandardHours += stdHours
+          totalOtHours += otHours
+          revenueTotal += entry.day_rate + otHours * (entry.day_rate / 10)
+          costTotal += entry.cost_rate + otHours * (entry.cost_rate / 10)
+        }
 
-        // Revenue: full day rate + OT hours at hourly rate
-        revenueTotal += entry.day_rate + otHours * (entry.day_rate / 10)
-        // Cost: full day cost + OT hours at cost hourly rate
-        costTotal += entry.cost_rate + otHours * (entry.cost_rate / 10)
+        // Actual — NULL falls back to planned hours (matches grid display).
+        const actHours = de.actual_hours ?? de.hours
+        if (actHours > 0) {
+          actualDays += 1
+          const actOt = Math.max(actHours - 10, 0)
+          actualRevenue += entry.day_rate + actOt * (entry.day_rate / 10)
+          actualCost += entry.cost_rate + actOt * (entry.cost_rate / 10)
+        }
       }
     }
 
@@ -295,6 +395,9 @@ export function computeScheduleRollup(entries: ScheduleEntry[]): LaborRollupRow[
       cost_total: costTotal,
       gp,
       gp_pct: Math.round(gpPct * 100) / 100,
+      actual_days: actualDays,
+      actual_revenue_total: actualRevenue,
+      actual_cost_total: actualCost,
     })
   }
 

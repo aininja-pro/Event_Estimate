@@ -33,6 +33,7 @@ import {
   duplicateScheduleEntry,
   upsertScheduleDayEntry,
   deleteScheduleDayEntry,
+  upsertScheduleActualHours,
   upsertScheduleDayType,
   deleteScheduleDayType,
   bulkFillColumn,
@@ -361,6 +362,134 @@ function GridCell({
   )
 }
 
+// ── Recap Grid Cell ────────────────────────────────────────────────────────────
+// Smart-visibility cell for recap mode. When actual matches plan, renders
+// identically to a normal cell. When it differs, tints the background and shows
+// the planned value as a small muted reference below.
+
+function RecapGridCell({
+  plannedHours,
+  actualHours,
+  dayType,
+  onSetActual,
+  onClearActual,
+}: {
+  plannedHours: number | null
+  actualHours: number | null
+  dayType: DayType
+  onSetActual: (h: number) => void
+  onClearActual: () => void
+}) {
+  const [editing, setEditing] = useState(false)
+  const [editValue, setEditValue] = useState('')
+  const inputRef = useRef<HTMLInputElement>(null)
+  const colors = DAY_TYPE_COLORS[dayType]
+
+  // Treat a missing day entry as "planned 0" so the cell is editable. Any
+  // positive actual recorded on such a cell is unplanned work.
+  const plan = plannedHours ?? 0
+  const hasRecordedActual = actualHours !== null
+  // Fully blank (no plan, no actual) — render inert-looking but still clickable
+  // so the user can add an unplanned actual.
+  const fullyBlank = plannedHours === null && !hasRecordedActual
+
+  // Display value: recorded actual if present, else plan (for display only —
+  // NULL actual is "not yet recorded" and renders as the plan).
+  const displayHours = actualHours === null ? plan : actualHours
+
+  const differs = hasRecordedActual && actualHours !== plan
+  const isZero = hasRecordedActual && actualHours === 0 && plan > 0
+  const isUnder = hasRecordedActual && actualHours !== null && actualHours > 0 && actualHours < plan
+  const isOver = hasRecordedActual && actualHours !== null && actualHours > plan
+
+  const tintClass = isZero
+    ? 'bg-rose-50'
+    : isUnder
+    ? 'bg-emerald-50'
+    : isOver
+    ? 'bg-red-50'
+    : ''
+
+  const numberColorClass = isUnder
+    ? 'text-emerald-700'
+    : isOver
+    ? 'text-red-600'
+    : ''
+
+  function handleClick() {
+    if (editing) return
+    setEditValue(fullyBlank ? '' : displayHours.toString())
+    setEditing(true)
+  }
+
+  function commitEdit() {
+    setEditing(false)
+    const val = parseFloat(editValue)
+    if (isNaN(val) || val < 0) return
+    if (val === 0) onClearActual()
+    else onSetActual(val)
+  }
+
+  useEffect(() => {
+    if (editing && inputRef.current) inputRef.current.select()
+  }, [editing])
+
+  if (editing) {
+    return (
+      <td className={`border border-slate-200 p-0 ${colors.bg} ${tintClass}`}>
+        <input
+          ref={inputRef}
+          value={editValue}
+          onChange={(e) => setEditValue(e.target.value)}
+          onBlur={commitEdit}
+          onKeyDown={(e) => { if (e.key === 'Enter') commitEdit(); if (e.key === 'Escape') setEditing(false) }}
+          className="w-full h-full text-center text-sm font-medium bg-transparent outline-none ring-2 ring-blue-500 rounded-sm py-1.5"
+          autoFocus
+        />
+      </td>
+    )
+  }
+
+  const tooltip = fullyBlank
+    ? 'Unplanned — click to record actual hours'
+    : plannedHours === null
+    ? `Unplanned · Actual: ${actualHours}h`
+    : differs
+    ? `Planned: ${plannedHours}h · Actual: ${actualHours}h`
+    : `Planned: ${plannedHours}h`
+
+  return (
+    <td
+      className={`border border-slate-200 text-center transition-colors duration-150 relative select-none cursor-pointer ${colors.bg} ${tintClass} hover:brightness-95`}
+      onClick={handleClick}
+      onDoubleClick={(e) => { e.stopPropagation(); if (!fullyBlank) onClearActual() }}
+      title={tooltip}
+    >
+      <div className="flex flex-col items-center py-1 leading-tight">
+        {fullyBlank ? (
+          <span className="py-1.5 inline-block text-muted-foreground/30 text-xs">+</span>
+        ) : (
+          <>
+            <span className={`text-sm font-medium tabular-nums ${numberColorClass}`}>
+              {isZero ? <span className="text-rose-600">—</span> : displayHours}
+            </span>
+            {differs && plannedHours !== null && (
+              <span className="text-[9px] text-muted-foreground/60 tabular-nums">
+                ({plannedHours})
+              </span>
+            )}
+            {plannedHours === null && hasRecordedActual && (
+              <span className="text-[9px] text-red-600/70 tabular-nums">
+                (unplanned)
+              </span>
+            )}
+          </>
+        )}
+      </div>
+    </td>
+  )
+}
+
 // ── Segment Date Picker (empty state) ─────────────────────────────────────────
 
 function SegmentDatePicker({ onUpdateDates, initialStartDate, initialEndDate }: { onUpdateDates?: (startDate: string, endDate: string) => Promise<void>; initialStartDate?: string | null; initialEndDate?: string | null }) {
@@ -412,6 +541,7 @@ export function ScheduleGrid({
   onDataChange,
   readOnly,
   namesEditable,
+  recapMode,
 }: {
   laborLog: LaborLog
   estimate: EstimateWithClient
@@ -420,6 +550,7 @@ export function ScheduleGrid({
   onDataChange?: () => void
   readOnly?: boolean
   namesEditable?: boolean
+  recapMode?: boolean
 }) {
   const [entries, setEntries] = useState<ScheduleEntry[]>([])
   const [dayTypes, setDayTypes] = useState<ScheduleDayType[]>([])
@@ -499,6 +630,11 @@ export function ScheduleGrid({
   function getCellHours(entry: ScheduleEntry, date: string): number | null {
     const de = entry.day_entries?.find((d) => d.work_date === date)
     return de ? de.hours : null
+  }
+
+  function getCellActualHours(entry: ScheduleEntry, date: string): number | null {
+    const de = entry.day_entries?.find((d) => d.work_date === date)
+    return de ? de.actual_hours : null
   }
 
   // ── Handlers ──
@@ -594,6 +730,41 @@ export function ScheduleGrid({
     }, 300))
   }
 
+  function handleSetCellActualHours(entryId: string, date: string, actualHours: number | null) {
+    // Optimistic update — patches the existing day_entry or synthesizes a new
+    // unplanned row (hours=0) so the UI reflects unplanned actuals immediately.
+    setEntries((prev) => prev.map((e) => {
+      if (e.id !== entryId) return e
+      const hasExisting = e.day_entries?.some((d) => d.work_date === date)
+      if (hasExisting) {
+        return {
+          ...e,
+          day_entries: e.day_entries?.map((d) => d.work_date === date ? { ...d, actual_hours: actualHours } : d),
+        }
+      }
+      return {
+        ...e,
+        day_entries: [
+          ...(e.day_entries ?? []),
+          { id: '', schedule_entry_id: entryId, work_date: date, hours: 0, actual_hours: actualHours, per_diem_override: null, created_at: '', updated_at: '' },
+        ],
+      }
+    }))
+
+    // Debounced save
+    const key = `actual-${entryId}-${date}`
+    const existing = debounceTimers.current.get(key)
+    if (existing) clearTimeout(existing)
+    debounceTimers.current.set(key, setTimeout(async () => {
+      try {
+        await upsertScheduleActualHours(entryId, date, actualHours)
+        onDataChange?.()
+      } catch (err) {
+        console.error('Failed to save actual hours:', err)
+      }
+    }, 300))
+  }
+
   function handleClearCell(entryId: string, date: string) {
     // Optimistic update
     setEntries((prev) => prev.map((e) => {
@@ -668,8 +839,25 @@ export function ScheduleGrid({
     return entry.day_entries?.filter((d) => d.hours > 0).length ?? 0
   }
 
+  function getRowActualDays(entry: ScheduleEntry): number {
+    // A day counts as "actual" when actual_hours > 0. NULL actuals fall back
+    // to the planned hours, so they count as worked by default.
+    return entry.day_entries?.filter((d) => {
+      const act = d.actual_hours ?? d.hours
+      return act > 0
+    }).length ?? 0
+  }
+
   function getColumnStaffCount(date: string): number {
     return entries.filter((e) => e.day_entries?.some((d) => d.work_date === date && d.hours > 0)).length
+  }
+
+  function getColumnActualStaffCount(date: string): number {
+    return entries.filter((e) => e.day_entries?.some((d) => {
+      if (d.work_date !== date) return false
+      const act = d.actual_hours ?? d.hours
+      return act > 0
+    })).length
   }
 
   const rollup = computeScheduleRollup(entries)
@@ -713,7 +901,11 @@ export function ScheduleGrid({
             </Button>
           </div>
         ) : <div />}
-        <p className="text-[10px] text-muted-foreground/50">{readOnly ? 'View-only mode' : 'Click cell to fill 10h · Double-click to clear · Click filled cell to edit'}</p>
+        <p className="text-[10px] text-muted-foreground/50">
+          {recapMode
+            ? 'Recap mode · Click cell to edit actual hours · Double-click to mark as no-show (0)'
+            : readOnly ? 'View-only mode' : 'Click cell to fill 10h · Double-click to clear · Click filled cell to edit'}
+        </p>
       </div>
 
       {/* Grid */}
@@ -834,18 +1026,45 @@ export function ScheduleGrid({
                   </td>
                   {/* Hour cells */}
                   {sortedDates.map((dt) => (
-                    <GridCell
-                      key={`${entry.id}-${dt.work_date}`}
-                      hours={getCellHours(entry, dt.work_date)}
-                      dayType={dt.day_type as DayType}
-                      onSetHours={(h) => handleSetCellHours(entry.id, dt.work_date, h)}
-                      onClear={() => handleClearCell(entry.id, dt.work_date)}
-                      readOnly={readOnly}
-                    />
+                    recapMode ? (
+                      <RecapGridCell
+                        key={`${entry.id}-${dt.work_date}`}
+                        plannedHours={getCellHours(entry, dt.work_date)}
+                        actualHours={getCellActualHours(entry, dt.work_date)}
+                        dayType={dt.day_type as DayType}
+                        onSetActual={(h) => handleSetCellActualHours(entry.id, dt.work_date, h)}
+                        onClearActual={() => handleSetCellActualHours(entry.id, dt.work_date, 0)}
+                      />
+                    ) : (
+                      <GridCell
+                        key={`${entry.id}-${dt.work_date}`}
+                        hours={getCellHours(entry, dt.work_date)}
+                        dayType={dt.day_type as DayType}
+                        onSetHours={(h) => handleSetCellHours(entry.id, dt.work_date, h)}
+                        onClear={() => handleClearCell(entry.id, dt.work_date)}
+                        readOnly={readOnly}
+                      />
+                    )
                   ))}
                   {/* Total days */}
-                  <td className="border-b border-slate-200 bg-slate-50 text-center text-sm font-semibold tabular-nums py-1.5">
-                    {getRowTotalDays(entry)}
+                  <td className="border-b border-slate-200 bg-slate-50 text-center tabular-nums py-1.5">
+                    {recapMode ? (
+                      (() => {
+                        const plan = getRowTotalDays(entry)
+                        const act = getRowActualDays(entry)
+                        const delta = act - plan
+                        return (
+                          <div className="flex flex-col items-center leading-tight">
+                            <span className={`text-sm font-semibold ${delta < 0 ? 'text-rose-600' : delta > 0 ? 'text-indigo-600' : ''}`}>
+                              {act}
+                            </span>
+                            <span className="text-[9px] text-muted-foreground/60">of {plan}</span>
+                          </div>
+                        )
+                      })()
+                    ) : (
+                      <span className="text-sm font-semibold">{getRowTotalDays(entry)}</span>
+                    )}
                   </td>
                   {/* Travel indicators — always visible */}
                   <td className="border-b border-slate-200 bg-slate-50 text-center px-0 py-1">
@@ -906,12 +1125,31 @@ export function ScheduleGrid({
             {/* Staff/Day totals row */}
             {entries.length > 0 && (
               <tr className="border-t-2 border-slate-300">
-                <td className="sticky left-0 z-10 bg-white px-2 py-1.5 text-[10px] uppercase tracking-widest text-muted-foreground font-medium border-r border-slate-200" colSpan={2}>Staff / Day</td>
-                {sortedDates.map((dt) => (
-                  <td key={dt.work_date} className="text-center text-sm font-semibold tabular-nums py-1.5 border-r border-slate-200">
-                    {getColumnStaffCount(dt.work_date) || ''}
-                  </td>
-                ))}
+                <td className="sticky left-0 z-10 bg-white px-2 py-1.5 text-[10px] uppercase tracking-widest text-muted-foreground font-medium border-r border-slate-200" colSpan={3}>Staff / Day</td>
+                {sortedDates.map((dt) => {
+                  const plan = getColumnStaffCount(dt.work_date)
+                  if (recapMode) {
+                    const act = getColumnActualStaffCount(dt.work_date)
+                    const delta = act - plan
+                    return (
+                      <td key={dt.work_date} className="text-center tabular-nums py-1 border-r border-slate-200">
+                        {plan === 0 ? '' : (
+                          <div className="flex flex-col items-center leading-tight">
+                            <span className={`text-sm font-semibold ${delta < 0 ? 'text-rose-600' : delta > 0 ? 'text-indigo-600' : ''}`}>
+                              {act}
+                            </span>
+                            <span className="text-[9px] text-muted-foreground/60">of {plan}</span>
+                          </div>
+                        )}
+                      </td>
+                    )
+                  }
+                  return (
+                    <td key={dt.work_date} className="text-center text-sm font-semibold tabular-nums py-1.5 border-r border-slate-200">
+                      {plan || ''}
+                    </td>
+                  )
+                })}
                 <td className="bg-slate-50 border-slate-200" />
                 <td className="bg-slate-50 border-slate-200" />
                 <td className="bg-slate-50 border-slate-200" />

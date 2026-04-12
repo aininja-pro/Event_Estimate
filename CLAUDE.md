@@ -103,6 +103,10 @@ Current mode: Directed
 - PDF filename convention: `{ClientName}_{EventName}_{Type}_{Date}.pdf`.
 - Duplicate estimate clears person_name fields and skips auto-generated fee lines (agency fee re-generates fresh).
 - Historical event search on AI Scoping page pre-fills the Generate New form — does not create estimates directly.
+- Schedule recap actuals: each `schedule_day_entries` row carries both planned `hours` and nullable `actual_hours`. Entering recap triggers `prefillScheduleActuals()` which copies `hours → actual_hours` where null (idempotent). Unplanned days get an `hours=0, actual_hours=N` row so the grid can record ad-hoc work without touching the planned total.
+- Labor Log recap columns for schedule-driven segments are read-only computed values — `computeScheduleRollup()` now returns `actual_days`, `actual_revenue_total`, `actual_cost_total` alongside the planned totals. `getVarianceReport()` delegates to this rollup for schedule-driven segments instead of reading `recap_actuals`.
+- `computeScheduleRollup()` skips `hours = 0` rows when computing the plan side, so unplanned-actual placeholder rows don't inflate planned totals.
+- `FinancialSummaryCards` renders GR / NR / Total Cost / GP / GP% above the tabs on every Estimate Builder view. Both the cards and SummaryTab share `computeEstimateTotals()` from `src/lib/estimate-totals.ts` as the single source of truth. GP% turns amber when below `gp_threshold_pct`.
 
 ## Avoid
 
@@ -149,21 +153,24 @@ Current mode: Directed
 | Wk 12 | Pipeline Dashboard: summary cards (pipeline/active/recap/invoiced), status breakdown chart, client breakdown table, monthly volume chart, recent activity feed, loading/empty/error states | QA + Intacct | Dashboard complete |
 | Wk 12 | Bug fix: replaced window.location.reload() with React key-based remount on CO rejection | QA + Intacct | CO rejection smooth refresh |
 | Wk 12 | Estimate Duplication + Historical Event Search: deep-copy from Estimates list, "From History" tab on AI Scoping with search/filter/template flow | QA polish | Duplicate & history complete |
+| Wk 12-13 | Schedule Recap Actuals + Financial Summary Cards: planned vs actual on schedule grid with smart-visibility tints (green under / red over), per-person and per-day plan-vs-actual totals, unplanned-day actuals, pre-fill on active→recap transition, labor log + Summary variance derive from schedule actuals, GR/NR/Cost/GP/GP% cards above the tabs | QA + Intacct | Schedule recap + financial cards complete |
 
 ## Current State
 
-- Phase 2, Week 12. QA phase.
+- Phase 2, Week 12–13. QA phase.
 - **Completed this session:**
-  - **Estimate Duplication** (`src/lib/estimate-service.ts`, `src/pages/EstimatesListPage.tsx`): `duplicateEstimate()` deep-copies estimate header, labor logs, labor entries, line items, schedule entries + day entries, and day types. Clears person_name on schedule entries, skips auto-generated fee lines (agency fee re-generates fresh), sets status to pipeline. "Duplicate" option in three-dot menu on Estimates list.
-  - **Historical Event Search** (`src/lib/historical-service.ts`, `src/pages/AIScopingPage.tsx`): "From History" tab on AI Scoping page. Search/filter 1,674 historical events by name, client, type, location. Expandable detail with section breakdown bars, common roles, financial summary with variance. "Use as Template" pre-fills the Generate New form with client, event type, location, and historical context note.
-- **Previously completed:** CO rejection fix, Pipeline Dashboard, PDF Generation, Change Orders, Recap Entry, AI Intelligence (Modes 1-3), Financial Controls, Auth, Workflow, Schedule, Estimate Builder, Rate Cards.
-- **Deferred:** Admin Settings UI for GP/approval thresholds (GitHub issue captured). Location-aware historical patterns (logged as enhancement). Default landing page setting (dashboard vs estimates).
+  - **Schedule Recap Actuals** (`scripts/migration_schedule_actual_hours.sql`, `src/types/schedule.ts`, `src/lib/schedule-service.ts`, `src/lib/segment-status-service.ts`, `src/components/schedule/ScheduleGrid.tsx`, `src/components/recap/RecapActualsCells.tsx`, `src/pages/EstimateBuilderPage.tsx`): `schedule_day_entries.actual_hours` column captures day-level actuals. `prefillScheduleActuals()` seeds actuals = planned on `active → recap` (idempotent). New `RecapGridCell` lets users edit actuals per cell with smart visibility — green tint + green number for under plan, red for over, rose dash for no-shows, plain when matching, "(unplanned)" pill for ad-hoc days. Per-row "Days" and per-column "Staff / Day" totals show `{actual} of {planned}` with colored delta. `computeScheduleRollup()` returns actuals alongside planned; `getVarianceReport()` delegates to it for schedule-driven segments (labor actuals no longer require separate recap_actuals entry). Labor Log recap columns render read-only `RecapComputedCells` for schedule-driven rollups.
+  - **Financial Summary Cards** (`src/lib/estimate-totals.ts`, `src/components/FinancialSummaryCards.tsx`, `src/pages/EstimateBuilderPage.tsx`): new `computeEstimateTotals()` is now the single source of truth for GR / NR / Total Cost / GP / GP% across both SummaryTab and the new card row mounted above the tabs. Cards visible on every tab, GP% color-codes against `gp_threshold_pct`.
+  - **Bug fixes rolled in:** `computeScheduleRollup()` now skips `hours=0` rows on the plan side (fixes latent inflation bug surfaced by unplanned-actual rows). Schedule grid "Staff / Day" totals row now uses `colSpan={3}` so date totals land under the correct date columns (previously offset by one column since the Type column was introduced).
+- **Previously completed:** Estimate Duplication, Historical Event Search, CO rejection fix, Pipeline Dashboard, PDF Generation, Change Orders, Recap Entry, AI Intelligence (Modes 1-3), Financial Controls, Auth, Workflow, Schedule, Estimate Builder, Rate Cards.
+- **Deferred:** Admin Settings UI for GP/approval thresholds (GitHub issue captured). Location-aware historical patterns (logged as enhancement). Default landing page setting (dashboard vs estimates). Adding extra date columns during recap. Adding unplanned line items during recap.
 - **Next:** QA + Intacct.
 
-### New Tables Added This Sprint
-- `change_orders` (estimate_id, labor_log_id, co_number, description, baseline_version_id, revised_version_id, delta_summary JSONB, baseline_total, revised_total, delta_amount, status, created_by, approved_by, approved_at)
+### New Columns Added This Sprint
+- `schedule_day_entries.actual_hours` (DECIMAL(4,1), nullable) — per-cell recap actuals. NULL means "not yet recorded" and renders as plan.
 
 ### Tables Added in Prior Sprints
+- `change_orders` (estimate_id, labor_log_id, co_number, description, baseline_version_id, revised_version_id, delta_summary JSONB, baseline_total, revised_total, delta_amount, status, created_by, approved_by, approved_at)
 - `estimate_nudge_dismissals` (estimate_id, nudge_id, dismissed_by, dismissed_at)
 - `historical_events` (1,674 events — filename, client, event_name, event_type, financials, sections, labor_roles)
 - `historical_patterns` (98 aggregated patterns — client × event_type with section averages, variances, common roles)
@@ -191,7 +198,9 @@ Current mode: Directed
 - Mode 3 scope-to-estimate matching is best-effort — roles not in the rate card are created as custom items (null rate_card_item_id).
 - AI Scoping page lives under Production section in sidebar, not Discovery Intelligence.
 - Receipt upload supports one file per line item. Multiple attachments per line item is a future enhancement.
-- Recap actuals are entered at the line item level. Schedule-level hour-by-hour actuals tracking is deferred.
+- Recap actuals for line items and manual labor entries are entered at the line-item level via `recap_actuals`. Schedule-driven segments derive labor actuals from `schedule_day_entries.actual_hours` and cannot be edited on the Labor Log tab.
+- Schedule recap pre-fill only runs on the `active/invoiced → recap` transition. Segments that entered recap before this sprint have `actual_hours = NULL` for all cells — they render as plan (no tint) until a user edits, or until the segment is bounced back to active and re-transitioned.
+- Financial Summary Cards always show estimated totals (not actuals) across every status, including recap. Variance is surfaced in the Summary tab's "Estimated vs Actual" table.
 
 ## Architecture Notes
 
@@ -203,7 +212,7 @@ Current mode: Directed
 ### Key Service Layers
 - `estimate-service.ts` — Estimate/labor CRUD
 - `rate-card-service.ts` — Clients, rate cards, fee types CRUD
-- `schedule-service.ts` — Schedule grid CRUD + rollup computation
+- `schedule-service.ts` — Schedule grid CRUD, planned+actual rollup, recap actuals pre-fill
 - `workflow-service.ts` — Status machine, versioning, three-gate approvals, rollback
 - `segment-status-service.ts` — Per-segment status transitions, edit rules, notification dispatch
 - `notification-service.ts` — Notification CRUD + role-based dispatch
@@ -222,6 +231,7 @@ Current mode: Directed
 - `pdf_render_service.py` (backend) — Jinja2 template rendering + WeasyPrint PDF generation
 - `dashboard-service.ts` — Aggregated pipeline queries for dashboard (estimates, versions, activities)
 - `historical-service.ts` — Historical event search and filtering for "From History" tab
+- `estimate-totals.ts` — Shared GR / NR / Cost / GP / GP% computation used by both SummaryTab and FinancialSummaryCards
 
 ### Supabase Tables
 clients, rate_card_sections, rate_card_items, fee_types, profiles, notifications, estimates, labor_logs (segments with per-segment status), labor_entries, estimate_line_items, schedule_entries, schedule_day_entries, schedule_day_types, estimate_versions, approval_requests, status_transitions, system_settings, estimate_nudge_dismissals, historical_events, historical_patterns, recap_actuals, receipt_attachments, change_orders

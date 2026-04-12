@@ -1,5 +1,7 @@
 import { supabase } from './supabase'
 import { createVersionSnapshot } from './workflow-service'
+import { prefillScheduleActuals, computeScheduleRollup } from './schedule-service'
+import type { ScheduleEntry } from '../types/schedule'
 import {
   createNotification,
   notifyByRole,
@@ -108,6 +110,17 @@ export async function transitionSegmentStatus(
     .update({ status: toStatus })
     .eq('id', laborLogId)
   if (updateErr) return { success: false, error: updateErr.message }
+
+  // Pre-fill schedule actuals when entering recap. Idempotent — only touches
+  // schedule_day_entries where actual_hours IS NULL. Non-fatal on failure since
+  // the status transition has already committed.
+  if (toStatus === 'recap') {
+    try {
+      await prefillScheduleActuals(laborLogId)
+    } catch (err) {
+      console.error('Failed to pre-fill schedule actuals:', err)
+    }
+  }
 
   // Log the activity
   const { error: actErr } = await db
@@ -391,47 +404,21 @@ export async function getVarianceReport(laborLogId: string): Promise<VarianceRow
   const isScheduleDriven = (scheduleEntries || []).length > 0
 
   if (isScheduleDriven) {
-    // Build variance rows from schedule entry rollup groups (grouped by role_name:day_rate:cost_rate)
-    const groups = new Map<string, { entries: typeof scheduleEntries; firstId: string }>()
-    for (const entry of (scheduleEntries || [])) {
-      const key = `${entry.role_name}:${entry.day_rate}:${entry.cost_rate}`
-      if (!groups.has(key)) {
-        groups.set(key, { entries: [], firstId: entry.id })
-      }
-      groups.get(key)!.entries.push(entry)
-    }
-
-    for (const [, group] of groups) {
-      const first = group.entries[0]
-      const quantity = group.entries.length
-      let totalDays = 0
-      let revenueTotal = 0
-      let costTotal = 0
-
-      for (const entry of group.entries) {
-        const dayEntries = (entry as { day_entries?: { hours: number }[] }).day_entries || []
-        for (const de of dayEntries) {
-          totalDays += 1
-          const stdHours = Math.min(de.hours, 10)
-          const otHours = Math.max(de.hours - 10, 0)
-          revenueTotal += stdHours * ((first.day_rate as number) || 0) / 10 + otHours * ((first.day_rate as number) || 0) / 10 * 1.5
-          costTotal += stdHours * ((first.cost_rate as number) || 0) / 10 + otHours * ((first.cost_rate as number) || 0) / 10 * 1.5
-        }
-      }
-
-      const actual = (actuals || []).find(
-        (a: RecapActual) => a.schedule_entry_id === group.firstId
-      )
-      const actualTotal = actual?.actual_total ?? 0
-
-      const variance = revenueTotal - actualTotal
+    // Derive both planned and actual totals from the rollup. Actual revenue
+    // is computed from schedule_day_entries.actual_hours, so labor actuals
+    // don't require separate entry in recap_actuals.
+    const rollup = computeScheduleRollup((scheduleEntries || []) as unknown as ScheduleEntry[])
+    for (const row of rollup) {
+      const estimatedTotal = row.revenue_total
+      const actualTotal = row.actual_revenue_total
+      const variance = estimatedTotal - actualTotal
       rows.push({
-        item_name: (first.role_name as string) || 'Unnamed Role',
+        item_name: row.role_name || 'Unnamed Role',
         section: 'labor',
-        estimated_total: revenueTotal,
+        estimated_total: estimatedTotal,
         actual_total: actualTotal,
         variance,
-        variance_pct: revenueTotal > 0 ? (variance / revenueTotal) * 100 : 0,
+        variance_pct: estimatedTotal > 0 ? (variance / estimatedTotal) * 100 : 0,
       })
     }
   } else {
