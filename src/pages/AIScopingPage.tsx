@@ -304,6 +304,7 @@ export function AIScopingPage() {
           notes: null,
           is_auto_generated: false,
           fee_basis: null,
+          is_unplanned: false,
           display_order: item.display_order,
         })
       }

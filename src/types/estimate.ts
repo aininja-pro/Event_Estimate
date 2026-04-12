@@ -92,6 +92,7 @@ export interface EstimateLineItem {
   notes: string | null
   is_auto_generated: boolean
   fee_basis: string | null
+  is_unplanned: boolean
   display_order: number
   created_at: string
   updated_at: string

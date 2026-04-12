@@ -1403,6 +1403,7 @@ function LineItemTab({
   onDeleteLocation,
   onRenameLocation,
   onAdd,
+  onAddUnplanned,
   onUpdate,
   onDelete,
   readOnly,
@@ -1423,6 +1424,7 @@ function LineItemTab({
   onDeleteLocation: (id: string) => void
   onRenameLocation: (id: string, name: string) => void
   onAdd: (items: { item_name: string; description: string; quantity: number; unit_cost: number; markup_pct: number; gl_code: string | null; rate_card_item_id: string | null }[]) => void
+  onAddUnplanned?: (data: { item_name: string; description: string; gl_code: string | null; rate_card_item_id: string | null }) => Promise<EstimateLineItem | null>
   onUpdate: (id: string, updates: Partial<EstimateLineItem>) => void
   onDelete: (id: string) => void
   readOnly?: boolean
@@ -1431,6 +1433,7 @@ function LineItemTab({
   estimateId?: string
 }) {
   const [showModal, setShowModal] = useState(false)
+  const [showUnplannedModal, setShowUnplannedModal] = useState(false)
   const [recapMap, setRecapMap] = useState<Record<string, RecapActual>>({})
   const [receiptsMap, setReceiptsMap] = useState<Record<string, ReceiptAttachment>>({})
   const isRecapMode = editRules?.actuals === true
@@ -1477,6 +1480,31 @@ function LineItemTab({
       setRecapMap((prev) => ({ ...prev, [lineItemId]: result }))
     } catch (err) {
       console.error('Failed to save recap actual:', err)
+    }
+  }
+
+  async function handleSubmitUnplanned(data: { item_name: string; description: string; actual_cost: number; gl_code: string | null; rate_card_item_id: string | null }) {
+    if (!onAddUnplanned || !activeLocationId || !estimateId) return
+    const newItem = await onAddUnplanned({
+      item_name: data.item_name,
+      description: data.description,
+      gl_code: data.gl_code,
+      rate_card_item_id: data.rate_card_item_id,
+    })
+    if (!newItem) return
+    try {
+      const result = await upsertRecapActual({
+        estimate_id: estimateId,
+        labor_log_id: activeLocationId,
+        line_item_id: newItem.id,
+        labor_entry_id: null,
+        schedule_entry_id: null,
+        actual_total: data.actual_cost,
+        notes: data.description || null,
+      })
+      setRecapMap((prev) => ({ ...prev, [newItem.id]: result }))
+    } catch (err) {
+      console.error('Failed to record unplanned actual:', err)
     }
   }
 
@@ -1546,6 +1574,14 @@ function LineItemTab({
             + Add Item
           </button>
         )}
+        {isRecapMode && onAddUnplanned && (
+          <button
+            onClick={() => setShowUnplannedModal(true)}
+            className="mt-1.5 ml-3 text-[11px] text-rose-600/80 hover:text-rose-700 border border-dashed border-rose-300/70 hover:border-rose-400 rounded px-2 py-0.5 transition-colors"
+          >
+            + Add Unplanned Item
+          </button>
+        )}
       </div>
 
       <AddLineItemModal
@@ -1556,6 +1592,14 @@ function LineItemTab({
         rateCardData={rateCardData}
         clientName={clientName}
         onAdd={onAdd}
+      />
+
+      <AddUnplannedLineItemModal
+        open={showUnplannedModal}
+        onOpenChange={setShowUnplannedModal}
+        section={section}
+        rateCardData={rateCardData}
+        onAdd={handleSubmitUnplanned}
       />
     </div>
   )
@@ -1617,12 +1661,21 @@ function LineItemRow({
     setTimeout(() => setSaved(false), 1200)
   }
 
+  const isUnplanned = item.is_unplanned
+  const rowClass = isUnplanned
+    ? "group border-b border-border/30 hover:bg-rose-50/40 bg-rose-50/20 [&>td:first-child]:border-l-[3px] [&>td:first-child]:border-l-rose-400"
+    : "group border-b border-border/30 hover:bg-muted/30"
+  const dash = <span className="text-[13px] text-muted-foreground/40 tabular-nums">—</span>
+
   return (
-    <TableRow className="group border-b border-border/30 hover:bg-muted/30">
+    <TableRow className={rowClass}>
       <TableCell className="text-[13px] text-foreground py-1">
         {item.item_name}
         {item.is_auto_generated && (
           <span className="ml-1.5 text-[9px] uppercase tracking-widest font-medium text-blue-600/70 bg-blue-50 px-1 py-0.5 rounded">Auto</span>
+        )}
+        {isUnplanned && (
+          <span className="ml-1.5 text-[9px] uppercase tracking-widest font-medium text-rose-600 bg-rose-50 px-1 py-0.5 rounded">Unplanned</span>
         )}
       </TableCell>
       <TableCell className="py-1">
@@ -1636,22 +1689,28 @@ function LineItemRow({
         />
       </TableCell>
       <TableCell className="text-center py-1">
-        <StepperInput value={qty} onChange={setQty} onBlur={() => onUpdate(item.id, { quantity: parseFloat(qty) || 1 })} onStep={(v) => onUpdate(item.id, { quantity: v })} min={0} className={cellInput} disabled={readOnly} />
+        {isUnplanned ? dash : (
+          <StepperInput value={qty} onChange={setQty} onBlur={() => onUpdate(item.id, { quantity: parseFloat(qty) || 1 })} onStep={(v) => onUpdate(item.id, { quantity: v })} min={0} className={cellInput} disabled={readOnly} />
+        )}
       </TableCell>
       <TableCell className="text-right py-1">
-        <div className="relative w-[72px] ml-auto">
-          <span className="absolute left-1 top-1/2 -translate-y-1/2 text-[13px] text-muted-foreground/60 pointer-events-none">$</span>
-          <Input value={unitCost} onChange={(e) => setUnitCost(e.target.value)} onBlur={() => onUpdate(item.id, { unit_cost: parseFloat(unitCost) || 0 })} onFocus={selectOnFocus} className={`${cellInput} w-full text-right pl-4`} readOnly={readOnly} />
-        </div>
+        {isUnplanned ? <div className="text-right pr-1">{dash}</div> : (
+          <div className="relative w-[72px] ml-auto">
+            <span className="absolute left-1 top-1/2 -translate-y-1/2 text-[13px] text-muted-foreground/60 pointer-events-none">$</span>
+            <Input value={unitCost} onChange={(e) => setUnitCost(e.target.value)} onBlur={() => onUpdate(item.id, { unit_cost: parseFloat(unitCost) || 0 })} onFocus={selectOnFocus} className={`${cellInput} w-full text-right pl-4`} readOnly={readOnly} />
+          </div>
+        )}
       </TableCell>
       <TableCell className="text-right py-1">
-        <span className="text-[13px] font-medium tabular-nums text-foreground">{fmt(total)}</span>
+        {isUnplanned ? dash : <span className="text-[13px] font-medium tabular-nums text-foreground">{fmt(total)}</span>}
       </TableCell>
       <TableCell className="text-center py-1">
-        <Input value={markup} onChange={(e) => setMarkup(e.target.value)} onBlur={() => onUpdate(item.id, { markup_pct: parseFloat(markup) || 0 })} onFocus={selectOnFocus} className={`${cellInput} w-12 text-center mx-auto`} readOnly={readOnly} />
+        {isUnplanned ? dash : (
+          <Input value={markup} onChange={(e) => setMarkup(e.target.value)} onBlur={() => onUpdate(item.id, { markup_pct: parseFloat(markup) || 0 })} onFocus={selectOnFocus} className={`${cellInput} w-12 text-center mx-auto`} readOnly={readOnly} />
+        )}
       </TableCell>
       <TableCell className="text-right py-1">
-        <span className="text-[13px] font-medium tabular-nums text-foreground">{fmt(clientTotal)}</span>
+        {isUnplanned ? dash : <span className="text-[13px] font-medium tabular-nums text-foreground">{fmt(clientTotal)}</span>}
       </TableCell>
       {recapActual !== undefined && onSaveRecapActual && (
         <>
@@ -1691,7 +1750,7 @@ function LineItemRow({
         </>
       )}
       <TableCell className="py-1">
-        {!readOnly && !item.is_auto_generated && (
+        {(!readOnly || isUnplanned) && !item.is_auto_generated && (
           <Trash2 className="h-3 w-3 opacity-0 group-hover:opacity-50 hover:!opacity-100 transition-opacity cursor-pointer text-foreground/60" onClick={() => onDelete(item.id)} />
         )}
       </TableCell>
@@ -1990,6 +2049,201 @@ function AddLineItemManualModal({
         <DialogFooter>
           <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>Cancel</Button>
           <Button size="sm" disabled={!itemName.trim()} onClick={handleSave}>Add Item</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+// ── Add Unplanned Line Item Modal (Recap Only) ───────────────────────────────
+// Single-item form. No qty/unit cost/markup — unplanned items have no approved
+// budget, only an actual cost. Item name can be picked from the rate card (to
+// inherit GL code + rate_card_item_id) or typed free-text.
+
+function AddUnplannedLineItemModal({
+  open,
+  onOpenChange,
+  section,
+  rateCardData,
+  onAdd,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  section: string
+  rateCardData: RateCardItemsBySection[]
+  onAdd: (data: { item_name: string; description: string; actual_cost: number; gl_code: string | null; rate_card_item_id: string | null }) => Promise<void>
+}) {
+  const [search, setSearch] = useState('')
+  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [showCustom, setShowCustom] = useState(false)
+  const [customName, setCustomName] = useState('')
+  const [description, setDescription] = useState('')
+  const [actualCost, setActualCost] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    if (!open) {
+      setSearch('')
+      setSelectedId(null)
+      setShowCustom(false)
+      setCustomName('')
+      setDescription('')
+      setActualCost('')
+      setSaving(false)
+    }
+  }, [open])
+
+  const rcSectionName = TAB_TO_RC_SECTION[section]
+  const rcSection = rateCardData.find((s) => s.section.name === rcSectionName)
+  const rcItems = (rcSection?.items ?? []).map((item) => ({ ...item, sectionName: rcSection?.section.name ?? '' }))
+  const filtered = search
+    ? rcItems.filter((r) => r.name.toLowerCase().includes(search.toLowerCase()))
+    : rcItems
+
+  const isCustom = selectedId === '__custom__'
+  const picked = rcItems.find((r) => r.id === selectedId)
+  const resolvedName = isCustom ? customName.trim() : (picked?.name ?? '')
+  const resolvedGlCode: string | null = isCustom ? null : (picked?.gl_code ?? null)
+  const resolvedRcId: string | null = isCustom || !picked ? null : picked.id
+
+  const costNum = parseFloat(actualCost)
+  const valid = resolvedName.length > 0 && !isNaN(costNum) && costNum > 0
+
+  const sectionLabel = (rcSectionName ?? section).replace(' Expenses', '').replace(' Costs', '')
+
+  function pickItem(id: string) {
+    setSelectedId(id)
+    setShowCustom(false)
+  }
+
+  function openCustom() {
+    setSelectedId('__custom__')
+    setShowCustom(true)
+  }
+
+  async function handleSave() {
+    if (!valid || saving) return
+    setSaving(true)
+    try {
+      await onAdd({
+        item_name: resolvedName,
+        description: description.trim(),
+        actual_cost: costNum,
+        gl_code: resolvedGlCode,
+        rate_card_item_id: resolvedRcId,
+      })
+      onOpenChange(false)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[480px]">
+        <DialogHeader>
+          <DialogTitle className="text-sm font-semibold flex items-center gap-2">
+            Add Unplanned Item
+            <span className="text-[9px] uppercase tracking-widest font-medium text-rose-600 bg-rose-50 px-1.5 py-0.5 rounded">Unplanned</span>
+          </DialogTitle>
+          <DialogDescription className="text-xs">
+            Pick a {sectionLabel.toLowerCase()} item (or add custom) and enter the actual cost. This wasn't part of the approved budget.
+          </DialogDescription>
+        </DialogHeader>
+
+        {rcItems.length > 0 && (
+          <div className="relative">
+            <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-muted-foreground/50" />
+            <Input placeholder="Search items..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9 h-8 text-sm border-border/30" autoFocus />
+          </div>
+        )}
+
+        <div className="max-h-[240px] overflow-y-auto space-y-0.5">
+          {rcItems.length === 0 && !isCustom && (
+            <p className="text-xs text-muted-foreground/50 text-center py-4">No rate card items — use Custom below</p>
+          )}
+          {filtered.map((item) => {
+            const selected = selectedId === item.id
+            return (
+              <button
+                key={item.id}
+                onClick={() => pickItem(item.id)}
+                className={`w-full text-left px-3 py-1.5 rounded-sm transition-colors flex items-start gap-2.5 ${selected ? 'bg-rose-50/70' : 'hover:bg-muted/40'}`}
+              >
+                <div className={`mt-1 flex-shrink-0 w-3.5 h-3.5 rounded-full border ${selected ? 'border-rose-500 bg-rose-500' : 'border-border/50'} flex items-center justify-center`}>
+                  {selected && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[13px] font-medium text-foreground/90">{item.name}</span>
+                    <span className="text-[13px] text-muted-foreground/60 tabular-nums">
+                      {item.unit_rate ? `$${item.unit_rate.toLocaleString()}` : 'Pass-through'}
+                      {item.unit_label ? ` ${item.unit_label}` : ''}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground/70">{item.sectionName}{item.gl_code ? ` · GL ${item.gl_code}` : ''}</p>
+                </div>
+              </button>
+            )
+          })}
+        </div>
+
+        {showCustom ? (
+          <div className="border border-border/40 rounded-md p-2.5 space-y-2 bg-rose-50/30">
+            <p className="text-[11px] font-medium text-rose-700/80 uppercase tracking-wider">Custom Unplanned Item</p>
+            <Input
+              placeholder="Item name"
+              value={customName}
+              onChange={(e) => setCustomName(e.target.value)}
+              className="h-7 text-[13px] border-border/40"
+              autoFocus
+            />
+          </div>
+        ) : (
+          <button
+            onClick={openCustom}
+            className="flex items-center gap-1.5 text-[11px] text-muted-foreground/60 hover:text-foreground/80 transition-colors"
+          >
+            <Plus className="h-3 w-3" />
+            Add custom item (not in rate card)
+          </button>
+        )}
+
+        <div className="space-y-2 pt-1 border-t border-border/30">
+          <div className="space-y-1">
+            <Label className="text-[11px] uppercase tracking-wider text-muted-foreground">Description (optional)</Label>
+            <Input
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="e.g., Flood response after Day 2"
+              className="h-8 text-sm border-border/30"
+            />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-[11px] uppercase tracking-wider text-muted-foreground">Actual Cost *</Label>
+            <div className="relative">
+              <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-sm text-muted-foreground/60">$</span>
+              <Input
+                type="number"
+                inputMode="decimal"
+                value={actualCost}
+                onChange={(e) => setActualCost(e.target.value)}
+                placeholder="0.00"
+                className="h-8 text-sm border-border/30 pl-6"
+              />
+            </div>
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button
+            onClick={handleSave}
+            disabled={!valid || saving}
+            size="sm"
+            className="text-xs bg-white hover:bg-rose-50 text-foreground border border-border/50 hover:border-rose-400 hover:text-rose-700 shadow-sm"
+          >
+            {saving ? 'Adding…' : (valid ? `Add Unplanned · $${costNum.toLocaleString()}` : 'Pick an item and enter a cost')}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -2829,7 +3083,10 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
     }
   }
 
-  async function handleAddLineItems(section: string, items: { item_name: string; description: string; quantity: number; unit_cost: number; markup_pct: number; gl_code: string | null; rate_card_item_id: string | null }[]) {
+  async function handleAddLineItems(
+    section: string,
+    items: { item_name: string; description: string; quantity: number; unit_cost: number; markup_pct: number; gl_code: string | null; rate_card_item_id: string | null }[],
+  ) {
     if (!activeLocationId) return
     try {
       const activeItems = lineItemsMap[activeLocationId] ?? []
@@ -2850,6 +3107,7 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
             notes: null,
             is_auto_generated: false,
             fee_basis: null,
+            is_unplanned: false,
             display_order: baseOrder + idx,
           })
         )
@@ -2860,6 +3118,42 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
       }))
     } catch (err) {
       console.error('Failed to add line items:', err)
+    }
+  }
+
+  async function handleAddUnplannedLineItem(
+    section: string,
+    data: { item_name: string; description: string; gl_code: string | null; rate_card_item_id: string | null },
+  ): Promise<EstimateLineItem | null> {
+    if (!activeLocationId) return null
+    try {
+      const activeItems = lineItemsMap[activeLocationId] ?? []
+      const baseOrder = activeItems.filter((i) => i.section === section).length
+      const created = await createLineItem({
+        estimate_id: estimateId,
+        labor_log_id: activeLocationId,
+        section,
+        item_name: data.item_name,
+        description: data.description || null,
+        quantity: 0,
+        unit_cost: 0,
+        markup_pct: 0,
+        gl_code: data.gl_code,
+        rate_card_item_id: data.rate_card_item_id,
+        notes: null,
+        is_auto_generated: false,
+        fee_basis: null,
+        is_unplanned: true,
+        display_order: baseOrder,
+      })
+      setLineItemsMap((prev) => ({
+        ...prev,
+        [activeLocationId]: [...(prev[activeLocationId] ?? []), created],
+      }))
+      return created
+    } catch (err) {
+      console.error('Failed to add unplanned line item:', err)
+      return null
     }
   }
 
@@ -3205,6 +3499,7 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
                   onDeleteLocation={handleDeleteLocation}
                   onRenameLocation={handleRenameLocation}
                   onAdd={(items) => handleAddLineItems(tab.key, items)}
+                  onAddUnplanned={(data) => handleAddUnplannedLineItem(tab.key, data)}
                   onUpdate={handleUpdateLineItem}
                   onDelete={handleDeleteLineItem}
                   readOnly={!editRules.line_items}

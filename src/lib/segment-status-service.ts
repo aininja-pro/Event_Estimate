@@ -446,11 +446,12 @@ export async function getVarianceReport(laborLogId: string): Promise<VarianceRow
     }
   }
 
-  // Build variance rows from line items
+  // Build variance rows from line items. Unplanned items (added during recap)
+  // contribute 0 to the approved estimate so their full actual lands as overrun.
   for (const item of (lineItems || [])) {
     const qty = (item.quantity as number) || 0
     const unitCost = (item.unit_cost as number) || 0
-    const estimatedTotal = qty * unitCost
+    const estimatedTotal = item.is_unplanned ? 0 : qty * unitCost
 
     const actual = (actuals || []).find(
       (a: RecapActual) => a.line_item_id === item.id

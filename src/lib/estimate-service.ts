@@ -257,6 +257,7 @@ export async function createAutoFeeLines(
     notes: null,
     is_auto_generated: true,
     fee_basis: 'total_estimate',
+    is_unplanned: false,
     display_order: 0,
   })
 }
@@ -352,6 +353,7 @@ export async function duplicateEstimate(
         notes: item.notes,
         is_auto_generated: false,
         fee_basis: null,
+        is_unplanned: item.is_unplanned,
         display_order: item.display_order,
       })
     }

@@ -98,7 +98,9 @@ export function computeEstimateTotals(
         : 0
 
       for (const log of laborLogs) {
-        const items = (lineItemsMap[log.id] ?? []).filter((i) => i.section === sec.lineItemKey)
+        // Unplanned items are excluded from the approved-budget rollup — they
+        // represent overruns added during recap, not part of the locked estimate.
+        const items = (lineItemsMap[log.id] ?? []).filter((i) => i.section === sec.lineItemKey && !i.is_unplanned)
         for (const i of items) {
           if (i.fee_basis === 'total_estimate') {
             totalRevenue += priorRevenue * (i.markup_pct / 100)
