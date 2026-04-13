@@ -1,13 +1,19 @@
 import os
 
 from dotenv import load_dotenv
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
 
-from routes.ai import router as ai_router
-from routes.pdf import router as pdf_router
+# Load .env BEFORE any route/service imports — several services read env vars
+# at module load time (e.g. email_service sets resend.api_key on import).
+load_dotenv(override=True)
 
-load_dotenv()
+from fastapi import FastAPI  # noqa: E402
+from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
+
+from routes.ai import router as ai_router  # noqa: E402
+from routes.approval import router as approval_router  # noqa: E402
+from routes.email import router as email_router  # noqa: E402
+from routes.pdf import router as pdf_router  # noqa: E402
+
 
 app = FastAPI(title="DriveShop AI API", version="1.0.0")
 
@@ -25,6 +31,8 @@ app.add_middleware(
 
 app.include_router(ai_router)
 app.include_router(pdf_router)
+app.include_router(approval_router)
+app.include_router(email_router)
 
 
 @app.get("/api/health")

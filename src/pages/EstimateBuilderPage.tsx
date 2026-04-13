@@ -43,6 +43,11 @@ import { EstimateStatusBar } from '@/components/EstimateStatusBar'
 import { VersionHistoryPanel, HistoryButton } from '@/components/VersionHistoryPanel'
 import { ApprovalBanner } from '@/components/ApprovalBanner'
 import { SegmentTransitionBar } from '@/components/segments/SegmentTransitionBar'
+import {
+  getLatestClientApprovalToken,
+  sendClientApproval,
+  type ClientApprovalToken,
+} from '@/lib/client-approval-service'
 import { getScheduleEntries, getScheduleDayTypes, computeScheduleRollup } from '@/lib/schedule-service'
 import {
   getPendingSegmentApproval,
@@ -2921,6 +2926,7 @@ function ExportButton({ estimateId }: { estimateId: string }) {
     { type: 'client_summary', label: 'Client Estimate (Summary)' },
     { type: 'client_detailed', label: 'Client Estimate (Detailed)' },
     { type: 'internal', label: 'Internal P&L' },
+    { type: 'invoice_with_receipts', label: 'Invoice with Receipts' },
   ]
 
   return (
@@ -2974,6 +2980,7 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
   const [submittedChangeOrders, setSubmittedChangeOrders] = useState<Record<string, ChangeOrder | null>>({})
   const [gpThreshold, setGpThreshold] = useState(20)
   const [primaryApprover, setPrimaryApprover] = useState<{ id: string; full_name: string } | null>(null)
+  const [clientTokens, setClientTokens] = useState<Record<string, ClientApprovalToken | null>>({})
   const [loading, setLoading] = useState(true)
 
   useEffect(() => { getGPThreshold().then(setGpThreshold) }, [])
@@ -3021,12 +3028,20 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
 
       // Load pending approvals for segments in in_review status
       const approvalsMap: Record<string, ApprovalRequest | null> = {}
+      const tokensMap: Record<string, ClientApprovalToken | null> = {}
       await Promise.all(logs.map(async (log) => {
         if (log.status === 'in_review') {
           approvalsMap[log.id] = await getPendingSegmentApproval(log.id)
+          try {
+            tokensMap[log.id] = await getLatestClientApprovalToken(log.id)
+          } catch (err) {
+            console.error('Failed to load client approval token:', err)
+            tokensMap[log.id] = null
+          }
         }
       }))
       setSegmentApprovals(approvalsMap)
+      setClientTokens(tokensMap)
 
       // Load draft and submitted change orders for active/estimate segments
       const draftCOs: Record<string, ChangeOrder | null> = {}
@@ -3595,6 +3610,30 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
     return result
   }
 
+  async function handleSendToClient(
+    approvalId: string | null,
+    params: { recipientEmail: string; note: string },
+  ): Promise<{ ok: boolean; error?: string }> {
+    if (!activeLocationId) return { ok: false, error: 'No segment selected' }
+    const result = await sendClientApproval({
+      estimateId,
+      laborLogId: activeLocationId,
+      approvalRequestId: approvalId,
+      recipientEmail: params.recipientEmail,
+      note: params.note,
+      sentBy: profile?.id ?? null,
+    })
+    if (result.ok) {
+      try {
+        const fresh = await getLatestClientApprovalToken(activeLocationId)
+        setClientTokens((prev) => ({ ...prev, [activeLocationId]: fresh }))
+      } catch (err) {
+        console.error('Failed to refresh client approval token:', err)
+      }
+    }
+    return { ok: result.ok, error: result.error }
+  }
+
   async function handleReject(approvalId: string, notes: string) {
     if (!activeLocationId) return { success: false, error: 'No segment selected' }
     const co = submittedChangeOrders[activeLocationId]
@@ -3707,6 +3746,20 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
           onApprove={handleApprove}
           onReject={handleReject}
           changeOrder={submittedChangeOrders[activeLocationId] ?? undefined}
+          clientEmailContext={
+            segmentApprovals[activeLocationId]?.approval_gate === 'client'
+              ? {
+                  defaultEmail: estimate.clients.billing_contact_email,
+                  clientName: estimate.clients.name,
+                  eventName: estimate.event_name,
+                  estimateId,
+                  segmentId: activeLocationId,
+                  latestToken: clientTokens[activeLocationId] ?? null,
+                  onSend: (params) =>
+                    handleSendToClient(segmentApprovals[activeLocationId]?.id ?? null, params),
+                }
+              : undefined
+          }
         />
       )}
 
