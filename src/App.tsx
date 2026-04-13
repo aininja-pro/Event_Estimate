@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom'
+import { Toaster } from 'sonner'
 import { AuthProvider, useAuth } from '@/lib/auth'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { StakeholderLayout } from '@/components/layout/StakeholderLayout'
@@ -56,6 +57,7 @@ function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
+        <Toaster position="top-right" richColors closeButton />
         <Routes>
           <Route path="/login" element={<LoginPage />} />
 

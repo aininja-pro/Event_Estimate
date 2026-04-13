@@ -31,7 +31,7 @@ export async function getEstimates(): Promise<EstimateWithSegments[]> {
   const db = requireSupabase()
   const { data, error } = await db
     .from('estimates')
-    .select('*, clients(name, code, third_party_markup, office_payout_pct), labor_logs(id, location_name, status, is_primary, location_order)')
+    .select('*, clients(name, code, third_party_markup, office_payout_pct, billing_contact_email), labor_logs(id, location_name, status, is_primary, location_order)')
     .order('updated_at', { ascending: false })
     .order('location_order', { ascending: true, referencedTable: 'labor_logs' })
   if (error) throw error
@@ -42,7 +42,7 @@ export async function getEstimate(id: string): Promise<EstimateWithClient> {
   const db = requireSupabase()
   const { data, error } = await db
     .from('estimates')
-    .select('*, clients(name, code, third_party_markup, office_payout_pct)')
+    .select('*, clients(name, code, third_party_markup, office_payout_pct, billing_contact_email)')
     .eq('id', id)
     .single()
   if (error) throw error
