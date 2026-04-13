@@ -90,7 +90,7 @@ import {
   updateLineItem,
   deleteLineItem,
 } from '@/lib/estimate-service'
-import { getRateCardItemsBySection } from '@/lib/rate-card-service'
+import { getRateCardItemsBySection, getClientApproverForEstimate } from '@/lib/rate-card-service'
 import type { EstimateWithClient, EstimateUpdate, LaborLog, LaborEntry, EstimateLineItem } from '@/types/estimate'
 import type { RateCardItemsBySection } from '@/types/rate-card'
 import type { Nudge } from '@/types/nudge'
@@ -2973,6 +2973,7 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
   const [draftChangeOrders, setDraftChangeOrders] = useState<Record<string, ChangeOrder | null>>({})
   const [submittedChangeOrders, setSubmittedChangeOrders] = useState<Record<string, ChangeOrder | null>>({})
   const [gpThreshold, setGpThreshold] = useState(20)
+  const [primaryApprover, setPrimaryApprover] = useState<{ id: string; full_name: string } | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => { getGPThreshold().then(setGpThreshold) }, [])
@@ -2982,9 +2983,10 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
       const est = await getEstimate(estimateId)
       setEstimate(est)
 
-      const [loadedLogs, rcData] = await Promise.all([
+      const [loadedLogs, rcData, approver] = await Promise.all([
         getLaborLogs(estimateId),
         getRateCardItemsBySection(est.client_id),
+        getClientApproverForEstimate(estimateId),
       ])
 
       const logs = loadedLogs.length > 0
@@ -2993,6 +2995,7 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
 
       setLaborLogs(logs)
       setRateCardData(rcData)
+      setPrimaryApprover(approver)
 
       // Load entries, line items, and schedule entries for all logs in parallel
       const entriesMap: Record<string, LaborEntry[]> = {}
@@ -3723,6 +3726,7 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
           segmentName={activeLog.location_name}
           status={activeSegmentStatus}
           userRole={userRole}
+          primaryApprover={primaryApprover}
           onTransition={handleSegmentTransition}
           onCreateChangeOrder={handleCreateChangeOrder}
           onSubmitChangeOrder={handleSubmitChangeOrder}
