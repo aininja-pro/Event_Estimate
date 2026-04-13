@@ -7,6 +7,7 @@ import {
   notifyByRole,
   getEstimateCreatorId,
 } from './notification-service'
+import { getClientApproverForEstimate } from './rate-card-service'
 import type {
   SegmentStatus,
   SegmentActivity,
@@ -177,13 +178,28 @@ async function dispatchSegmentNotifications(
   }
 
   if (toStatus === 'in_review') {
-    // Notify CFO for $50K+ or account_manager lead for standard
-    await notifyByRole('cfo', {
-      ...base,
-      type: 'approval_requested',
-      title: `Review requested: ${segmentName}`,
-      body: `${changedBy} submitted "${segmentName}" for review.`,
-    })
+    // Route the first-gate (AM) notification to the client's designated primary
+    // approver if one is configured on the client record. Falls back to a
+    // broadcast to every account_manager when no approver is set.
+    // (Was a broadcast to 'cfo' which bypassed AMs entirely — see
+    // planning/requirements-driveshop-approval-routing.md for context.)
+    const approver = await getClientApproverForEstimate(estimateId)
+    if (approver) {
+      await createNotification({
+        ...base,
+        user_id: approver.id,
+        type: 'approval_requested',
+        title: `Review requested: ${segmentName}`,
+        body: `${changedBy} submitted "${segmentName}" for review.`,
+      })
+    } else {
+      await notifyByRole('account_manager', {
+        ...base,
+        type: 'approval_requested',
+        title: `Review requested: ${segmentName}`,
+        body: `${changedBy} submitted "${segmentName}" for review.`,
+      })
+    }
   } else if (toStatus === 'estimate' && fromStatus === 'in_review') {
     // Segment sent back — notify creator
     const creatorId = await getEstimateCreatorId(estimateId)

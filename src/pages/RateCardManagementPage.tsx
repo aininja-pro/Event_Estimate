@@ -59,7 +59,9 @@ import {
   createFeeType,
   updateFeeType,
   deleteFeeType,
+  getApproverUsers,
 } from '@/lib/rate-card-service'
+import type { ApproverUser } from '@/lib/rate-card-service'
 import { useUser } from '@/lib/auth'
 import { hasPermission } from '@/lib/permissions'
 import type { ClientUpdate } from '@/types/rate-card'
@@ -413,6 +415,48 @@ function EditableField({ value, placeholder, label, onSave }: EditableFieldProps
       <p className="text-[13px] text-foreground/80 group-hover/field:text-foreground transition-colors leading-tight truncate min-h-[1.25rem]">
         {value || <span className="text-muted-foreground/50 italic">{placeholder}</span>}
       </p>
+    </div>
+  )
+}
+
+// Primary Approver dropdown — mirrors EditableField's label+field stacking so it
+// lines up with the billing contact row. Uses a '__none__' sentinel because the
+// shadcn Select can't render an empty string as a SelectItem value.
+const APPROVER_NONE = '__none__'
+
+interface ApproverSelectProps {
+  value: string | null
+  approvers: ApproverUser[]
+  disabled?: boolean
+  onChange: (approverId: string | null) => void
+}
+
+function ApproverSelect({ value, approvers, disabled, onChange }: ApproverSelectProps) {
+  return (
+    <div className="space-y-0.5">
+      <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Primary Approver</span>
+      <Select
+        value={value ?? APPROVER_NONE}
+        onValueChange={(v) => onChange(v === APPROVER_NONE ? null : v)}
+        disabled={disabled}
+      >
+        <SelectTrigger className="h-7 text-[13px] border-border/50 w-full min-w-0 px-2">
+          <SelectValue placeholder="— None —" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value={APPROVER_NONE} className="text-[13px] italic text-muted-foreground">
+            — No assigned approver —
+          </SelectItem>
+          {approvers.map((a) => (
+            <SelectItem key={a.id} value={a.id} className="text-[13px]">
+              {a.full_name}
+              {a.role === 'admin' && (
+                <span className="ml-1.5 text-[10px] uppercase tracking-wider text-muted-foreground">Admin</span>
+              )}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
     </div>
   )
 }
@@ -1305,6 +1349,7 @@ export function RateCardManagementPage() {
   const canEditRateCards = hasPermission(profile?.role || '', 'edit_rate_cards')
   const [activeTab, setActiveTab] = useState<'rate-cards' | 'fee-types'>('rate-cards')
   const [clients, setClients] = useState<Client[]>([])
+  const [approvers, setApprovers] = useState<ApproverUser[]>([])
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null)
   const [sectionsWithItems, setSectionsWithItems] = useState<RateCardItemsBySection[]>([])
   const [loading, setLoading] = useState(true)
@@ -1326,26 +1371,32 @@ export function RateCardManagementPage() {
 
   const selectedClient = clients.find((c) => c.id === selectedClientId) ?? null
 
-  async function handleUpdateClientField(field: keyof ClientUpdate, value: string) {
+  async function handleUpdateClientField(field: keyof ClientUpdate, value: string | null) {
     if (!selectedClientId) return
+    const normalized = typeof value === 'string' ? (value || null) : value
     try {
-      const updated = await updateClient(selectedClientId, { [field]: value || null })
+      const updated = await updateClient(selectedClientId, { [field]: normalized } as ClientUpdate)
       setClients((prev) => prev.map((c) => c.id === updated.id ? updated : c))
     } catch {
       // silently fail — field will revert on next load
     }
   }
 
-  // Load clients on mount
+  // Load clients + approver-eligible users on mount. Approvers are static for the
+  // page's lifetime, so we fetch once alongside the client list.
   useEffect(() => {
     let cancelled = false
     async function load() {
       try {
-        const data = await getClients()
+        const [clientData, approverData] = await Promise.all([
+          getClients(),
+          getApproverUsers(),
+        ])
         if (cancelled) return
-        setClients(data)
-        if (data.length > 0) {
-          setSelectedClientId(data[0].id)
+        setClients(clientData)
+        setApprovers(approverData)
+        if (clientData.length > 0) {
+          setSelectedClientId(clientData[0].id)
         }
       } catch (err) {
         if (!cancelled) setError(err instanceof Error ? err.message : 'Failed to load clients')
@@ -1582,6 +1633,14 @@ export function RateCardManagementPage() {
                     placeholder="Address"
                     label="Address"
                     onSave={(v) => handleUpdateClientField('billing_address', v)}
+                  />
+                </div>
+                <div className="min-w-[180px] max-w-[220px]">
+                  <ApproverSelect
+                    value={selectedClient.primary_approver_id}
+                    approvers={approvers}
+                    disabled={!canEditRateCards}
+                    onChange={(v) => handleUpdateClientField('primary_approver_id', v)}
                   />
                 </div>
               </div>
