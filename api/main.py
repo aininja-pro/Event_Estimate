@@ -11,6 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
 
 from routes.ai import router as ai_router  # noqa: E402
 from routes.approval import router as approval_router  # noqa: E402
+from routes.data_feed import router as data_feed_router  # noqa: E402
 from routes.email import router as email_router  # noqa: E402
 from routes.pdf import router as pdf_router  # noqa: E402
 
@@ -33,6 +34,7 @@ app.include_router(ai_router)
 app.include_router(pdf_router)
 app.include_router(approval_router)
 app.include_router(email_router)
+app.include_router(data_feed_router)
 
 
 @app.get("/api/health")
