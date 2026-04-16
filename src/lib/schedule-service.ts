@@ -64,6 +64,57 @@ export async function deleteScheduleDayType(laborLogId: string, workDate: string
   if (error) throw error
 }
 
+/**
+ * Move a day column to a new date, preserving the staffing data on it. Updates
+ * both `schedule_day_types.work_date` and every matching
+ * `schedule_day_entries.work_date` under the same labor log. Throws on collision
+ * with another existing column. Sequential writes — matches the same
+ * non-transactional pattern as `handleRemoveDate` / `bulkFillColumn`.
+ */
+export async function updateScheduleDayType(
+  laborLogId: string,
+  oldWorkDate: string,
+  newWorkDate: string,
+): Promise<void> {
+  if (oldWorkDate === newWorkDate) return
+  const db = requireSupabase()
+
+  // Collision check — caller surfaces this as a toast.
+  const { data: clash, error: clashErr } = await db
+    .from('schedule_day_types')
+    .select('id')
+    .eq('labor_log_id', laborLogId)
+    .eq('work_date', newWorkDate)
+    .maybeSingle()
+  if (clashErr) throw clashErr
+  if (clash) throw new Error(`A column already exists on ${newWorkDate}`)
+
+  // Move the column definition.
+  const { error: dtErr } = await db
+    .from('schedule_day_types')
+    .update({ work_date: newWorkDate })
+    .eq('labor_log_id', laborLogId)
+    .eq('work_date', oldWorkDate)
+  if (dtErr) throw dtErr
+
+  // Carry every cell on that date over to the new date. `schedule_day_entries`
+  // isn't FK-linked to `schedule_day_types.id` — it joins on `work_date` — so
+  // the cascade has to be explicit.
+  const { data: entries, error: entriesErr } = await db
+    .from('schedule_entries')
+    .select('id')
+    .eq('labor_log_id', laborLogId)
+  if (entriesErr) throw entriesErr
+  if (!entries || entries.length === 0) return
+
+  const { error: deErr } = await db
+    .from('schedule_day_entries')
+    .update({ work_date: newWorkDate })
+    .eq('work_date', oldWorkDate)
+    .in('schedule_entry_id', entries.map((e) => e.id))
+  if (deErr) throw deErr
+}
+
 /** Generate an array of ISO date strings between start and end (inclusive). */
 export function generateDateRange(startDate: string, endDate: string): string[] {
   const dates: string[] = []

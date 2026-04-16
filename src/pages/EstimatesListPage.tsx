@@ -25,6 +25,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { DateRangePicker } from '@/components/ui/date-range-picker'
 import { FileSpreadsheet, MoreVertical, ChevronUp, ChevronDown, Search, X, Copy } from 'lucide-react'
 import { getEstimates, createEstimate, createPrimarySegmentForEstimate, updateEstimate, deleteEstimate, duplicateEstimate } from '@/lib/estimate-service'
 import { getClients } from '@/lib/rate-card-service'
@@ -669,25 +670,17 @@ export function EstimatesListPage() {
             </div>
 
             {/* Dates */}
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label className="text-xs">Start Date</Label>
-                <Input
-                  type="date"
-                  value={formStartDate}
-                  onChange={(e) => setFormStartDate(e.target.value)}
-                  className="h-8 text-sm border-border/50"
-                />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs">End Date</Label>
-                <Input
-                  type="date"
-                  value={formEndDate}
-                  onChange={(e) => setFormEndDate(e.target.value)}
-                  className="h-8 text-sm border-border/50"
-                />
-              </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Event Dates</Label>
+              <DateRangePicker
+                value={{ from: formStartDate || null, to: formEndDate || null }}
+                onChange={(range) => {
+                  setFormStartDate(range.from ?? '')
+                  setFormEndDate(range.to ?? '')
+                }}
+                placeholder="Select start and end dates"
+                triggerClassName="w-full border-border/50"
+              />
             </div>
 
             {/* Cost Structure */}

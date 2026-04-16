@@ -21,6 +21,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
+import { DateRangePicker } from '@/components/ui/date-range-picker'
 import {
   Trash2,
   Send,
@@ -503,13 +504,29 @@ function EventHeader({
           <p className={fieldLabel}>Location</p>
           <Input value={location} onChange={(e) => setLocation(e.target.value)} onBlur={() => saveField('location', location)} className={readOnly ? readOnlyField : fieldInput} readOnly={readOnly} />
         </div>
-        <div>
-          <p className={fieldLabel}>Start Date</p>
-          <Input type="date" value={startDate} onChange={(e) => { setStartDate(e.target.value); saveField('start_date', e.target.value) }} className={readOnly ? readOnlyField : fieldInput} readOnly={readOnly} />
-        </div>
-        <div>
-          <p className={fieldLabel}>End Date</p>
-          <Input type="date" value={endDate} onChange={(e) => { setEndDate(e.target.value); saveField('end_date', e.target.value) }} className={readOnly ? readOnlyField : fieldInput} readOnly={readOnly} />
+        <div className="col-span-2">
+          <p className={fieldLabel}>Event Dates</p>
+          {readOnly ? (
+            <Input
+              value={startDate && endDate ? `${startDate} → ${endDate}` : startDate || endDate || ''}
+              className={readOnlyField}
+              readOnly
+            />
+          ) : (
+            <DateRangePicker
+              value={{ from: startDate || null, to: endDate || null }}
+              onChange={(range) => {
+                const nextStart = range.from ?? ''
+                const nextEnd = range.to ?? ''
+                setStartDate(nextStart)
+                setEndDate(nextEnd)
+                if (range.from !== (startDate || null)) saveField('start_date', nextStart)
+                if (range.to !== (endDate || null)) saveField('end_date', nextEnd)
+              }}
+              placeholder="Select event dates"
+              triggerClassName="h-7 text-[13px] font-medium rounded-none border-0 border-b border-border/40 bg-transparent shadow-none hover:bg-transparent hover:border-border/60 focus-visible:border-foreground/40 focus-visible:ring-0 px-0 transition-colors justify-start"
+            />
+          )}
         </div>
         <div>
           <p className={fieldLabel}>Attendance</p>

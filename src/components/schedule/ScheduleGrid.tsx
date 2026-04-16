@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
+import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -9,6 +10,10 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog'
+import { DateRangePicker } from '@/components/ui/date-range-picker'
+import { DatePicker } from '@/components/ui/date-picker'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Calendar as CalendarComponent } from '@/components/ui/calendar'
 import {
   Search,
   Check,
@@ -20,6 +25,7 @@ import {
   UtensilsCrossed,
   X,
   Calendar,
+  Pencil,
 } from 'lucide-react'
 import type { ScheduleEntry, ScheduleDayType } from '@/types/schedule'
 import type { RateCardItemsBySection } from '@/types/rate-card'
@@ -36,6 +42,7 @@ import {
   upsertScheduleActualHours,
   upsertScheduleDayType,
   deleteScheduleDayType,
+  updateScheduleDayType,
   bulkFillColumn,
   generateDateRange,
   computeScheduleRollup,
@@ -539,11 +546,15 @@ function SegmentDatePicker({ onUpdateDates, initialStartDate, initialEndDate }: 
         <p className="text-sm font-medium text-muted-foreground/70">Set event dates to generate your staffing schedule</p>
         <p className="text-xs text-muted-foreground/50 mt-1">Choose a date range for this segment</p>
       </div>
-      <div className="flex items-center gap-2">
-        <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="h-8 text-sm w-[150px]" />
-        <span className="text-xs text-muted-foreground/50">to</span>
-        <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="h-8 text-sm w-[150px]" />
-      </div>
+      <DateRangePicker
+        value={{ from: startDate || null, to: endDate || null }}
+        onChange={(range) => {
+          setStartDate(range.from ?? '')
+          setEndDate(range.to ?? '')
+        }}
+        placeholder="Select start and end dates"
+        triggerClassName="w-[280px]"
+      />
       <Button
         size="sm"
         disabled={!startDate || !endDate || !onUpdateDates || saving}
@@ -816,6 +827,26 @@ export function ScheduleGrid({
     onDataChange?.()
   }
 
+  async function handleEditDate(oldDate: string, newDate: string) {
+    if (!newDate || newDate === oldDate) return
+    if (dayTypes.some((d) => d.work_date === newDate)) {
+      toast.error(`A column already exists on ${newDate}`)
+      return
+    }
+    try {
+      await updateScheduleDayType(laborLog.id, oldDate, newDate)
+      setDayTypes((prev) => prev.map((d) => d.work_date === oldDate ? { ...d, work_date: newDate } : d))
+      setEntries((prev) => prev.map((e) => ({
+        ...e,
+        day_entries: e.day_entries?.map((de) => de.work_date === oldDate ? { ...de, work_date: newDate } : de),
+      })))
+      onDataChange?.()
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to move date'
+      toast.error(message)
+    }
+  }
+
   async function handleRemoveDate(date: string) {
     const hasData = entries.some((e) => e.day_entries?.some((d) => d.work_date === date && d.hours > 0))
     if (hasData && !confirm('This date has hours entered. Remove it?')) return
@@ -980,8 +1011,9 @@ export function ScheduleGrid({
                   ? 'bg-rose-50/60'
                   : (DAY_TYPE_COLORS[dt.day_type as DayType]?.bg ?? '')
                 const canRemoveInRecap = recapMode && dt.is_unplanned
+                const canEditDate = !readOnly
                 return (
-                  <th key={dt.work_date} className={`px-1 py-1 border-b border-r border-slate-200 min-w-[56px] text-center ${headerBg}`}>
+                  <th key={dt.work_date} className={`group/day px-1 py-1 border-b border-r border-slate-200 min-w-[56px] text-center ${headerBg}`}>
                     <div className="flex flex-col items-center gap-0.5">
                       <div className="flex items-center gap-1">
                         {readOnly && !canRemoveInRecap ? (
@@ -995,10 +1027,35 @@ export function ScheduleGrid({
                             >
                               {d.month} {d.day}
                             </button>
+                            {canEditDate && (
+                              <Popover>
+                                <PopoverTrigger asChild>
+                                  <button
+                                    className="opacity-0 group-hover/day:opacity-100 hover:opacity-100 text-muted-foreground/40 hover:text-blue-600 transition-all"
+                                    title="Change date"
+                                  >
+                                    <Pencil className="h-2.5 w-2.5" />
+                                  </button>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-auto p-0" align="center">
+                                  <CalendarComponent
+                                    mode="single"
+                                    defaultMonth={new Date(dt.work_date + 'T00:00:00')}
+                                    selected={new Date(dt.work_date + 'T00:00:00')}
+                                    onSelect={(next) => {
+                                      if (!next) return
+                                      const iso = `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, '0')}-${String(next.getDate()).padStart(2, '0')}`
+                                      handleEditDate(dt.work_date, iso)
+                                    }}
+                                    numberOfMonths={1}
+                                  />
+                                </PopoverContent>
+                              </Popover>
+                            )}
                             {(!readOnly || canRemoveInRecap) && (
                               <button
                                 onClick={() => handleRemoveDate(dt.work_date)}
-                                className="opacity-0 group-hover:opacity-100 hover:opacity-100 text-muted-foreground/40 hover:text-red-500 transition-all"
+                                className="opacity-0 group-hover/day:opacity-100 hover:opacity-100 text-muted-foreground/40 hover:text-red-500 transition-all"
                                 title="Remove date"
                               >
                                 <X className="h-2.5 w-2.5" />
@@ -1261,7 +1318,7 @@ export function ScheduleGrid({
 
       {/* Add Date dialog */}
       <Dialog open={showAddDate} onOpenChange={setShowAddDate}>
-        <DialogContent className="sm:max-w-[300px]">
+        <DialogContent className="sm:max-w-[340px]">
           <DialogHeader>
             <DialogTitle className="text-sm flex items-center gap-2">
               {recapMode ? 'Add Unplanned Day' : 'Add Date'}
@@ -1275,7 +1332,12 @@ export function ScheduleGrid({
                 : 'Add a date column to the schedule'}
             </DialogDescription>
           </DialogHeader>
-          <Input type="date" value={newDate} onChange={(e) => setNewDate(e.target.value)} className="h-8 text-sm" autoFocus />
+          <DatePicker
+            value={newDate || null}
+            onChange={(v) => setNewDate(v ?? '')}
+            placeholder="Pick a date"
+            autoFocus
+          />
           <DialogFooter>
             <Button variant="outline" size="sm" onClick={() => { setShowAddDate(false); setNewDate('') }} className="text-[13px]">Cancel</Button>
             <Button size="sm" disabled={!newDate} onClick={handleAddDate} className="text-[13px]">

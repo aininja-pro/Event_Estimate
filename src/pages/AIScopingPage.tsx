@@ -21,6 +21,7 @@ import {
 } from '@/components/ui/table'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
+import { DateRangePicker } from '@/components/ui/date-range-picker'
 import { Sparkles, Loader2, AlertTriangle, RotateCcw, ArrowRight, Search, X, ChevronDown, ChevronRight, Check, History } from 'lucide-react'
 import { getAIContext } from '@/lib/data'
 import { getClients } from '@/lib/rate-card-service'
@@ -491,22 +492,16 @@ export function AIScopingPage() {
                 </SelectContent>
               </Select>
             </div>
-            <div>
-              <p className={fieldLabel}>Start Date</p>
-              <Input
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                className={fieldInput}
-              />
-            </div>
-            <div>
-              <p className={fieldLabel}>End Date</p>
-              <Input
-                type="date"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-                className={fieldInput}
+            <div className="col-span-2">
+              <p className={fieldLabel}>Event Dates</p>
+              <DateRangePicker
+                value={{ from: startDate || null, to: endDate || null }}
+                onChange={(range) => {
+                  setStartDate(range.from ?? '')
+                  setEndDate(range.to ?? '')
+                }}
+                placeholder="Select start and end dates"
+                triggerClassName={`${fieldInput} w-full justify-start`}
               />
             </div>
             <div>
