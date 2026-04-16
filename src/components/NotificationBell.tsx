@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { Bell, CheckCheck } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
+import { toast } from 'sonner'
 import { useAuth } from '@/lib/auth'
 import { supabase } from '@/lib/supabase'
 import {
@@ -48,8 +49,25 @@ export function NotificationBell() {
           table: 'notifications',
           filter: `user_id=eq.${user.id}`,
         },
-        () => {
+        (payload) => {
           loadNotifications()
+          // Pop a toast so the user notices the update even if they're not
+          // looking at the bell. Clicking navigates to the estimate.
+          const n = payload.new as Notification
+          const variant = n.type === 'approval_decision' ? 'success' : 'info'
+          const go = () => {
+            if (!n.is_read) markAsRead(n.id).catch(() => {})
+            if (n.estimate_id) {
+              navigate(`/estimates/${n.estimate_id}`)
+            }
+          }
+          toast[variant](n.title, {
+            description: n.body,
+            duration: 6000,
+            action: n.estimate_id
+              ? { label: 'Open', onClick: go }
+              : undefined,
+          })
         }
       )
       .subscribe()
@@ -57,7 +75,7 @@ export function NotificationBell() {
     return () => {
       supabase!.removeChannel(channel)
     }
-  }, [user, loadNotifications])
+  }, [user, loadNotifications, navigate])
 
   // Close on outside click
   useEffect(() => {

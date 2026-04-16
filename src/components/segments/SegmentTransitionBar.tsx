@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Lock, AlertTriangle } from 'lucide-react'
+import { Lock, AlertTriangle, User, Users } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -86,6 +86,7 @@ interface SegmentTransitionBarProps {
   segmentName: string
   status: SegmentStatus
   userRole: string
+  primaryApprover?: { id: string; full_name: string } | null
   onTransition: (toStatus: SegmentStatus, comment?: string) => Promise<{ success: boolean; error?: string }>
   onCreateChangeOrder?: (description: string) => Promise<{ success: boolean; error?: string }>
   onSubmitChangeOrder?: () => Promise<{ success: boolean; error?: string }>
@@ -94,7 +95,7 @@ interface SegmentTransitionBarProps {
   hasDraftCO?: boolean
 }
 
-export function SegmentTransitionBar({ segmentName, status, userRole, onTransition, onCreateChangeOrder, onSubmitChangeOrder, disabled, unnamedStaffCount, hasDraftCO }: SegmentTransitionBarProps) {
+export function SegmentTransitionBar({ segmentName, status, userRole, primaryApprover, onTransition, onCreateChangeOrder, onSubmitChangeOrder, disabled, unnamedStaffCount, hasDraftCO }: SegmentTransitionBarProps) {
   const [confirmAction, setConfirmAction] = useState<SegmentAction | null>(null)
   const [reason, setReason] = useState('')
   const [submitting, setSubmitting] = useState(false)
@@ -205,6 +206,32 @@ export function SegmentTransitionBar({ segmentName, status, userRole, onTransiti
               }
             </DialogDescription>
           </DialogHeader>
+
+          {/* Routing info — only for Submit for Review / Submit Change Order transitions */}
+          {confirmAction?.toStatus === 'in_review' && (
+            <div className="flex items-start gap-2 px-3 py-2 bg-amber-50/40 border border-amber-200/50 rounded text-[11px]">
+              {primaryApprover ? (
+                <>
+                  <User className="h-3.5 w-3.5 shrink-0 mt-[1px] text-amber-700/80" />
+                  <div className="leading-tight">
+                    <span className="text-muted-foreground">This will be sent to </span>
+                    <span className="font-medium text-foreground">{primaryApprover.full_name}</span>
+                    <span className="text-muted-foreground"> for review.</span>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <Users className="h-3.5 w-3.5 shrink-0 mt-[1px] text-amber-700/80" />
+                  <div className="leading-tight text-muted-foreground">
+                    This will be sent to all account managers for review.
+                    <span className="block text-[10px] text-muted-foreground/70 mt-0.5">
+                      No primary approver is set on this client.
+                    </span>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
 
           {confirmAction?.requiresReason && (
             <Textarea

@@ -1,5 +1,12 @@
 // ---- Phase 2: Supabase table types ----
 
+export interface ClientApprover {
+  id: string
+  full_name: string
+  email: string
+  role: 'admin' | 'cfo' | 'operations' | 'production_manager' | 'account_manager'
+}
+
 export interface Client {
   id: string
   name: string
@@ -15,11 +22,22 @@ export interface Client {
   billing_contact_email: string | null
   billing_address: string | null
   billing_phone: string | null
+  primary_approver_id: string | null
+  primary_approver?: ClientApprover | null
   created_at: string
   updated_at: string
 }
 
-export type ClientUpdate = Partial<Pick<Client, 'billing_contact_name' | 'billing_contact_email' | 'billing_address' | 'billing_phone'>>
+export type ClientUpdate = Partial<
+  Pick<
+    Client,
+    | 'billing_contact_name'
+    | 'billing_contact_email'
+    | 'billing_address'
+    | 'billing_phone'
+    | 'primary_approver_id'
+  >
+>
 
 export interface RateCardSection {
   id: string

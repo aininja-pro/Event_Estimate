@@ -8,6 +8,7 @@ import {
 import type { ScheduleEntry } from '../types/schedule'
 import { hasPermission } from './permissions'
 import { getApprovalThreshold } from './system-settings-service'
+import { getClientApproverForEstimate } from './rate-card-service'
 import type {
   EstimateVersion,
   ApprovalRequest,
@@ -613,6 +614,11 @@ export async function submitForApproval(
   const segmentRevenue = computeSegmentRevenue(snapshot, laborLogId)
   const thresholdResult = await determineApprovalThreshold(segmentRevenue)
 
+  // Resolve the client's designated approver (if any) and stamp it on the
+  // approval_request for audit/history. Notification dispatch happens in
+  // dispatchSegmentNotifications — this column is intent-of-record only.
+  const approver = await getClientApproverForEstimate(estimateId)
+
   // Create approval request with segment reference — starts at AM gate
   const { data, error } = await db
     .from('approval_requests')
@@ -624,6 +630,7 @@ export async function submitForApproval(
       labor_log_id: laborLogId,
       approval_phase: 'internal',
       approval_gate: 'am',
+      reviewer: approver?.id ?? null,
       notes: comment || null,
     })
     .select()

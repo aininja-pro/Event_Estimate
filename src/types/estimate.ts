@@ -26,7 +26,13 @@ export type EstimateInsert = Omit<Estimate, 'id' | 'created_at' | 'updated_at'>
 export type EstimateUpdate = Partial<Omit<Estimate, 'id' | 'client_id' | 'created_at' | 'updated_at'>>
 
 export interface EstimateWithClient extends Estimate {
-  clients: { name: string; code: string; third_party_markup: number; office_payout_pct: number }
+  clients: {
+    name: string
+    code: string
+    third_party_markup: number
+    office_payout_pct: number
+    billing_contact_email: string | null
+  }
 }
 
 export interface EstimateWithSegments extends EstimateWithClient {

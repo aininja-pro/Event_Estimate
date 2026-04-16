@@ -21,26 +21,32 @@ function requireSupabase() {
 
 // ---- Clients ----
 
+// Join the approver profile everywhere we fetch clients so the UI can render
+// the assignee's name without a second round-trip. FK is auto-named
+// clients_primary_approver_id_fkey by the Step 1 migration.
+const CLIENT_SELECT =
+  '*, primary_approver:profiles!clients_primary_approver_id_fkey(id, full_name, email, role)'
+
 export async function getClients(): Promise<Client[]> {
   const db = requireSupabase()
   const { data, error } = await db
     .from('clients')
-    .select('*')
+    .select(CLIENT_SELECT)
     .eq('is_active', true)
     .order('name')
   if (error) throw error
-  return data
+  return data as unknown as Client[]
 }
 
 export async function getClient(id: string): Promise<Client> {
   const db = requireSupabase()
   const { data, error } = await db
     .from('clients')
-    .select('*')
+    .select(CLIENT_SELECT)
     .eq('id', id)
     .single()
   if (error) throw error
-  return data
+  return data as unknown as Client
 }
 
 export async function updateClient(id: string, updates: ClientUpdate): Promise<Client> {
@@ -49,10 +55,51 @@ export async function updateClient(id: string, updates: ClientUpdate): Promise<C
     .from('clients')
     .update(updates)
     .eq('id', id)
-    .select()
+    .select(CLIENT_SELECT)
     .single()
   if (error) throw error
-  return data
+  return data as unknown as Client
+}
+
+// Users eligible to be a client's primary approver. Role gate matches the
+// requirements doc: account_manager or admin only.
+export interface ApproverUser {
+  id: string
+  full_name: string
+  role: 'admin' | 'account_manager'
+}
+
+export async function getApproverUsers(): Promise<ApproverUser[]> {
+  const db = requireSupabase()
+  const { data, error } = await db
+    .from('profiles')
+    .select('id, full_name, role')
+    .in('role', ['account_manager', 'admin'])
+    .eq('is_active', true)
+    .order('full_name')
+  if (error) throw error
+  return data as ApproverUser[]
+}
+
+// Look up the designated primary approver for the client attached to an
+// estimate. Returns null if the estimate has no client, the client has no
+// primary_approver_id set, or the lookup fails — callers should treat null as
+// "fall back to broadcast routing."
+export async function getClientApproverForEstimate(
+  estimateId: string
+): Promise<{ id: string; full_name: string } | null> {
+  const db = requireSupabase()
+  const { data, error } = await db
+    .from('estimates')
+    .select(
+      'client:clients!inner(primary_approver:profiles!clients_primary_approver_id_fkey(id, full_name))'
+    )
+    .eq('id', estimateId)
+    .single()
+  if (error) return null
+  const approver = (data as unknown as { client?: { primary_approver?: { id: string; full_name: string } | null } })
+    ?.client?.primary_approver
+  return approver ?? null
 }
 
 // ---- Sections ----
