@@ -18,6 +18,7 @@ import { FeedbackPage } from '@/pages/FeedbackPage'
 import { AdminFeedbackPage } from '@/pages/AdminFeedbackPage'
 import { LoginPage } from '@/pages/LoginPage'
 import { AdminUsersPage } from '@/pages/AdminUsersPage'
+import { AdminSettingsPage } from '@/pages/AdminSettingsPage'
 
 function RequireAuth() {
   const { session, loading } = useAuth()
@@ -80,6 +81,7 @@ function App() {
 
               <Route element={<RequireAdmin />}>
                 <Route path="/admin/users" element={<AdminUsersPage />} />
+                <Route path="/admin/settings" element={<AdminSettingsPage />} />
               </Route>
             </Route>
 

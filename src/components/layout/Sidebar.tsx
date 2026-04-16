@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { NavLink } from 'react-router-dom'
-import { BarChart3, ClipboardList, Bot, Layers, Database, GitBranch, Map, FileSpreadsheet, DollarSign, MessageSquare, Briefcase, Users, ChevronsLeft, ChevronsRight, LayoutDashboard } from 'lucide-react'
+import { BarChart3, ClipboardList, Bot, Layers, Database, GitBranch, Map, FileSpreadsheet, DollarSign, MessageSquare, Briefcase, Users, ChevronsLeft, ChevronsRight, LayoutDashboard, Settings } from 'lucide-react'
 import { Separator } from '@/components/ui/separator'
 import { useAuth } from '@/lib/auth'
 
@@ -30,6 +30,7 @@ const uiConceptItems = [
 const adminItems = [
   { to: '/admin/feedback', label: 'Feedback Management', icon: MessageSquare },
   { to: '/admin/users', label: 'User Management', icon: Users },
+  { to: '/admin/settings', label: 'System Settings', icon: Settings },
 ]
 
 const SIDEBAR_STORAGE_KEY = 'sidebar-collapsed'
