@@ -3255,8 +3255,14 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
         setActiveLocationId(repairedLog.id)
       }
 
-      // Sync date changes to labor logs so the schedule grid picks them up
-      if ((updates.start_date !== undefined || updates.end_date !== undefined) && nextLogs.length > 0) {
+      // Keep the estimate header and segment dates aligned only for the
+      // single-segment case. Multi-segment estimates own their timelines per
+      // segment, so header edits should not overwrite every segment's calendar.
+      if (
+        (updates.start_date !== undefined || updates.end_date !== undefined) &&
+        nextLogs.length === 1 &&
+        nextLogs[0].is_primary
+      ) {
         const dateUpdates: { start_date?: string | null; end_date?: string | null } = {}
         if (updates.start_date !== undefined) dateUpdates.start_date = updates.start_date
         if (updates.end_date !== undefined) dateUpdates.end_date = updates.end_date
@@ -3264,7 +3270,7 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
           nextLogs.map((log) => updateLaborLog(log.id, dateUpdates))
         )
         nextLogs = updatedLogs
-        setLaborLogs(nextLogs)
+        setLaborLogs(updatedLogs)
       }
 
       const newLocation = typeof updates.location === 'string' ? updates.location.trim() : ''
@@ -3303,9 +3309,9 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
         estimate_id: estimateId,
         location_name: name,
         is_primary: false,
-        start_date: estimate?.start_date ?? null,
-        end_date: estimate?.end_date ?? null,
-        status: 'estimate',
+        start_date: null,
+        end_date: null,
+        status: 'pipeline',
         location_order: nextOrder,
       })
       setLaborLogs((prev) => [...prev, log])
@@ -3776,13 +3782,25 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
             </TabsList>
 
             {activeSegmentStatus === 'pipeline' && activeTab !== 'header' ? (
-              <div className="flex flex-col items-center justify-center py-16 text-center">
-                <div className="rounded-lg border border-zinc-200/60 bg-zinc-50/50 px-8 py-10 max-w-md">
-                  <p className="text-[13px] text-muted-foreground">
-                    This segment is in <span className="font-medium text-foreground">Pipeline</span> status. Click{' '}
-                    <span className="font-medium text-foreground">"Begin Estimating"</span> above to start building
-                    the labor plan and line items.
-                  </p>
+              <div className="space-y-2">
+                <LocationSelector
+                  laborLogs={laborLogs}
+                  activeLocationId={activeLocationId}
+                  onSelectLocation={setActiveLocationId}
+                  onAddLocation={handleAddLocation}
+                  onDeleteLocation={handleDeleteLocation}
+                  onRenameLocation={handleRenameLocation}
+                  readOnly={!editRules.schedule_add_remove}
+                  canDelete={hasPermission(userRole, 'delete_estimate')}
+                />
+                <div className="flex flex-col items-center justify-center py-16 text-center">
+                  <div className="rounded-lg border border-zinc-200/60 bg-zinc-50/50 px-8 py-10 max-w-md">
+                    <p className="text-[13px] text-muted-foreground">
+                      This segment is in <span className="font-medium text-foreground">Pipeline</span> status. Click{' '}
+                      <span className="font-medium text-foreground">"Begin Estimating"</span> above to start building
+                      the labor plan and line items.
+                    </p>
+                  </div>
                 </div>
               </div>
             ) : (
