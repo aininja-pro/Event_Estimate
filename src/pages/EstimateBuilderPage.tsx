@@ -77,6 +77,7 @@ import {
   getEstimate,
   updateEstimate,
   getLaborLogs,
+  createPrimarySegmentForEstimate,
   createLaborLog,
   deleteLaborLog,
   updateLaborLog,
@@ -2981,10 +2982,14 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
       const est = await getEstimate(estimateId)
       setEstimate(est)
 
-      const [logs, rcData] = await Promise.all([
+      const [loadedLogs, rcData] = await Promise.all([
         getLaborLogs(estimateId),
         getRateCardItemsBySection(est.client_id),
       ])
+
+      const logs = loadedLogs.length > 0
+        ? loadedLogs
+        : [await createPrimarySegmentForEstimate(est)]
 
       setLaborLogs(logs)
       setRateCardData(rcData)
