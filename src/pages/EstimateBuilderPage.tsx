@@ -3614,15 +3614,15 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
     return result
   }
 
-  async function handleApprove(approvalId: string, notes?: string) {
+  async function handleApprove(approvalId: string, notes?: string, skipClientGate?: boolean) {
     if (!activeLocationId) return { success: false, error: 'No segment selected' }
     const co = submittedChangeOrders[activeLocationId]
     if (co) {
-      const result = await approveChangeOrder(co.id, approvalId, userId, userRole, notes)
+      const result = await approveChangeOrder(co.id, approvalId, userId, userRole, notes, skipClientGate)
       if (result.success) await loadData()
       return result
     }
-    const result = await reviewApproval(approvalId, 'approved', userId, userRole, notes)
+    const result = await reviewApproval(approvalId, 'approved', userId, userRole, notes, skipClientGate)
     if (result.success) await loadData()
     return result
   }
@@ -3778,6 +3778,27 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
               : undefined
           }
         />
+      )}
+
+      {/* Client rejection feedback banner */}
+      {activeLocationId && activeSegmentStatus === 'estimate' && clientTokens[activeLocationId]?.status === 'rejected' && (
+        <div className="flex items-start gap-2 px-3 py-2 bg-red-50 border border-red-200/60 rounded text-[11px] text-red-800">
+          <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5 text-red-600" />
+          <div>
+            <span className="font-medium">Client requested changes</span>
+            <span className="text-red-700/70 ml-1">
+              ({clientTokens[activeLocationId]!.client_email}
+              {clientTokens[activeLocationId]!.rejected_at && (
+                <> on {new Date(clientTokens[activeLocationId]!.rejected_at!).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</>
+              )})
+            </span>
+            {clientTokens[activeLocationId]!.rejection_notes && (
+              <p className="mt-1 text-red-700/90 whitespace-pre-wrap">
+                &ldquo;{clientTokens[activeLocationId]!.rejection_notes}&rdquo;
+              </p>
+            )}
+          </div>
+        </div>
       )}
 
       {/* Change Order in-progress banner */}

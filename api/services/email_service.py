@@ -33,12 +33,14 @@ def send_client_approval_email(
     from_email = os.getenv("RESEND_FROM_EMAIL", "onboarding@resend.dev")
     approval_base = os.getenv("APPROVAL_BASE_URL", "http://localhost:8000").rstrip("/")
     approval_url = f"{approval_base}/api/approval/confirm/{approval_token}"
+    reject_url = f"{approval_base}/api/approval/respond/{approval_token}"
 
     html = _build_approval_html(
         client_name=client_name,
         event_name=event_name,
         estimate_total=estimate_total,
         approval_url=approval_url,
+        reject_url=reject_url,
         note=note,
     )
 
@@ -65,6 +67,7 @@ def _build_approval_html(
     event_name: str,
     estimate_total: float,
     approval_url: str,
+    reject_url: str,
     note: str,
 ) -> str:
     note_block = (
@@ -101,16 +104,24 @@ def _build_approval_html(
 
     {note_block}
 
-    <div style="text-align:center;margin:28px 0 20px;">
+    <div style="text-align:center;margin:28px 0 12px;">
       <a href="{approval_url}"
          style="display:inline-block;background:#1a1a2e;color:#fff;padding:12px 32px;text-decoration:none;border-radius:4px;font-weight:500;">
         Approve Estimate
       </a>
     </div>
 
+    <div style="text-align:center;margin:0 0 20px;">
+      <a href="{reject_url}"
+         style="color:#666;font-size:13px;text-decoration:underline;">
+        Request Changes
+      </a>
+    </div>
+
     <p style="color:#999;font-size:12px;margin:20px 0 0;">
-      Clicking the button confirms the estimate on your behalf. If you have questions,
-      reply to this email or contact your account manager.
+      Clicking "Approve Estimate" confirms the estimate on your behalf.
+      Use "Request Changes" to send feedback. You can also reply to this email
+      or contact your account manager.
     </p>
   </div>
 </body>

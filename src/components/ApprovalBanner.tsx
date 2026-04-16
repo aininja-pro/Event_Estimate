@@ -88,7 +88,7 @@ function getGateConfig(gate: ApprovalGate, threshold: string | null): GateConfig
 interface ApprovalBannerProps {
   approval: ApprovalRequest
   userRole: string
-  onApprove: (approvalId: string, notes?: string) => Promise<{ success: boolean; error?: string }>
+  onApprove: (approvalId: string, notes?: string, skipClientGate?: boolean) => Promise<{ success: boolean; error?: string }>
   onReject: (approvalId: string, notes: string) => Promise<{ success: boolean; error?: string }>
   changeOrder?: ChangeOrder
   /** Client-gate only: populated when the estimate is ready to email the client. */
@@ -110,6 +110,7 @@ export function ApprovalBanner({ approval, userRole, onApprove, onReject, change
   const [error, setError] = useState<string | null>(null)
   const [deltaExpanded, setDeltaExpanded] = useState(false)
   const [sendOpen, setSendOpen] = useState(false)
+  const [requireClientApproval, setRequireClientApproval] = useState(true)
 
   const requestedDate = new Date(approval.requested_at).toLocaleDateString('en-US', {
     month: 'short', day: 'numeric', year: 'numeric',
@@ -131,8 +132,9 @@ export function ApprovalBanner({ approval, userRole, onApprove, onReject, change
     setSubmitting(true)
     setError(null)
 
+    const skipClient = action === 'approve' && gate !== 'client' && !requireClientApproval
     const result = action === 'approve'
-      ? await onApprove(approval.id, notes.trim() || undefined)
+      ? await onApprove(approval.id, notes.trim() || undefined, skipClient)
       : await onReject(approval.id, notes.trim())
 
     setSubmitting(false)
@@ -281,16 +283,31 @@ export function ApprovalBanner({ approval, userRole, onApprove, onReject, change
       )}
 
       {/* Confirmation dialog */}
-      <Dialog open={!!action} onOpenChange={(o) => { if (!o) setAction(null) }}>
+      <Dialog open={!!action} onOpenChange={(o) => { if (!o) { setAction(null); setRequireClientApproval(true) } }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="text-sm">
               {action === 'approve' ? config.dialogApproveTitle : config.dialogRejectTitle}
             </DialogTitle>
             <DialogDescription className="text-xs text-muted-foreground">
-              {action === 'approve' ? config.dialogApproveDesc : config.dialogRejectDesc}
+              {action === 'approve' && gate !== 'client' && !requireClientApproval
+                ? 'This will approve and activate the segment immediately (no client approval).'
+                : (action === 'approve' ? config.dialogApproveDesc : config.dialogRejectDesc)
+              }
             </DialogDescription>
           </DialogHeader>
+
+          {action === 'approve' && gate !== 'client' && (
+            <label className="flex items-center gap-2 text-xs text-slate-700 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={requireClientApproval}
+                onChange={(e) => setRequireClientApproval(e.target.checked)}
+                className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+              />
+              Requires client approval
+            </label>
+          )}
 
           <Textarea
             value={notes}

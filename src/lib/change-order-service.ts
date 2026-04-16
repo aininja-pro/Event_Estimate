@@ -637,13 +637,14 @@ export async function approveChangeOrder(
   approvalId: string,
   userId: string,
   userRole: string,
-  notes?: string
+  notes?: string,
+  skipClientGate?: boolean
 ): Promise<{ success: boolean; nextGate?: string; error?: string }> {
   const db = requireSupabase()
 
   try {
     // 1. Process the approval through the normal gate chain
-    const result = await reviewApproval(approvalId, 'approved', userId, userRole, notes)
+    const result = await reviewApproval(approvalId, 'approved', userId, userRole, notes, skipClientGate)
     if (result.error) return result
 
     // 2. If no next gate (final approval), mark CO as approved

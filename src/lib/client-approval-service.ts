@@ -68,10 +68,12 @@ export interface ClientApprovalToken {
   estimate_id: string
   labor_log_id: string
   client_email: string
-  status: 'pending' | 'approved' | 'expired' | 'superseded'
+  status: 'pending' | 'approved' | 'expired' | 'superseded' | 'rejected'
   sent_at: string
   expires_at: string
   approved_at: string | null
+  rejected_at: string | null
+  rejection_notes: string | null
 }
 
 /** Fetch the most recent token for a segment so the banner can show
@@ -83,7 +85,7 @@ export async function getLatestClientApprovalToken(
   if (!supabase) return null
   const { data, error } = await supabase
     .from('client_approval_tokens')
-    .select('id, estimate_id, labor_log_id, client_email, status, sent_at, expires_at, approved_at')
+    .select('id, estimate_id, labor_log_id, client_email, status, sent_at, expires_at, approved_at, rejected_at, rejection_notes')
     .eq('labor_log_id', laborLogId)
     .order('sent_at', { ascending: false })
     .limit(1)

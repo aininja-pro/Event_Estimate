@@ -45,6 +45,8 @@ def confirm_client_approval(token: str, request_ip: str | None = None) -> dict[s
 
     if token_row["status"] == "approved":
         return _success_payload(db, token_row["estimate_id"])
+    if token_row["status"] == "rejected":
+        raise ApprovalError("already_used", "This estimate already has pending feedback.")
     if token_row["status"] in ("expired", "superseded"):
         raise ApprovalError(token_row["status"], f"Token is {token_row['status']}.")
 
@@ -137,6 +139,153 @@ def confirm_client_approval(token: str, request_ip: str | None = None) -> dict[s
     return _success_payload(db, estimate_id)
 
 
+def reject_client_approval(
+    token: str, comments: str, request_ip: str | None = None
+) -> dict[str, Any]:
+    """Validate a token and run the client-gate rejection sequence.
+
+    Returns {"event_name": str, "client_name": str} on success.
+    Raises ApprovalError on any validation failure.
+    """
+    db = get_supabase()
+
+    token_rows = (
+        db.table("client_approval_tokens")
+        .select("*")
+        .eq("token", token)
+        .limit(1)
+        .execute()
+    )
+    if not token_rows.data:
+        raise ApprovalError("not_found", "No matching approval token.")
+    token_row = token_rows.data[0]
+
+    if token_row["status"] == "approved":
+        raise ApprovalError("already_used", "This estimate has already been approved.")
+    if token_row["status"] == "rejected":
+        raise ApprovalError("already_used", "This estimate already has pending feedback.")
+    if token_row["status"] in ("expired", "superseded"):
+        raise ApprovalError(token_row["status"], f"Token is {token_row['status']}.")
+
+    expires_at = _parse_ts(token_row["expires_at"])
+    now = datetime.now(timezone.utc)
+    if expires_at and expires_at < now:
+        db.table("client_approval_tokens").update({"status": "expired"}).eq(
+            "id", token_row["id"]
+        ).execute()
+        raise ApprovalError("expired", "Token has expired.")
+
+    estimate_id: str = token_row["estimate_id"]
+    labor_log_id: str = token_row["labor_log_id"]
+    approval_request_id: str | None = token_row.get("approval_request_id")
+    client_email: str = token_row["client_email"]
+
+    # 1. Mark token rejected.
+    db.table("client_approval_tokens").update(
+        {
+            "status": "rejected",
+            "rejected_at": now.isoformat(),
+            "rejected_from_ip": request_ip,
+            "rejection_notes": comments,
+        }
+    ).eq("id", token_row["id"]).execute()
+
+    # 2. Resolve and reject the matching approval_requests row.
+    approval_row = _resolve_approval_request(db, approval_request_id, labor_log_id)
+    if approval_row is not None:
+        db.table("approval_requests").update(
+            {
+                "status": "rejected",
+                "reviewed_at": now.isoformat(),
+                "reviewer": client_email,
+                "reviewed_by": None,
+                "notes": f"Client requested changes: {comments}",
+            }
+        ).eq("id", approval_row["id"]).execute()
+
+    # 3. Transition the segment back to estimate (skip if no longer in_review).
+    segment = (
+        db.table("labor_logs")
+        .select("id, status, estimate_id, location_name")
+        .eq("id", labor_log_id)
+        .limit(1)
+        .execute()
+    )
+    if not segment.data:
+        return _success_payload(db, estimate_id)
+    seg_row = segment.data[0]
+    from_status = seg_row.get("status") or "in_review"
+
+    if from_status == "in_review":
+        db.table("labor_logs").update({"status": "estimate"}).eq("id", labor_log_id).execute()
+
+        # 4. Log segment_activities for the History panel.
+        db.table("segment_activities").insert(
+            {
+                "labor_log_id": labor_log_id,
+                "estimate_id": estimate_id,
+                "action": "status_change",
+                "from_status": from_status,
+                "to_status": "estimate",
+                "changed_by": client_email,
+                "comment": f"Client requested changes via email: {comments}",
+                "metadata": {
+                    "gate": "client",
+                    "channel": "email",
+                    "token_id": token_row["id"],
+                    "rejected": True,
+                },
+            }
+        ).execute()
+
+    # 5. Notify the internal team.
+    try:
+        _notify_internal(
+            db,
+            estimate_id=estimate_id,
+            labor_log_id=labor_log_id,
+            segment_name=seg_row.get("location_name") or "Segment",
+            client_email=client_email,
+            sent_by=token_row.get("sent_by"),
+            rejected=True,
+            rejection_comments=comments,
+        )
+    except Exception as err:  # pragma: no cover
+        print(f"[client_approval] rejection notification dispatch failed: {err}")
+
+    return _success_payload(db, estimate_id)
+
+
+def validate_pending_token(token: str) -> dict[str, Any]:
+    """Validate a token is pending without consuming it. Returns the token row + estimate info."""
+    db = get_supabase()
+    token_rows = (
+        db.table("client_approval_tokens")
+        .select("*")
+        .eq("token", token)
+        .limit(1)
+        .execute()
+    )
+    if not token_rows.data:
+        raise ApprovalError("not_found", "No matching approval token.")
+    token_row = token_rows.data[0]
+
+    if token_row["status"] != "pending":
+        reason = "already_used" if token_row["status"] in ("approved", "rejected") else token_row["status"]
+        raise ApprovalError(reason, f"Token is {token_row['status']}.")
+
+    expires_at = _parse_ts(token_row["expires_at"])
+    now = datetime.now(timezone.utc)
+    if expires_at and expires_at < now:
+        db.table("client_approval_tokens").update({"status": "expired"}).eq(
+            "id", token_row["id"]
+        ).execute()
+        raise ApprovalError("expired", "Token has expired.")
+
+    payload = _success_payload(db, token_row["estimate_id"])
+    return {**payload, "token": token}
+
+
 def _resolve_approval_request(
     db: Any, approval_request_id: str | None, labor_log_id: str
 ) -> dict | None:
@@ -171,8 +320,10 @@ def _notify_internal(
     segment_name: str,
     client_email: str,
     sent_by: str | None,
+    rejected: bool = False,
+    rejection_comments: str = "",
 ) -> None:
-    """Fan out a notification to the internal team when the client approves.
+    """Fan out a notification to the internal team when the client approves or rejects.
 
     Recipient set (deduplicated):
       - The user who clicked "Send to Client" (sent_by on the token).
@@ -184,8 +335,14 @@ def _notify_internal(
     an "approval_decision" framing; AMs / PMs get a broader "segment_status_changed"
     framing.
     """
-    base_body = f'"{segment_name}" was approved by the client ({client_email}) and is now active.'
-    metadata = {"gate": "client", "channel": "email", "client_email": client_email}
+    if rejected:
+        base_body = f'"{segment_name}" — client ({client_email}) requested changes.'
+        if rejection_comments:
+            base_body += f' Feedback: "{rejection_comments}"'
+        metadata = {"gate": "client", "channel": "email", "client_email": client_email, "rejected": True}
+    else:
+        base_body = f'"{segment_name}" was approved by the client ({client_email}) and is now active.'
+        metadata = {"gate": "client", "channel": "email", "client_email": client_email}
 
     sent_ids: set[str] = set()
 
@@ -205,10 +362,9 @@ def _notify_internal(
             }
         ).execute()
 
-    # Sender (AM who clicked Send to Client) — highest-value recipient.
-    _send(sent_by, type_="approval_decision", title="Client approved your estimate")
+    sender_title = "Client requested changes" if rejected else "Client approved your estimate"
+    _send(sent_by, type_="approval_decision", title=sender_title)
 
-    # Creator (optional — estimates.created_by may be null for older rows).
     estimate = (
         db.table("estimates")
         .select("created_by")
@@ -217,10 +373,10 @@ def _notify_internal(
         .execute()
     )
     creator_id = estimate.data[0]["created_by"] if estimate.data else None
-    _send(creator_id, type_="approval_decision", title="Segment approved — now active")
+    creator_title = "Client requested changes — segment sent back" if rejected else "Segment approved — now active"
+    _send(creator_id, type_="approval_decision", title=creator_title)
 
-    # Broadcast to account_managers + production_managers so the team at large
-    # sees the approval even when sender / creator are the same person or null.
+    team_title = "Client requested changes" if rejected else "Segment now active"
     team = (
         db.table("profiles")
         .select("id")
@@ -228,7 +384,7 @@ def _notify_internal(
         .execute()
     )
     for person in team.data or []:
-        _send(person["id"], type_="segment_status_changed", title="Segment now active")
+        _send(person["id"], type_="segment_status_changed", title=team_title)
 
 
 def _success_payload(db: Any, estimate_id: str) -> dict[str, str]:

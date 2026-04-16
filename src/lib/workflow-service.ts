@@ -694,7 +694,8 @@ export async function reviewApproval(
   decision: 'approved' | 'rejected',
   reviewerId: string,
   reviewerRole: string,
-  notes?: string
+  notes?: string,
+  skipClientGate?: boolean
 ): Promise<{ success: boolean; nextGate?: ApprovalGate; error?: string }> {
   const db = requireSupabase()
 
@@ -779,6 +780,11 @@ export async function reviewApproval(
   }
   // gate === 'client' → no next gate, transition to active
 
+  // Approver opted to skip client approval — treat as terminal gate
+  if (skipClientGate && nextGate === 'client') {
+    nextGate = null
+  }
+
   if (nextGate) {
     // Create the next approval request — segment stays in_review
     const { error: nextErr } = await db
@@ -833,37 +839,52 @@ export async function reviewApproval(
     return { success: true, nextGate }
   }
 
-  // ── Client gate approved → transition segment to active ──
+  // ── Terminal gate approved → transition segment to active ──
   let result: { success: boolean; error?: string }
   if (approval.labor_log_id) {
     const { transitionSegmentStatus: transitionSeg } = await import('./segment-status-service')
-    const gateLabel = gate === 'client' ? 'Client approved' : gate === 'executive' ? 'Executive approved' : 'AM approved'
+    const gateLabel = skipClientGate
+      ? (gate === 'executive' ? 'Executive approved' : 'AM approved')
+      : (gate === 'client' ? 'Client approved' : gate === 'executive' ? 'Executive approved' : 'AM approved')
+    const skipSuffix = skipClientGate ? ' (client approval skipped)' : ''
     const reviewerName = await resolveDisplayName(reviewerId)
-    result = await transitionSeg(approval.labor_log_id, 'active' as SegmentStatus, `${gateLabel} by ${reviewerName}${notes ? ` — ${notes}` : ''}`, reviewerName)
+    result = await transitionSeg(approval.labor_log_id, 'active' as SegmentStatus, `${gateLabel} by ${reviewerName}${skipSuffix}${notes ? ` — ${notes}` : ''}`, reviewerName)
   } else {
     result = await transitionStatus(approval.estimate_id, 'active', reviewerId)
   }
 
   if (result.success) {
-    // Notify creator + production team
+    if (skipClientGate) {
+      const reviewerName = await resolveDisplayName(reviewerId)
+      await createVersionSnapshot(
+        approval.estimate_id,
+        reviewerName,
+        `${gate === 'am' ? 'AM' : 'Executive'} approved by ${reviewerName} — client approval skipped — segment now active`
+      )
+    }
+
     if (targetUserId) {
       createNotification({
         user_id: targetUserId,
         type: 'approval_decision',
         title: 'Segment approved — now active',
-        body: `Your segment was approved by the client and is now active.`,
+        body: skipClientGate
+          ? `Your segment was approved internally (client approval skipped) and is now active.`
+          : `Your segment was approved by the client and is now active.`,
         estimate_id: approval.estimate_id,
         labor_log_id: approval.labor_log_id,
-        metadata: { decision, gate: 'client', reviewer: reviewerId },
+        metadata: { decision, gate: skipClientGate ? gate : 'client', reviewer: reviewerId, clientSkipped: skipClientGate || undefined },
       }).catch((err) => console.error('Notification dispatch failed:', err))
     }
     notifyByRole('production_manager', {
       type: 'segment_status_changed',
       title: 'Segment now active',
-      body: `A segment has been fully approved and is now active.`,
+      body: skipClientGate
+        ? `A segment was approved internally (client approval skipped) and is now active.`
+        : `A segment has been fully approved and is now active.`,
       estimate_id: approval.estimate_id,
       labor_log_id: approval.labor_log_id,
-      metadata: { gate: 'client', new_status: 'active' },
+      metadata: { gate: skipClientGate ? gate : 'client', new_status: 'active', clientSkipped: skipClientGate || undefined },
     }).catch((err) => console.error('Notification dispatch failed:', err))
   }
 
