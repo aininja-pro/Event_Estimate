@@ -702,6 +702,7 @@ export function ScheduleGrid({
         staff_group_id: roleGroupIds.get(groupKey) ?? null,
         needs_airfare: !isUnplanned,
         needs_hotel: !isUnplanned,
+        hotel_nights: null,
         needs_per_diem: !isUnplanned,
         day_rate: role.day_rate,
         cost_rate: role.cost_rate,
@@ -740,8 +741,18 @@ export function ScheduleGrid({
     const entry = entries.find((e) => e.id === id)
     if (!entry) return
     const newValue = !entry[flag]
+    if (flag === 'needs_hotel' && !newValue) {
+      await updateScheduleEntry(id, { needs_hotel: false, hotel_nights: null })
+      setEntries((prev) => prev.map((e) => e.id === id ? { ...e, needs_hotel: false, hotel_nights: null } : e))
+      return
+    }
     await updateScheduleEntry(id, { [flag]: newValue })
     setEntries((prev) => prev.map((e) => e.id === id ? { ...e, [flag]: newValue } : e))
+  }
+
+  async function handleSetHotelNights(id: string, nights: number | null) {
+    await updateScheduleEntry(id, { hotel_nights: nights })
+    setEntries((prev) => prev.map((e) => e.id === id ? { ...e, hotel_nights: nights } : e))
   }
 
   function handleSetCellHours(entryId: string, date: string, hours: number) {
@@ -754,7 +765,7 @@ export function ScheduleGrid({
       }
       return {
         ...e,
-        day_entries: [...(e.day_entries ?? []), { id: '', schedule_entry_id: entryId, work_date: date, hours, per_diem_override: null, created_at: '', updated_at: '' }],
+        day_entries: [...(e.day_entries ?? []), { id: '', schedule_entry_id: entryId, work_date: date, hours, actual_hours: null, per_diem_override: null, created_at: '', updated_at: '' }],
       }
     }))
 
@@ -889,7 +900,7 @@ export function ScheduleGrid({
       }
       return {
         ...e,
-        day_entries: [...(e.day_entries ?? []), { id: '', schedule_entry_id: e.id, work_date: date, hours: STANDARD_HOURS, per_diem_override: null, created_at: '', updated_at: '' }],
+        day_entries: [...(e.day_entries ?? []), { id: '', schedule_entry_id: e.id, work_date: date, hours: STANDARD_HOURS, actual_hours: null, per_diem_override: null, created_at: '', updated_at: '' }],
       }
     }))
     setShowFillConfirm(null)
@@ -900,6 +911,12 @@ export function ScheduleGrid({
 
   function getRowTotalDays(entry: ScheduleEntry): number {
     return entry.day_entries?.filter((d) => d.hours > 0).length ?? 0
+  }
+
+  function getRowHotelNights(entry: ScheduleEntry): number {
+    if (!entry.needs_hotel) return 0
+    if (entry.hotel_nights != null) return entry.hotel_nights
+    return getRowTotalDays(entry)
   }
 
   function getRowActualDays(entry: ScheduleEntry): number {
@@ -931,9 +948,7 @@ export function ScheduleGrid({
     .reduce((sum, e) => sum + getRowTotalDays(e), 0)
   const totalOtHours = rollup.reduce((sum, r) => sum + r.total_ot_hours, 0)
   const totalAirfares = entries.filter((e) => e.needs_airfare).length
-  const totalHotelNights = entries
-    .filter((e) => e.needs_hotel)
-    .reduce((sum, e) => sum + getRowTotalDays(e), 0)
+  const totalHotelNights = entries.reduce((sum, e) => sum + getRowHotelNights(e), 0)
 
   // ── Render ──
 
@@ -1085,7 +1100,7 @@ export function ScheduleGrid({
               <th className="px-0 py-1.5 border-b border-slate-200 bg-slate-50 w-[36px] text-center" title="Airfare">
                 <Plane className="h-3 w-3 mx-auto text-muted-foreground/50" />
               </th>
-              <th className="px-0 py-1.5 border-b border-slate-200 bg-slate-50 w-[36px] text-center" title="Hotel">
+              <th className="px-0 py-1.5 border-b border-slate-200 bg-slate-50 w-[52px] text-center" title="Hotel Nights">
                 <BedDouble className="h-3 w-3 mx-auto text-muted-foreground/50" />
               </th>
               <th className="px-0 py-1.5 border-b border-slate-200 bg-slate-50 w-[36px] text-center" title="Per Diem">
@@ -1208,17 +1223,43 @@ export function ScheduleGrid({
                     )}
                   </td>
                   <td className="border-b border-slate-200 bg-slate-50 text-center px-0 py-1">
-                    {readOnly ? (
-                      entry.needs_hotel ? <BedDouble className="h-3.5 w-3.5 mx-auto text-violet-600" /> : <BedDouble className="h-3.5 w-3.5 mx-auto text-muted-foreground/20" />
-                    ) : (
-                      <button
-                        onClick={() => handleToggleFlag(entry.id, 'needs_hotel')}
-                        title="Hotel"
-                        className={`p-0.5 rounded transition-colors ${entry.needs_hotel ? 'text-violet-600' : 'text-muted-foreground/20 hover:text-muted-foreground/50'}`}
-                      >
-                        <BedDouble className="h-3.5 w-3.5" />
-                      </button>
-                    )}
+                    <div className={`flex items-center justify-center ${readOnly ? 'gap-1' : 'gap-0'}`}>
+                      {readOnly ? (
+                        <BedDouble className={`h-3.5 w-3.5 ${entry.needs_hotel ? 'text-violet-600' : 'text-muted-foreground/20'}`} />
+                      ) : (
+                        <button
+                          onClick={() => handleToggleFlag(entry.id, 'needs_hotel')}
+                          title="Hotel"
+                          className={`p-0.5 rounded transition-colors ${entry.needs_hotel ? 'text-violet-600' : 'text-muted-foreground/20 hover:text-muted-foreground/50'}`}
+                        >
+                          <BedDouble className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                      {entry.needs_hotel && (
+                        readOnly ? (
+                          <span className={`text-[11px] tabular-nums ${entry.hotel_nights != null ? 'font-semibold text-violet-700' : 'text-muted-foreground/60'}`}>
+                            {getRowHotelNights(entry)}
+                          </span>
+                        ) : (
+                          <input
+                            type="number"
+                            className={`w-[22px] text-[11px] text-center bg-transparent border-none outline-none tabular-nums [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none cursor-pointer focus:cursor-text ${entry.hotel_nights != null ? 'font-semibold text-violet-700' : 'text-muted-foreground/60 italic'}`}
+                            value={getRowHotelNights(entry)}
+                            min={0}
+                            title={entry.hotel_nights != null ? `Override: ${entry.hotel_nights} nights (clear to auto-compute)` : `Auto: ${getRowTotalDays(entry)} nights (click to override)`}
+                            onFocus={(e) => e.target.select()}
+                            onClick={(e) => (e.target as HTMLInputElement).select()}
+                            onChange={(e) => {
+                              const val = e.target.value === '' ? null : Math.max(0, parseInt(e.target.value, 10) || 0)
+                              handleSetHotelNights(entry.id, val)
+                            }}
+                            onBlur={() => {
+                              if (entry.hotel_nights === 0) handleSetHotelNights(entry.id, null)
+                            }}
+                          />
+                        )
+                      )}
+                    </div>
                   </td>
                   <td className="border-b border-slate-200 bg-slate-50 text-center px-0 py-1">
                     {readOnly ? (

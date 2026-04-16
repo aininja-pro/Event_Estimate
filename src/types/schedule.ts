@@ -10,6 +10,7 @@ export interface ScheduleEntry {
   staff_group_id: string | null
   needs_airfare: boolean
   needs_hotel: boolean
+  hotel_nights: number | null
   needs_per_diem: boolean
   day_rate: number
   cost_rate: number

@@ -99,6 +99,7 @@ export function VersionSnapshotModal({ version, open, onClose }: VersionSnapshot
                 staff_group_id: (se.staff_group_id as string) || null,
                 needs_airfare: Boolean(se.needs_airfare),
                 needs_hotel: Boolean(se.needs_hotel),
+                hotel_nights: (se.hotel_nights as number) ?? null,
                 needs_per_diem: Boolean(se.needs_per_diem),
                 day_rate: Number(se.day_rate) || 0,
                 cost_rate: Number(se.cost_rate) || 0,
@@ -107,6 +108,7 @@ export function VersionSnapshotModal({ version, open, onClose }: VersionSnapshot
                 gl_code: (se.gl_code as string) || null,
                 notes: (se.notes as string) || null,
                 resource_type: (se.resource_type as 'internal' | 'external' | 'vendor') || 'external',
+                is_unplanned: Boolean(se.is_unplanned),
                 created_at: (se.created_at as string) || '',
                 updated_at: (se.updated_at as string) || '',
                 day_entries: (snapshot.schedule_day_entries || [])
@@ -116,6 +118,7 @@ export function VersionSnapshotModal({ version, open, onClose }: VersionSnapshot
                     schedule_entry_id: de.schedule_entry_id as string,
                     work_date: de.work_date as string,
                     hours: Number(de.hours) || 0,
+                    actual_hours: de.actual_hours != null ? Number(de.actual_hours) : null,
                     per_diem_override: (de.per_diem_override as boolean | null) ?? null,
                     created_at: (de.created_at as string) || '',
                     updated_at: (de.updated_at as string) || '',

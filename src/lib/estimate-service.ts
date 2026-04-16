@@ -418,6 +418,7 @@ export async function duplicateEstimate(
         staff_group_id: se.staff_group_id,
         needs_airfare: se.needs_airfare,
         needs_hotel: se.needs_hotel,
+        hotel_nights: se.hotel_nights ?? null,
         needs_per_diem: se.needs_per_diem,
         day_rate: se.day_rate,
         cost_rate: se.cost_rate,

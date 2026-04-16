@@ -339,6 +339,7 @@ export function AIScopingPage() {
               staff_group_id: null,
               needs_airfare: true,
               needs_hotel: true,
+              hotel_nights: null,
               needs_per_diem: true,
               day_rate: entry.unit_rate,
               cost_rate: 0,
