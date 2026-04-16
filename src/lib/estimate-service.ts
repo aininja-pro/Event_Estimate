@@ -235,6 +235,27 @@ export async function deleteLineItem(id: string): Promise<void> {
 
 // ---- Auto-generated Fee Lines ----
 
+function getInitialSegmentName(location: string | null | undefined): string {
+  const trimmed = location?.trim()
+  return trimmed || 'Primary'
+}
+
+function getInitialSegmentStatus(status: Estimate['status'] | null | undefined): LaborLog['status'] {
+  switch (status) {
+    case 'pipeline':
+    case 'estimate':
+    case 'in_review':
+    case 'active':
+    case 'recap':
+    case 'invoiced':
+    case 'lost':
+    case 'cancelled':
+      return status
+    default:
+      return 'pipeline'
+  }
+}
+
 /** Create agency fee line item on the primary labor log if client has agency_fee > 0 */
 export async function createAutoFeeLines(
   estimateId: string,
@@ -260,6 +281,32 @@ export async function createAutoFeeLines(
     is_unplanned: false,
     display_order: 0,
   })
+}
+
+/**
+ * Create the first/primary segment for an estimate and seed any auto-generated
+ * fee lines that normally hang off that segment.
+ */
+export async function createPrimarySegmentForEstimate(
+  estimate: Pick<Estimate, 'id' | 'client_id' | 'location' | 'start_date' | 'end_date' | 'status'>,
+  overrides?: Partial<Pick<LaborLogInsert, 'location_name' | 'start_date' | 'end_date' | 'status'>>
+): Promise<LaborLog> {
+  const log = await createLaborLog({
+    estimate_id: estimate.id,
+    location_name: getInitialSegmentName(overrides?.location_name ?? estimate.location),
+    is_primary: true,
+    location_order: 0,
+    start_date: overrides?.start_date ?? estimate.start_date ?? null,
+    end_date: overrides?.end_date ?? estimate.end_date ?? null,
+    status: overrides?.status ?? getInitialSegmentStatus(estimate.status),
+  })
+
+  const client = await getClient(estimate.client_id)
+  if (client.agency_fee > 0) {
+    await createAutoFeeLines(estimate.id, log.id, client.agency_fee)
+  }
+
+  return log
 }
 
 // ---- Duplicate Estimate ----
