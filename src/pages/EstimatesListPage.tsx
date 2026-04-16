@@ -26,7 +26,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { FileSpreadsheet, MoreVertical, ChevronUp, ChevronDown, Search, X, Copy } from 'lucide-react'
-import { getEstimates, createEstimate, createLaborLog, createAutoFeeLines, updateEstimate, deleteEstimate, duplicateEstimate } from '@/lib/estimate-service'
+import { getEstimates, createEstimate, createPrimarySegmentForEstimate, updateEstimate, deleteEstimate, duplicateEstimate } from '@/lib/estimate-service'
 import { getClients } from '@/lib/rate-card-service'
 import { useUser } from '@/lib/auth'
 import { hasPermission } from '@/lib/permissions'
@@ -230,23 +230,13 @@ export function EstimatesListPage() {
         created_by: profile?.id || null,
       })
 
-      // Auto-create primary labor log
-      if (formLocation) {
-        const primaryLog = await createLaborLog({
-          estimate_id: estimate.id,
-          location_name: formLocation,
-          is_primary: true,
-          start_date: formStartDate || null,
-          end_date: formEndDate || null,
-          status: 'pipeline',
-        })
-
-        // Auto-create agency fee line if client has agency_fee > 0
-        const client = clients.find(c => c.id === formClientId)
-        if (client && client.agency_fee > 0) {
-          await createAutoFeeLines(estimate.id, primaryLog.id, client.agency_fee)
-        }
-      }
+      // Always create the initial segment, even if the header location was left blank.
+      await createPrimarySegmentForEstimate(estimate, {
+        location_name: formLocation || undefined,
+        start_date: formStartDate || null,
+        end_date: formEndDate || null,
+        status: 'pipeline',
+      })
 
       // Dispatch pipeline creation notifications
       const clientName = clients.find(c => c.id === formClientId)?.name || 'Unknown'
