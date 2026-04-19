@@ -1,272 +1,224 @@
 # Architecture
 
+Map of the system. Points at the source of truth (the code) rather than duplicating it. When details matter, read the referenced files directly.
+
+---
+
 ## Overview
 
-Event History is a Vite + React + TypeScript SPA for the DriveShop Event Estimate Engine. Phase 1 presents historical event data analysis, system design deliverables, and UI concepts. Phase 2 adds production modules backed by Supabase (starting with Rate Card Management). A secondary stakeholder review portal allows external reviewers to browse select pages and submit feedback. The app uses Supabase Auth for authentication with role-based access control and in-app notifications.
+DriveShop Event Estimate Engine is a full-stack web application for estimating, managing, and recapping automotive experiential marketing events. It replaces a spreadsheet-based workflow with a centralized platform used by DriveShop's internal team (admins, CFOs, operations, production managers, account managers) and their OEM clients (Lucid, VW, JLR, Hankook, Mazda, Mercedes-Benz, Volvo).
+
+The system has a **React frontend** talking to a **Supabase database** directly for CRUD, and a **Python FastAPI backend** for AI workflows, PDF generation, email orchestration, and anything requiring server-side logic or secrets. A **stakeholder review portal** allows external reviewers to browse select pages and submit feedback.
+
+---
 
 ## Tech Stack
 
-- **Framework:** React 19 + TypeScript
-- **Bundler:** Vite 7
-- **Routing:** React Router v7
-- **Styling:** Tailwind CSS v4 + shadcn/ui components
-- **Charts:** Recharts
-- **Backend:** Supabase (Postgres + PostgREST API)
-- **Deployment:** Render (static site with SPA rewrite)
+| Layer | Technology |
+|---|---|
+| Frontend framework | React 19 + TypeScript |
+| Bundler | Vite 7 |
+| Routing | React Router v7 |
+| Styling | Tailwind CSS v4 + shadcn/ui |
+| Charts | Recharts |
+| File parsing | SheetJS (xlsx) |
+| Backend | Python + FastAPI (`/api`) |
+| Database | PostgreSQL via Supabase |
+| Auth | Supabase Auth (invite-only) |
+| Realtime | Supabase Realtime (notifications bell) |
+| AI | Claude API (Anthropic), server-side only |
+| PDF | WeasyPrint + Jinja2 templates |
+| Email | Resend |
+| Accounting | Sage Intacct API (to be added) |
+| Deployment | Render (static site + API service) |
 
-## Dual Layout System
+---
 
-The app runs two independent layout trees under a single `<BrowserRouter>`:
+## Routes
 
-```
-/login                     → LoginPage (public, no auth required)
+Two layout trees under a single `<BrowserRouter>`:
 
-/                          → RequireAuth → AppLayout
-  /dashboard               → DashboardPage
-  /rate-card               → RateCardPage
-  /ai-assistant            → AIScopingPage
-  /system-architecture     → SystemArchitecturePage
-  /database-schema         → DatabaseSchemaPage
-  /estimate-lifecycle      → EstimateLifecyclePage
-  /phase2-roadmap          → Phase2RoadmapPage
-  /estimates               → EstimatesListPage
-  /estimates/:id           → EstimateBuilderPage
-  /estimate-builder        → EstimateBuilderPage
-  /rate-card-management    → RateCardManagementPage
-  /admin/feedback          → AdminFeedbackPage
-  /admin/users             → RequireAdmin → AdminUsersPage
+- **AppLayout** — full internal app. Sidebar sections: Discovery Intelligence, Phase 1 Deliverables, Production, UI Concepts, Admin. Header: NotificationBell + "CONFIDENTIAL" badge.
+- **StakeholderLayout** — simplified review portal. Its own sidebar. Header: "REVIEW" badge.
+- **Public** — `/login` and `GET /api/approval/confirm/{token}` (branded HTML page, no login required).
 
-/stakeholder               → RequireAuth → StakeholderLayout
-  /estimate-lifecycle      → EstimateLifecyclePage (reused)
-  /phase2-roadmap          → Phase2RoadmapPage (reused)
-  /estimate-builder        → EstimateBuilderPage (reused)
-  /rate-card-management    → RateCardManagementPage (reused)
-  /feedback                → FeedbackPage
-```
+Page components are reused across layouts via React Router's `<Outlet />`.
 
-**RequireAuth** — Route guard that redirects unauthenticated users to `/login`.
+For the full route map + guards (`RequireAuth`, `RequireAdmin`), read **`src/App.tsx`**.
 
-**RequireAdmin** — Route guard that redirects non-admin users to `/estimates`.
+---
 
-**AppLayout** — Full internal app with sidebar (Discovery Intelligence, Phase 1 Deliverables, Production, UI Concepts, Admin sections), header with notification bell and "CONFIDENTIAL" badge. Sidebar footer shows signed-in user name, role, and sign-out button.
-
-**StakeholderLayout** — Simplified portal with its own sidebar (4 review pages + feedback), header with "REVIEW" badge. Intended for sharing via direct link.
-
-Page components are reused across both layouts via React Router's `<Outlet />` — no duplication needed.
-
-## Key Directories
+## Directory Layout
 
 ```
-src/
+src/                    React frontend
   components/
-    layout/              — AppLayout, Sidebar, Header + Stakeholder variants
-    segments/            — SegmentStatusBadge, SegmentTransitionBar
-    ui/                  — shadcn/ui primitives (Button, Card, Table, Dialog, etc.)
-    NotificationBell.tsx — Header notification dropdown with unread count + Realtime
-  lib/
-    auth.tsx             — AuthProvider context, useAuth/useUser hooks (Supabase Auth)
-    notification-service.ts — Create/query/mark-read notifications, role-based dispatch
-    data.ts              — Pre-computed historical data
-    ai.ts                — Anthropic API integration
-    supabase.ts          — Supabase client (graceful null if env vars missing)
-    rate-card-service.ts — CRUD operations for clients, sections, and rate card items
-    segment-status-service.ts — Per-segment status transitions + notification dispatch
-    workflow-service.ts  — Status machine, versioning, approvals + notification dispatch
-    utils.ts             — cn() helper
-  pages/
-    LoginPage.tsx        — Email/password login (no self-service signup)
-    AdminUsersPage.tsx   — User management: invite, role assignment, activate/deactivate
-    ...                  — All other page components
-  types/
-    feedback.ts          — Feedback interface and category types
-    rate-card.ts         — Client, RateCardSection, RateCardItem types
-    workflow.ts          — Workflow, version, approval, segment types
-scripts/
-  migration_auth_profiles_notifications.sql — Auth profiles + notifications tables
-  supabase_schema.sql    — Database schema (tables, indexes, triggers, RLS, seed sections)
-  seed_rate_cards.py     — Reads Excel rate card template → generates seed SQL
-  seed_rate_cards.sql    — Generated INSERT statements (8 clients, 377 rate items)
+    layout/             AppLayout, Sidebar, Header (+ Stakeholder variants)
+    segments/           SegmentStatusBadge, SegmentTransitionBar
+    schedule/           ScheduleGrid, RecapGridCell, AddStaffModal
+    ui/                 shadcn/ui primitives
+    NotificationBell.tsx
+    ApprovalBanner.tsx
+    SendToClientModal.tsx
+  lib/                  Services + utilities (see "Service Organization" below)
+  pages/                Page components
+  types/                TypeScript interfaces
+
+api/                    FastAPI backend
+  main.py               App entry. Must load_dotenv(override=True) BEFORE route imports.
+  routes/               HTTP endpoints (approval, data_feed, email, pdf, ai)
+  services/             Backend business logic (see "Service Organization" below)
+  templates/            Jinja2 HTML for PDF rendering
+  prompts/              AI prompt files (nudge_rules.md — edit in plain English)
+
+scripts/                Python pipeline + SQL migrations
+  migration_*.sql       Schema migrations (applied in order)
+  supabase_schema.sql   Base schema
+  seed_rate_cards.py    Excel rate card → SQL
+  compute_historical_patterns.py   Historical event pattern aggregation
+
+docs/                   Architecture + phase kickoffs
+data/                   Client data files, parsed JSON
+historical_estimates/   1,700+ reference spreadsheets
+.planning/              Project planning (STATE, DECISIONS, DOMAIN, sprints/)
 ```
 
-## Authentication & Authorization
+---
 
-Authentication uses Supabase Auth with email/password login. No self-service signup — admins create accounts via the Admin > Users page.
+## Service Organization
 
-**Auth Context (`src/lib/auth.tsx`):**
-- `AuthProvider` wraps the app, listens for Supabase auth state changes
-- `useAuth()` — returns `session`, `user`, `profile`, `loading`, `signIn`, `signOut`, `displayName`
-- `useUser()` — shortcut returning `user`, `profile`, `displayName`
+Services are organized by domain. Read the service file for specifics.
 
-**User Roles:** `admin`, `cfo`, `operations`, `production_manager`, `account_manager`
-- Admin: full access + user management
-- CFO: approve $50K+ estimates
-- Operations/Production Manager: build estimates, run events
-- Account Manager: own client estimates, submit for review
+**Frontend services** live in `src/lib/` as `*-service.ts`. **Backend services** live in `api/services/` as `*_service.py`.
 
-**Route Guards (`src/App.tsx`):**
-- `RequireAuth` — redirects to `/login` if no session
-- `RequireAdmin` — redirects to `/estimates` if role is not `admin`
+### Estimates & Labor
+- `estimate-service.ts` — Estimate/labor/line item CRUD, `createPrimarySegmentForEstimate()` (single source of truth for initial segment)
+- `estimate-totals.ts` — Shared GR / NR / Cost / GP / GP% computation (used by SummaryTab AND FinancialSummaryCards)
+- `rate-card-service.ts` — Clients, rate cards, fee types, `getClientApproverForEstimate()`
 
-## Notification System
+### Schedule & Recap
+- `schedule-service.ts` — Schedule grid CRUD, `computeScheduleRollup()` (keys by `is_unplanned`), planned+actual rollup, recap actuals pre-fill
+- `receipt-service.ts` — Receipt upload/download/delete via Supabase Storage bucket `receipts`
 
-In-app notifications with Supabase Realtime for live updates.
+### Workflow, Status, Permissions
+- `workflow-service.ts` — Status machine, versioning, three-gate approvals, rollback
+- `segment-status-service.ts` — Per-segment transitions, edit rules, notification dispatch, client-approver routing
+- `permissions.ts` — Role-permission matrix, `hasPermission()`
+- `notification-service.ts` — Notification CRUD, role-based dispatch, Realtime triggers
+- `system-settings-service.ts` — Configurable settings (GP threshold, approval threshold) with audit
 
-**Service (`src/lib/notification-service.ts`):**
-- `createNotification()` — insert for a specific user
-- `notifyByRole()` — notify all active users with a given role (respects `notification_prefs.in_app`)
-- `getNotifications()` / `getUnreadCount()` / `markAsRead()` / `markAllAsRead()`
+### Change Orders
+- `change-order-service.ts` — CO CRUD, delta computation (baseline vs current via version snapshots), per-segment numbering
 
-**Trigger Points:**
-- Segment submitted for review → notifies CFO role
-- Segment approved → notifies estimate creator
-- Segment sent back → notifies estimate creator with reason
-- Segment marked active → notifies production_manager role
-- Approval decision → notifies original submitter
-- Rollback → notifies estimate creator
+### AI (frontend)
+- `ai-nudge-service.ts` — Nudge fetching, chat messages, dismissals
 
-**UI (`src/components/NotificationBell.tsx`):**
-- Bell icon in header with unread count badge
-- Dropdown list of recent notifications with relative timestamps
-- Click notification → mark read + navigate to estimate
-- "Mark all read" action
-- Supabase Realtime subscription for instant updates
+### AI (backend, `api/services/`)
+- `ai_chat_service.py` — Chat endpoint with conversation history, cross-client historical events, rate card context
+- `ai_scope_gen_service.py` — Scope generation using client-specific rate card from Supabase
+- `ai_scope_service.py` — Scope-to-estimate matching (role name fuzzy matching, section mapping)
 
-## Supabase Integration
+### PDF
+- `pdf-service.ts` (frontend) — POST to backend, blob download
+- `pdf_data_service.py` (backend) — Gathers estimate/CO/recap data from Supabase
+- `pdf_render_service.py` (backend) — Jinja2 template rendering + WeasyPrint
+- `pdf_merge_service.py` (backend) — Invoice-with-Receipts PDF (merges receipts onto detailed PDF)
 
-The Supabase client (`src/lib/supabase.ts`) gracefully returns `null` if `VITE_SUPABASE_URL` or `VITE_SUPABASE_ANON_KEY` env vars are missing. Pages that need Supabase show an error state; the rest of the app is unaffected.
+### Email & Client Approvals
+- `client-approval-service.ts` (frontend) — Send, fetch latest token
+- `email_service.py` (backend) — Resend integration (reads `RESEND_API_KEY` at module load — env load order matters)
+- `client_approval_service.py` (backend) — Token validation, approval_requests update, segment transition, notification fan-out
 
-### Database Tables
+### Auth, Dashboard, Historical
+- `auth.tsx` — AuthProvider, `useAuth()` / `useUser()` hooks
+- `supabase.ts` — Main Supabase client + `createIsolatedClient()` for admin invite
+- `dashboard-service.ts` — Aggregated pipeline queries
+- `historical-service.ts` — Historical event search for "From History" tab
 
-**`profiles`** — User profiles linked to Supabase Auth
-- Columns: `id` (FK → auth.users), `email`, `full_name`, `role`, `notification_prefs` (JSONB), `phone`, `is_active`, `created_at`, `updated_at`
-- Auto-created via trigger on `auth.users` insert
-- RLS: all users can read, users can update own, admins can update any
+---
 
-**`notifications`** — In-app notification records
-- Columns: `id`, `user_id` (FK → profiles), `type`, `title`, `body`, `estimate_id`, `labor_log_id`, `metadata` (JSONB), `is_read`, `created_at`
-- Realtime enabled for live bell updates
-- RLS: users can only see/update their own notifications
+## Database Schema
 
-**`feedback`** — Stakeholder review feedback (Phase 1)
-- Columns: `id`, `name`, `category`, `message`, `status`, `created_at`
+**Source of truth: `scripts/supabase_schema.sql` + `scripts/migration_*.sql` applied in order.**
 
-**`clients`** — One row per OEM client (Phase 2)
-- Columns: `id`, `name`, `code`, `third_party_markup`, `agency_fee`, `agency_fee_basis`, `trucking_markup`, `office_payout_pct`, `is_active`, `notes`, `created_at`, `updated_at`
-- 8 clients seeded: Lucid, VW, JLR, Hankook, Mazda, MB, Volvo, Volvo MS
+Don't inline table definitions here — they drift. For current columns and constraints, read the migrations.
 
-**`rate_card_sections`** — Standard section groupings shared across all clients (Phase 2)
-- Columns: `id`, `name`, `display_order`, `cost_type` (`labor` | `flat_fee` | `pass_through`), `description`
-- 6 sections seeded: Planning & Administration Labor, Onsite Event Labor, Travel Expenses, Creative Costs, Production Expenses, Logistics Expenses
+### Table Groupings
 
-**`rate_card_items`** — Individual rate line items per client per section (Phase 2)
-- Columns: `id`, `client_id` (FK → clients), `section_id` (FK → rate_card_sections), `name`, `unit_rate`, `unit_label`, `gl_code`, `is_from_msa`, `is_pass_through`, `has_overtime_rate`, `overtime_rate`, `overtime_unit_label`, `overtime_gl_code`, `display_order`, `is_active`, `created_at`, `updated_at`
-- 377 items seeded from `DriveShop Event Estimate Template_12.01.25.xlsx`
-- Soft delete via `is_active` flag
+| Group | Tables |
+|---|---|
+| Clients & Rate Cards | `clients`, `rate_card_sections`, `rate_card_items`, `fee_types` |
+| Estimates | `estimates`, `labor_logs`, `labor_entries`, `estimate_line_items` |
+| Schedule | `schedule_entries`, `schedule_day_entries`, `schedule_day_types` |
+| Workflow | `estimate_versions`, `approval_requests`, `status_transitions`, `segment_activities` |
+| Recap | `recap_actuals`, `receipt_attachments` |
+| Change Orders | `change_orders` |
+| AI | `historical_events`, `historical_patterns`, `estimate_nudge_dismissals` |
+| Auth & Notifications | `profiles`, `notifications` |
+| Client Approval | `client_approval_tokens` |
+| Configuration | `system_settings` |
+| Feedback (Phase 1 legacy) | `feedback` |
 
-**`estimates`** — Top-level estimate records (Phase 2)
-- Columns: `id`, `client_id` (FK → clients), `event_name`, `event_type`, `location`, `start_date`, `end_date`, `duration_days`, `expected_attendance`, `po_number`, `project_id`, `cost_structure`, `project_notes`, `status`, `created_by`, `created_at`, `updated_at`
+### Storage Buckets
 
-**`labor_logs`** — Per-location containers within an estimate (Phase 2)
-- Columns: `id`, `estimate_id` (FK → estimates), `location_name`, `is_primary`, `location_order`, `start_date`, `end_date`, `notes`, `created_at`, `updated_at`
-- Each estimate has one primary labor_log and zero or more additional locations
+- `receipts` — Path pattern `receipts/{estimate_id}/{line_item_id}/{timestamp}_{filename}`
 
-**`labor_entries`** — Individual staff roles per location (Phase 2)
-- Columns: `id`, `labor_log_id` (FK → labor_logs), `rate_card_item_id`, `role_name`, `quantity`, `days`, `unit_rate`, `cost_rate`, `override_rate`, `override_reason`, `has_overtime`, `overtime_rate`, `overtime_hours`, `gl_code`, `notes`, `display_order`, `created_at`, `updated_at`
+---
 
-**`estimate_line_items`** — Non-labor line items per location (Phase 2)
-- Columns: `id`, `estimate_id` (FK → estimates), `labor_log_id` (FK → labor_logs ON DELETE CASCADE), `section`, `rate_card_item_id`, `item_name`, `description`, `quantity`, `unit_cost`, `markup_pct`, `gl_code`, `notes`, `display_order`, `created_at`, `updated_at`
-- `labor_log_id` ties each line item to a specific location — all tabs (Production, Travel, Creative, Access/Insurance, Misc) are per-location
-- `estimate_id` is denormalized for fast cross-location Summary queries without joining through labor_logs
-- Deleting a labor_log cascades to delete its line items
+## Subsystem Deep Dives
 
-### Data Service (`src/lib/rate-card-service.ts`)
+For the WHY (design decisions, non-obvious behaviors, rules future work must respect): **`@.planning/DECISIONS.md`**
 
-8 async functions wrapping Supabase queries:
-- `getClients()` — All active clients ordered by name
-- `getClient(id)` — Single client by ID
-- `getRateCardSections()` — All sections ordered by display_order
-- `getRateCardItems(clientId)` — All active items for a client
-- `getRateCardItemsBySection(clientId)` — Items grouped by section (used by the Rate Card Management page)
-- `createRateCardItem(item)` — Insert new item (auto-sets `is_from_msa: false`)
-- `updateRateCardItem(id, updates)` — Partial update
-- `deleteRateCardItem(id)` — Soft delete (`is_active = false`)
+For the HOW of a specific subsystem, read the service file(s) listed below.
 
-### Data Service (`src/lib/estimate-service.ts`)
+| Subsystem | Read |
+|---|---|
+| Segment-level workflow (status state machine, edit rules) | `segment-status-service.ts` + `workflow-service.ts` |
+| Three-gate approval chain | `workflow-service.ts` + DECISIONS §Workflow & Status |
+| Client-specific approval routing | `rate-card-service.ts:getClientApproverForEstimate()` + DECISIONS §Workflow & Status |
+| AI nudge engine | `api/prompts/nudge_rules.md` + `api/services/ai_*.py` + DECISIONS §AI |
+| AI Chat (Mode 2) | `api/services/ai_chat_service.py` |
+| AI Scoping (Mode 3) | `api/services/ai_scope_gen_service.py` + `ai_scope_service.py` |
+| Change orders + delta computation | `change-order-service.ts` + DECISIONS §Change Orders |
+| Recap actuals + variance | `schedule-service.ts:computeScheduleRollup()` + `estimate-totals.ts` + DECISIONS §Schedule & Recap |
+| Unplanned additions | Scattered across estimate/schedule/labor services — DECISIONS §Unplanned Additions has the full rule set |
+| PDF pipeline | `pdf-service.ts` → `pdf_data_service.py` → `pdf_render_service.py` (+ `pdf_merge_service.py` for invoice) |
+| Client approval email flow | `POST /api/email/send-client-approval` + `GET /api/approval/confirm/{token}` + `email_service.py` + `client_approval_service.py` |
+| Data feed API | `api/routes/data_feed.py` |
+| System settings (GP threshold, approval threshold) | `system-settings-service.ts` + DECISIONS §Financial Controls |
 
-CRUD operations for estimates, labor logs, labor entries, and line items:
-- `getEstimates()` / `getEstimate(id)` / `createEstimate()` / `updateEstimate()` / `deleteEstimate()`
-- `getLaborLogs(estimateId)` / `createLaborLog()` / `updateLaborLog()` / `deleteLaborLog()`
-- `getLaborEntries(laborLogId)` / `createLaborEntry()` / `updateLaborEntry()` / `deleteLaborEntry()`
-- `getLineItemsByLocation(laborLogId)` — Line items for a specific location
-- `getLineItems(estimateId)` — All line items for an estimate (used for cross-location queries)
-- `createLineItem()` / `updateLineItem()` / `deleteLineItem()`
+---
 
-### Workflow Engine (`src/lib/workflow-service.ts`)
+## Realtime & Notifications
 
-Status state machine, version history, and approval routing:
+- `notifications` table has Realtime enabled
+- `NotificationBell.tsx` subscribes to live updates
+- Toast notifications fire from NotificationBell's Realtime subscription (via `sonner`)
+- RLS ensures users only see their own notifications
 
-**State Machine:** `pipeline → draft → review → approved → active → recap → complete`
-- `canTransition()` / `getNextStatuses()` — validates allowed transitions
-- `transitionStatus()` — validates, creates version snapshot, updates status, logs transition
+---
 
-**Versioning:**
-- `buildSnapshot()` — captures full estimate state (estimate, labor_logs, entries, line_items, schedule data, totals) as JSONB
-- `createVersionSnapshot()` — auto-increments version number, stores snapshot in `estimate_versions`
-- `rollbackToVersion()` — restores all child data from a snapshot, remapping IDs for parent-child relationships
+## Environment & Deployment
 
-**Approvals:**
-- `submitForApproval()` — transitions to review, creates `approval_requests` row with threshold detection ($50K+ = executive review)
-- `reviewApproval()` — approve (→ approved) or reject with notes (→ draft)
-- `getPendingApproval()` / `getApprovalHistory()`
+- **Env vars:** See `.env.example` in repo root (single source of truth)
+- **Frontend deploy:** Render static site with SPA rewrite, auto-deploys on push to `main`
+- **Backend deploy:** Render web service. Build command must include: `apt-get install -y libpango-1.0-0 libpangocairo-1.0-0 libgdk-pixbuf2.0-0 libcairo2` (WeasyPrint dependencies)
+- **Local backend:** `cd api && uvicorn main:app --reload --port 8000`
+- **Local frontend:** `npm run dev`
 
-**Database Tables** (migration: `scripts/supabase_workflow_schema.sql`):
-- `estimate_versions` — Full JSON snapshots with version number, status, change summary
-- `approval_requests` — Review submissions with threshold, reviewer, status, notes
-- `status_transitions` — Audit log of every status change
+---
 
-**UI Components:**
-- `EstimateStatusBar` — Linear progress track with contextual action buttons per status
-- `VersionHistoryPanel` — Slide-out panel with Versions/Approvals tabs, snapshot viewer, rollback
-- `ApprovalBanner` — Amber banner shown in Review status with Approve/Send Back actions
-- `EstimatesListPage` — Status filter tabs, color-coded badges, quick action buttons
+## Update Discipline
 
-### Segment Status Engine (`src/lib/segment-status-service.ts`)
+Update this file when:
+- A new top-level subsystem is added (e.g., Sage Intacct integration)
+- A service is added, renamed, or deleted
+- A new table grouping is introduced
+- Deployment or build requirements change
 
-Per-segment status tracking, allowing each segment in a multi-segment estimate to move through the lifecycle independently.
+Do NOT update this file for:
+- Implementation details inside a service (those live in code + DECISIONS.md)
+- Bug fixes (those are sprint history)
+- Specific column changes (those live in migrations)
 
-**Segment State Machine:** `draft → review → approved → active → recap → invoiced → complete`
-- Send-back paths: `review → draft`, `approved → draft`, `recap → active`
-- `transitionSegmentStatus()` — validates, updates `labor_logs.status`, logs to `segment_activities`, syncs estimate-level status
-- `computeEstimateStatus()` — derives estimate status from segment statuses (single-segment: direct map; multi-segment: rules-based aggregation)
-
-**Edit Rules:** `getSegmentEditRules()` returns per-field editability for each segment status:
-- Draft: fully editable
-- Review/Approved/Invoiced/Complete: fully locked
-- Active: only staff names and notes editable
-- Recap: staff names, notes, and actuals editable; names required before advancing to Invoiced
-
-**Recap Actuals:** `getRecapActuals()`, `upsertRecapActual()`, `getVarianceReport()` — stores actual values alongside estimates in `recap_actuals` table for variance reporting.
-
-**Database Tables** (migration: `scripts/supabase_segment_status_schema.sql`):
-- `segment_activities` — Per-segment action log (status changes, name assignments, actuals entry)
-- `recap_actuals` — Actual vs estimated values with nullable FKs to labor_entries, schedule_entries, estimate_line_items
-
-**UI Components:**
-- `SegmentStatusBadge` — Colored dot + label on segment pills (draft=gray, review=amber, active=green, recap=violet, etc.)
-- `SegmentTransitionBar` — Contextual action buttons per segment status with confirmation dialogs and lock banner messages
-
-### Seed Data Pipeline
-
-`scripts/seed_rate_cards.py` reads the Excel rate card template and generates SQL:
-1. Parses 8 visible client tabs (skips 3 hidden: Templates Event Admin, Templates - Admin Labor, Ineos)
-2. Extracts client metadata (name, code, markup percentages)
-3. Extracts rate items per section, handling MSA vs. custom markers, overtime pairing, GL codes
-4. Outputs `scripts/seed_rate_cards.sql` with DELETE cleanup + INSERT statements
-
-## Environment Variables
-
-| Variable | Purpose |
-|----------|---------|
-| `VITE_ANTHROPIC_API_KEY` | Anthropic API key for AI Scoping Assistant |
-| `VITE_SUPABASE_URL` | Supabase project URL |
-| `VITE_SUPABASE_ANON_KEY` | Supabase anonymous/public key |
+**If this file starts drifting past 250 lines, split by subsystem. Current: ~150 lines.**
