@@ -28,16 +28,16 @@ Web application replacing DriveShop's spreadsheet-based event estimation workflo
 - `/docs` — Architecture docs, phase kickoffs, screenshots → see `@docs/ARCHITECTURE.md`
 - `/data` — Client data files, parsed JSON, historical templates
 - `/historical_estimates` — 1,700+ historical estimate spreadsheets (reference data)
-- `/.planning` — Project planning docs (STATE, DECISIONS, sprints)
+- `/planning` — Project planning docs (STATE, DECISIONS, sprints)
 
 ## Routing
 
 | Task | Read first |
 |------|------------|
-| Current sprint + what's in-flight | `@.planning/STATE.md` |
-| Feature-specific rules (business + technical) | `@.planning/DECISIONS.md` |
-| Business domain (rate cards, cost types, stakeholders) | `@.planning/DOMAIN.md` |
-| Current sprint's spec + plan | `@.planning/sprints/{active-sprint}/` |
+| Current sprint + what's in-flight | `@planning/STATE.md` |
+| Feature-specific rules (business + technical) | `@planning/DECISIONS.md` |
+| Business domain (rate cards, cost types, stakeholders) | `@planning/DOMAIN.md` |
+| Current sprint's spec + plan | `@planning/sprints/{active-sprint}/` |
 | System design, service map, schema | `@docs/ARCHITECTURE.md` |
 | Debug or investigate code | Read the specific files first, then answer |
 | Write or run a migration | `/scripts` — existing migration files as reference |
@@ -63,7 +63,7 @@ Web application replacing DriveShop's spreadsheet-based event estimation workflo
 
 ## Core Conventions
 
-These apply to every file in the codebase. Feature-specific rules live in `@.planning/DECISIONS.md`.
+These apply to every file in the codebase. Feature-specific rules live in `@planning/DECISIONS.md`.
 
 - Functional React components only. No class components.
 - All Supabase queries go through service layers in `src/lib/`. No direct Supabase calls in components.

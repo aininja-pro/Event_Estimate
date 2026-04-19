@@ -80,7 +80,7 @@ scripts/                Python pipeline + SQL migrations
 docs/                   Architecture + phase kickoffs
 data/                   Client data files, parsed JSON
 historical_estimates/   1,700+ reference spreadsheets
-.planning/              Project planning (STATE, DECISIONS, DOMAIN, sprints/)
+planning/              Project planning (STATE, DECISIONS, DOMAIN, sprints/)
 ```
 
 ---
@@ -167,7 +167,7 @@ Don't inline table definitions here — they drift. For current columns and cons
 
 ## Subsystem Deep Dives
 
-For the WHY (design decisions, non-obvious behaviors, rules future work must respect): **`@.planning/DECISIONS.md`**
+For the WHY (design decisions, non-obvious behaviors, rules future work must respect): **`@planning/DECISIONS.md`**
 
 For the HOW of a specific subsystem, read the service file(s) listed below.
 
