@@ -39,3 +39,10 @@ api/venv/
 
 # Stray debug screenshots at repo root
 /login_page.png
+
+# Local data files (never commit)
+data/
+docs/screenshots/
+docs/*.pdf
+.DS_Store
+**/.DS_Store
