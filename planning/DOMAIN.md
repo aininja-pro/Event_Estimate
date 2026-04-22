@@ -30,18 +30,19 @@ Account Managers own their client rate cards (per Tatiana's recommendation) — 
 
 ## OEM Clients (Rate Card Tenants)
 
-8 OEM clients are seeded in the system, each with its own rate card tab, markup rules, and cost structures:
+21 rate cards live in the system: 20 OEM brands plus a `No Client` fallback card used for internal / unassigned work. Each has its own markup rules and cost structures.
 
-- **Lucid** (3rd-party markup: 1.5%)
-- **VW** (3rd-party markup: 0%, office payout: 80%)
-- **JLR** (Jaguar Land Rover)
-- **Hankook** (3rd-party markup: 10%)
-- **Mazda** (3rd-party markup: 5%)
-- **Mercedes-Benz** (MB)
-- **Volvo**
-- **Volvo MS** (separate rate card)
+**20 OEM brands (from Dave Morck's Cost Rate Card Template, imported Sprint 016):**
 
-Rate cards are sourced from DriveShop's **Event Estimate Template** (Excel, maintained by Tatiana). Each OEM has a named tab with their rates, markups, and custom terms.
+Acura, Audi, Bentley, Ferrari, Genesis, Hankook, Honda, Hyundai, JLR (Jaguar Land Rover), Lamborghini, Lexus, Lucid, Maserati, Mazda, MB (Mercedes-Benz), Polestar, Porsche, Toyota, Volkswagen, Volvo.
+
+**Plus:** `No Client` — 21st rate card seeded from the Audi tab. Used when an estimate isn't yet tied to a specific OEM.
+
+Client-level fields on the existing 6 brands that were already in the DB (Hankook, JLR, Lucid, Mazda, MB, Volvo) were **preserved** during import — only rate card items were upserted. `markup_percent` and `primary_approver` were left untouched. New brands were created with default markup; AM sets client-level fields in the UI.
+
+Rate cards have two upstream sources historically:
+- **Tatiana's Event Rate Card Template** — the original 8-tab Excel that seeded the first pass (Lucid, VW, JLR, Hankook, Mazda, MB, Volvo, Volvo MS).
+- **Dave's Cost Rate Card Template** — the 20-tab cost-focused template imported in Sprint 016. Adds corporate/office cost columns for GP math and expands to the full OEM roster.
 
 ---
 
@@ -115,15 +116,15 @@ The `office_payout_pct` on the client record configures this split.
 
 ---
 
-## Two Rate Sources (Important Nuance)
+## Rate Sources (Important Nuance)
 
-Rates live in two places, and both matter:
+Three upstream sources have fed `rate_card_items` over the life of the project:
 
-1. **Tatiana's Event Rate Cards** — `DriveShop_Event_Estimate_Template.xlsx`. 8 client tabs. **Primary source.** This is what's seeded into `rate_card_items`.
+1. **Tatiana's Event Rate Cards** — `DriveShop_Event_Estimate_Template.xlsx`. Original 8-tab source for bill rates and GL codes. Seeded the first pass.
 
-2. **Dave's FMS Rate Matrix** — Fleet Management System rate matrix. 146 fee types × 15 brands. Covers fleet-specific rates (vehicle prep, delivery, logistics).
+2. **Dave's Cost Rate Card Template** — `data/imports/DriveShop_Cost_Rate_Card_Template.xlsx`. 20 OEM tabs with corporate/office cost columns. Imported Sprint 016. Current source for per-item GP math.
 
-The Event Estimate Engine currently uses Tatiana's rate cards. Dave's FMS matrix is referenced for fleet rate validation but not yet integrated into the estimation flow.
+3. **Dave's FMS Rate Matrix** — Fleet Management System rate matrix (146 fee types × 15 brands). Covers fleet-specific rates (vehicle prep, delivery, logistics). Referenced for fleet rate validation but not directly integrated into the estimation flow.
 
 ---
 
