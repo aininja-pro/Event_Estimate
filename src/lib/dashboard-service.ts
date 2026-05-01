@@ -35,7 +35,7 @@ function requireSupabase() {
 
 const PIPELINE_STATUSES = ['pipeline', 'estimate', 'in_review']
 const ACTIVE_STATUSES = ['pipeline', 'estimate', 'in_review', 'active']
-const ALL_STATUSES = ['pipeline', 'estimate', 'in_review', 'active', 'recap', 'invoiced', 'complete', 'lost', 'cancelled']
+const ALL_STATUSES = ['pipeline', 'estimate', 'in_review', 'active', 'recap', 'accounting_review', 'export_ready', 'invoiced', 'complete', 'lost', 'cancelled']
 
 function getQuarterRange(): { start: string; end: string } {
   const now = new Date()
@@ -102,7 +102,8 @@ export async function getDashboardData(): Promise<DashboardData> {
   // Build estimate lookup for activity enrichment
   const estimateLookup = new Map<string, { event_name: string; client_name: string }>()
   for (const est of estimates) {
-    const clientName = (est.clients as { name: string } | null)?.name ?? 'Unknown'
+    const client = Array.isArray(est.clients) ? est.clients[0] : est.clients
+    const clientName = (client as { name?: string } | null)?.name ?? 'Unknown'
     estimateLookup.set(est.id, { event_name: est.event_name, client_name: clientName })
   }
 
@@ -130,7 +131,8 @@ export async function getDashboardData(): Promise<DashboardData> {
   for (const est of estimates) {
     const status = est.status as string
     const revenue = revenueMap.get(est.id) ?? 0
-    const clientName = (est.clients as { name: string } | null)?.name ?? 'Unknown'
+    const client = Array.isArray(est.clients) ? est.clients[0] : est.clients
+    const clientName = (client as { name?: string } | null)?.name ?? 'Unknown'
 
     // Status breakdown
     const statusEntry = statusMap.get(status)
@@ -148,7 +150,7 @@ export async function getDashboardData(): Promise<DashboardData> {
       summary.active.count += 1
       summary.active.total_revenue += revenue
     }
-    if (status === 'recap') {
+    if (status === 'recap' || status === 'accounting_review' || status === 'export_ready') {
       summary.in_recap.count += 1
       summary.in_recap.total_revenue += revenue
     }

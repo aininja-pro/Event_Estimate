@@ -16,6 +16,7 @@ import { canUserApprove } from '@/lib/workflow-service'
 import { formatCONumber } from '@/lib/change-order-service'
 import type { ClientApprovalToken } from '@/lib/client-approval-service'
 import { SendToClientModal } from '@/components/SendToClientModal'
+import type { ClientContact } from '@/types/rate-card'
 
 // ── Gate-specific config ──────────────────────────────────────────────────────
 
@@ -94,6 +95,7 @@ interface ApprovalBannerProps {
   /** Client-gate only: populated when the estimate is ready to email the client. */
   clientEmailContext?: {
     defaultEmail: string | null
+    contacts?: Pick<ClientContact, 'id' | 'name' | 'email' | 'title'>[]
     clientName: string
     eventName: string
     estimateId: string
@@ -343,6 +345,7 @@ export function ApprovalBanner({ approval, userRole, onApprove, onReject, change
           open={sendOpen}
           onOpenChange={setSendOpen}
           defaultEmail={clientEmailContext.defaultEmail}
+          contacts={clientEmailContext.contacts}
           clientName={clientEmailContext.clientName}
           eventName={clientEmailContext.eventName}
           estimateId={clientEmailContext.estimateId}

@@ -45,6 +45,8 @@ const STATUS_COLORS: Record<string, string> = {
   in_review: '#f59e0b',  // amber-500
   active: '#d946ef',     // fuchsia-500
   recap: '#8b5cf6',      // violet-500
+  accounting_review: '#0ea5e9', // sky-500
+  export_ready: '#10b981', // emerald-500
   invoiced: '#14b8a6',   // teal-500
   complete: '#22c55e',   // green-500
   lost: '#ef4444',       // red-500
@@ -57,6 +59,8 @@ const STATUS_LABELS: Record<string, string> = {
   in_review: 'In Review',
   active: 'Active',
   recap: 'Recap',
+  accounting_review: 'Accounting Review',
+  export_ready: 'Ready for Intacct Import',
   invoiced: 'Invoiced',
   complete: 'Complete',
   lost: 'Lost',
@@ -131,8 +135,8 @@ function StatusBreakdownChart({ data }: { data: DashboardData['status_breakdown'
               tickLine={false}
             />
             <Tooltip
-              formatter={(value: number) => [formatCurrency(value), 'Revenue']}
-              labelFormatter={(label: string) => label}
+              formatter={(value) => [formatCurrency(Number(value ?? 0)), 'Revenue']}
+              labelFormatter={(label) => String(label ?? '')}
               contentStyle={{ fontSize: 12, borderRadius: 6, border: '1px solid #e4e4e7' }}
             />
             <Bar dataKey="total_revenue" radius={[0, 4, 4, 0]} barSize={24}>
@@ -217,11 +221,11 @@ function MonthlyVolumeChart({ data }: { data: DashboardData['monthly_volume'] })
               width={28}
             />
             <Tooltip
-              formatter={(value: number, name: string) => [
-                name === 'count' ? `${value} estimates` : formatCurrency(value),
+              formatter={(value, name) => [
+                name === 'count' ? `${Number(value ?? 0)} estimates` : formatCurrency(Number(value ?? 0)),
                 name === 'count' ? 'Estimates' : 'Revenue',
               ]}
-              labelFormatter={(label: string) => label}
+              labelFormatter={(label) => String(label ?? '')}
               contentStyle={{ fontSize: 12, borderRadius: 6, border: '1px solid #e4e4e7' }}
             />
             <Bar dataKey="count" fill="#6366f1" radius={[4, 4, 0, 0]} barSize={28} />

@@ -6,6 +6,11 @@ from dotenv import load_dotenv
 # at module load time (e.g. email_service sets resend.api_key on import).
 load_dotenv(override=True)
 
+# WeasyPrint's native libraries are installed under Homebrew on local macOS
+# machines. Make that path discoverable before any PDF route lazy-imports it.
+if "DYLD_FALLBACK_LIBRARY_PATH" not in os.environ and os.path.exists("/opt/homebrew/lib"):
+    os.environ["DYLD_FALLBACK_LIBRARY_PATH"] = "/opt/homebrew/lib"
+
 from fastapi import FastAPI  # noqa: E402
 from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
 
@@ -20,7 +25,13 @@ app = FastAPI(title="DriveShop AI API", version="1.0.0")
 
 frontend_url = os.getenv("FRONTEND_URL", "http://localhost:5173")
 extra_origins = os.getenv("EXTRA_CORS_ORIGINS", "").split(",")
-allowed_origins = [frontend_url] + [o.strip() for o in extra_origins if o.strip()]
+default_dev_origins = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+]
+allowed_origins = list(dict.fromkeys(
+    [frontend_url, *default_dev_origins, *[o.strip() for o in extra_origins if o.strip()]]
+))
 
 app.add_middleware(
     CORSMiddleware,

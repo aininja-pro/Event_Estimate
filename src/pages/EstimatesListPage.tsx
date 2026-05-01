@@ -28,12 +28,12 @@ import { Label } from '@/components/ui/label'
 import { DateRangePicker } from '@/components/ui/date-range-picker'
 import { FileSpreadsheet, MoreVertical, ChevronUp, ChevronDown, Search, X, Copy } from 'lucide-react'
 import { getEstimates, createEstimate, createPrimarySegmentForEstimate, updateEstimate, deleteEstimate, duplicateEstimate } from '@/lib/estimate-service'
-import { getClients } from '@/lib/rate-card-service'
+import { getClientContacts, getClients } from '@/lib/rate-card-service'
 import { useUser } from '@/lib/auth'
 import { hasPermission } from '@/lib/permissions'
 import { createNotification, notifyByRole } from '@/lib/notification-service'
 import type { EstimateWithSegments } from '@/types/estimate'
-import type { Client } from '@/types/rate-card'
+import type { Client, ClientContact } from '@/types/rate-card'
 
 const EVENT_TYPES = [
   'Ride & Drive',
@@ -53,6 +53,8 @@ const STATUS_LABELS: Record<string, string> = {
   in_review: 'In Review',
   active: 'Active',
   recap: 'Recap',
+  accounting_review: 'Accounting Review',
+  export_ready: 'Ready for Intacct Import',
   invoiced: 'Invoiced',
   lost: 'Lost',
   cancelled: 'Cancelled',
@@ -65,6 +67,8 @@ const STATUS_DOT: Record<string, string> = {
   in_review: 'bg-amber-500',
   active: 'bg-fuchsia-500',
   recap: 'bg-violet-500',
+  accounting_review: 'bg-sky-500',
+  export_ready: 'bg-emerald-500',
   invoiced: 'bg-teal-500',
   lost: 'bg-red-500',
   cancelled: 'bg-slate-400',
@@ -77,6 +81,8 @@ const STATUS_BADGE: Record<string, string> = {
   in_review: 'bg-amber-50 text-amber-700',
   active: 'bg-fuchsia-50 text-fuchsia-700',
   recap: 'bg-violet-50 text-violet-700',
+  accounting_review: 'bg-sky-50 text-sky-700',
+  export_ready: 'bg-emerald-50 text-emerald-700',
   invoiced: 'bg-teal-50 text-teal-700',
   lost: 'bg-red-50 text-red-700',
   cancelled: 'bg-slate-50 text-slate-500',
@@ -89,6 +95,8 @@ const SEGMENT_PILL: Record<string, string> = {
   in_review: 'bg-amber-100 text-amber-800 border-amber-300',
   active: 'bg-fuchsia-100 text-fuchsia-800 border-fuchsia-300',
   recap: 'bg-violet-100 text-violet-800 border-violet-300',
+  accounting_review: 'bg-sky-100 text-sky-800 border-sky-300',
+  export_ready: 'bg-emerald-100 text-emerald-800 border-emerald-300',
   invoiced: 'bg-teal-100 text-teal-800 border-teal-300',
   lost: 'bg-red-100 text-red-800 border-red-300',
   cancelled: 'bg-slate-100 text-slate-600 border-slate-300',
@@ -100,19 +108,21 @@ const SEGMENT_DOT: Record<string, string> = {
   in_review: 'bg-amber-500',
   active: 'bg-fuchsia-500',
   recap: 'bg-violet-500',
+  accounting_review: 'bg-sky-500',
+  export_ready: 'bg-emerald-500',
   invoiced: 'bg-teal-500',
   lost: 'bg-red-500',
   cancelled: 'bg-slate-400',
 }
 
 const STATUS_ORDER: Record<string, number> = {
-  pipeline: 0, estimate: 1, in_review: 2, active: 3, recap: 4, invoiced: 5, lost: 6, cancelled: 7, archived: 8,
+  pipeline: 0, estimate: 1, in_review: 2, active: 3, recap: 4, accounting_review: 5, export_ready: 6, invoiced: 7, lost: 8, cancelled: 9, archived: 10,
 }
 
 type SortKey = 'event_name' | 'client' | 'status' | 'updated_at'
 type SortDir = 'asc' | 'desc' | null
 
-const FILTER_STATUSES = ['all', 'pipeline', 'estimate', 'in_review', 'active', 'recap', 'invoiced', 'lost', 'cancelled'] as const
+const FILTER_STATUSES = ['all', 'pipeline', 'estimate', 'in_review', 'active', 'recap', 'accounting_review', 'export_ready', 'invoiced', 'lost', 'cancelled'] as const
 
 function formatDate(dateStr: string | null): string {
   if (!dateStr) return '—'
@@ -148,6 +158,8 @@ export function EstimatesListPage() {
 
   // New estimate form state
   const [formClientId, setFormClientId] = useState('')
+  const [formClientContactId, setFormClientContactId] = useState('')
+  const [formClientContacts, setFormClientContacts] = useState<ClientContact[]>([])
   const [formEventName, setFormEventName] = useState('')
   const [formEventType, setFormEventType] = useState('')
   const [formLocation, setFormLocation] = useState('')
@@ -192,12 +204,27 @@ export function EstimatesListPage() {
 
   function resetForm() {
     setFormClientId('')
+    setFormClientContactId('')
+    setFormClientContacts([])
     setFormEventName('')
     setFormEventType('')
     setFormLocation('')
     setFormStartDate('')
     setFormEndDate('')
     setFormCostStructure('corporate')
+  }
+
+  async function handleClientChange(clientId: string) {
+    setFormClientId(clientId)
+    setFormClientContactId('')
+    try {
+      const contacts = await getClientContacts(clientId)
+      setFormClientContacts(contacts)
+      const defaultContact = contacts.find((contact) => contact.is_primary) ?? contacts[0] ?? null
+      setFormClientContactId(defaultContact?.id ?? '')
+    } catch {
+      setFormClientContacts([])
+    }
   }
 
   function computeDurationDays(): number | null {
@@ -215,6 +242,7 @@ export function EstimatesListPage() {
       const duration = computeDurationDays()
       const estimate = await createEstimate({
         client_id: formClientId,
+        client_contact_id: formClientContactId || null,
         event_name: formEventName,
         event_type: formEventType || null,
         location: formLocation || null,
@@ -620,7 +648,7 @@ export function EstimatesListPage() {
             {/* Client */}
             <div className="space-y-1">
               <Label className="text-xs">Client *</Label>
-              <Select value={formClientId} onValueChange={setFormClientId}>
+              <Select value={formClientId} onValueChange={handleClientChange}>
                 <SelectTrigger className="h-8 text-sm border-border/50">
                   <SelectValue placeholder="Select a client" />
                 </SelectTrigger>
@@ -631,6 +659,24 @@ export function EstimatesListPage() {
                 </SelectContent>
               </Select>
             </div>
+
+            {formClientId && formClientContacts.length > 0 && (
+              <div className="space-y-1">
+                <Label className="text-xs">Client Contact</Label>
+                <Select value={formClientContactId} onValueChange={setFormClientContactId}>
+                  <SelectTrigger className="h-8 text-sm border-border/50">
+                    <SelectValue placeholder="Select recipient" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {formClientContacts.map((contact) => (
+                      <SelectItem key={contact.id} value={contact.id} className="text-[13px]">
+                        {contact.name} · {contact.email}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
 
             {/* Event Name */}
             <div className="space-y-1">

@@ -7,7 +7,7 @@ export interface Profile {
   id: string
   email: string
   full_name: string
-  role: 'admin' | 'cfo' | 'operations' | 'production_manager' | 'account_manager'
+  role: 'admin' | 'cfo' | 'operations' | 'production_manager' | 'account_manager' | 'accounting'
   notification_prefs: { email: boolean; in_app: boolean }
   phone: string | null
   is_active: boolean

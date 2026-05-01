@@ -21,7 +21,6 @@ from pypdf import PdfReader, PdfWriter
 
 from services.ai_service import get_supabase
 from services.pdf_data_service import get_estimate_pdf_data
-from services.pdf_render_service import render_pdf
 
 
 # Extensions we can safely turn into PDF pages via Pillow. Anything else is
@@ -43,6 +42,8 @@ def generate_invoice_with_receipts(
 
     # 1. Base estimate PDF — always the detailed client view. Invoicing wants
     #    the full itemization, not the summary.
+    from services.pdf_render_service import render_pdf
+
     data = get_estimate_pdf_data(estimate_id, segment_id)
     base_pdf = render_pdf("estimate_client.html", data, detailed=True)
 

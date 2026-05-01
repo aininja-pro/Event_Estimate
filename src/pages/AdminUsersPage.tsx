@@ -25,6 +25,7 @@ import { UserPlus, Shield, ShieldOff, Trash2 } from 'lucide-react'
 const ROLE_OPTIONS = [
   { value: 'admin', label: 'Admin' },
   { value: 'cfo', label: 'CFO' },
+  { value: 'accounting', label: 'Accounting' },
   { value: 'operations', label: 'Operations' },
   { value: 'production_manager', label: 'Production Manager' },
   { value: 'account_manager', label: 'Account Manager' },
@@ -33,6 +34,7 @@ const ROLE_OPTIONS = [
 const ROLE_COLORS: Record<string, string> = {
   admin: 'bg-amber-100 text-amber-800 border border-amber-300',
   cfo: 'bg-blue-100 text-blue-800 border border-blue-300',
+  accounting: 'bg-teal-100 text-teal-800 border border-teal-300',
   operations: 'bg-emerald-100 text-emerald-800 border border-emerald-300',
   production_manager: 'bg-violet-100 text-violet-800 border border-violet-300',
   account_manager: 'bg-zinc-100 text-zinc-700 border border-zinc-300',

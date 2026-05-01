@@ -55,6 +55,13 @@ export async function previewPDF(
   pdfType: PDFType,
   segmentId?: string,
 ): Promise<void> {
+  // Open synchronously from the click handler so popup blockers allow the tab.
+  const previewWindow = window.open('about:blank', '_blank')
+  if (previewWindow) {
+    previewWindow.document.title = 'Loading PDF preview...'
+    previewWindow.document.body.innerHTML = '<p style="font-family: system-ui; padding: 24px;">Loading PDF preview...</p>'
+  }
+
   const res = await fetch(`${API_URL}/api/pdf/generate`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -68,6 +75,7 @@ export async function previewPDF(
 
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: 'PDF preview failed' }))
+    previewWindow?.close()
     throw new Error(err.error || 'PDF preview failed')
   }
 
@@ -75,6 +83,16 @@ export async function previewPDF(
   const url = URL.createObjectURL(blob)
   // Open in a new tab. The browser's native PDF viewer renders it.
   // We revoke the URL after a short delay so the tab has time to load it.
-  window.open(url, '_blank', 'noopener,noreferrer')
+  if (previewWindow) {
+    previewWindow.location.href = url
+  } else {
+    const a = document.createElement('a')
+    a.href = url
+    a.target = '_blank'
+    a.rel = 'noopener noreferrer'
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+  }
   setTimeout(() => URL.revokeObjectURL(url), 60_000)
 }

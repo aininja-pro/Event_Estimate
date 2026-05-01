@@ -44,7 +44,17 @@ export interface StatusTransition {
   created_at: string
 }
 
-export type SegmentStatus = 'pipeline' | 'estimate' | 'in_review' | 'active' | 'recap' | 'invoiced' | 'lost' | 'cancelled'
+export type SegmentStatus =
+  | 'pipeline'
+  | 'estimate'
+  | 'in_review'
+  | 'active'
+  | 'recap'
+  | 'accounting_review'
+  | 'export_ready'
+  | 'invoiced'
+  | 'lost'
+  | 'cancelled'
 
 // ---- Segment Status types ----
 
@@ -91,6 +101,24 @@ export interface RecapActual {
   updated_at: string
 }
 
+export interface AccountingReview {
+  id: string
+  estimate_id: string
+  labor_log_id: string
+  status: 'pending' | 'approved' | 'corrections_requested' | 'superseded'
+  submitted_by: string | null
+  submitted_at: string
+  reviewed_by: string | null
+  reviewed_at: string | null
+  correction_notes: string | null
+  review_notes: string | null
+  submitted_version_id: string | null
+  approved_version_id: string | null
+  recap_revision: string | null
+  created_at: string
+  updated_at: string
+}
+
 export interface VarianceRow {
   item_name: string
   section: string
@@ -113,7 +141,17 @@ export interface ReceiptAttachment {
   uploaded_at: string
 }
 
-export type EstimateStatus = 'pipeline' | 'estimate' | 'in_review' | 'active' | 'recap' | 'invoiced' | 'lost' | 'cancelled'
+export type EstimateStatus =
+  | 'pipeline'
+  | 'estimate'
+  | 'in_review'
+  | 'active'
+  | 'recap'
+  | 'accounting_review'
+  | 'export_ready'
+  | 'invoiced'
+  | 'lost'
+  | 'cancelled'
 
 // ---- Snapshot shape ----
 

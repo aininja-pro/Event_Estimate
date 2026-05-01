@@ -10,14 +10,26 @@ import {
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { previewPDF } from '@/lib/pdf-service'
+import type { ClientContact } from '@/types/rate-card'
+
+const CUSTOM_RECIPIENT = '__custom__'
 
 export interface SendToClientModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   /** Pre-filled from clients.billing_contact_email; user can override. */
   defaultEmail: string | null
+  /** External client contacts available for this estimate's client. */
+  contacts?: Pick<ClientContact, 'id' | 'name' | 'email' | 'title'>[]
   /** Event name, used in the PDF filename preview. */
   eventName: string
   /** Client name, used in the PDF filename preview. */
@@ -39,6 +51,7 @@ export function SendToClientModal({
   open,
   onOpenChange,
   defaultEmail,
+  contacts = [],
   eventName,
   clientName,
   estimateId,
@@ -47,6 +60,7 @@ export function SendToClientModal({
   onSend,
 }: SendToClientModalProps) {
   const [email, setEmail] = useState(defaultEmail ?? '')
+  const [selectedRecipient, setSelectedRecipient] = useState(CUSTOM_RECIPIENT)
   const [note, setNote] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [previewing, setPreviewing] = useState(false)
@@ -56,11 +70,13 @@ export function SendToClientModal({
   useEffect(() => {
     if (open) {
       setEmail(defaultEmail ?? '')
+      const matchingContact = contacts.find((contact) => contact.email === defaultEmail)
+      setSelectedRecipient(matchingContact?.id ?? CUSTOM_RECIPIENT)
       setNote('')
       setError(null)
       setSubmitting(false)
     }
-  }, [open, defaultEmail])
+  }, [open, defaultEmail, contacts])
 
   const pdfFilename = `${safePart(clientName)}_${safePart(eventName)}_Estimate_${todayISO()}.pdf`
   const trimmedEmail = email.trim()
@@ -94,9 +110,16 @@ export function SendToClientModal({
     }
   }
 
+  function handleRecipientChange(value: string) {
+    setSelectedRecipient(value)
+    if (value === CUSTOM_RECIPIENT) return
+    const contact = contacts.find((c) => c.id === value)
+    if (contact) setEmail(contact.email)
+  }
+
   return (
     <Dialog open={open} onOpenChange={(o) => (!submitting ? onOpenChange(o) : undefined)}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-xl overflow-visible">
         <DialogHeader>
           <DialogTitle className="text-sm flex items-center gap-2">
             <Mail className="h-4 w-4 text-blue-600" />
@@ -113,10 +136,32 @@ export function SendToClientModal({
             <label className="text-[11px] font-medium text-slate-600 uppercase tracking-wide">
               Recipient
             </label>
+            {contacts.length > 0 && (
+              <Select value={selectedRecipient} onValueChange={handleRecipientChange}>
+                <SelectTrigger className="h-8 w-full text-xs">
+                  <SelectValue placeholder="Choose client contact" />
+                </SelectTrigger>
+                <SelectContent position="popper" className="z-[70]">
+                  {contacts.map((contact) => (
+                    <SelectItem key={contact.id} value={contact.id} className="text-xs">
+                      <span className="font-medium">{contact.name}</span>
+                      <span className="text-muted-foreground">{contact.email}</span>
+                      {contact.title && <span className="text-muted-foreground/70">{contact.title}</span>}
+                    </SelectItem>
+                  ))}
+                  <SelectItem value={CUSTOM_RECIPIENT} className="text-xs italic text-muted-foreground">
+                    Custom email
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            )}
             <Input
               type="email"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={(e) => {
+                setEmail(e.target.value)
+                setSelectedRecipient(CUSTOM_RECIPIENT)
+              }}
               placeholder="client@example.com"
               className="text-xs h-8"
               autoComplete="off"
@@ -140,7 +185,7 @@ export function SendToClientModal({
             />
           </div>
 
-          <div className="flex items-center gap-2 rounded bg-slate-50 border border-slate-200 px-2.5 py-1.5 text-[11px] text-slate-600">
+          <div className="flex min-w-0 items-center gap-2 rounded bg-slate-50 border border-slate-200 px-2.5 py-1.5 text-[11px] text-slate-600">
             <Paperclip className="h-3.5 w-3.5 shrink-0 text-slate-500" />
             <span className="truncate font-mono">{pdfFilename}</span>
             <button
@@ -157,7 +202,7 @@ export function SendToClientModal({
           {error && <p className="text-[11px] text-red-600">{error}</p>}
         </div>
 
-        <DialogFooter className="gap-2">
+        <DialogFooter className="gap-2 sm:flex-wrap">
           <Button
             variant="outline"
             size="sm"

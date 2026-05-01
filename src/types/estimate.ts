@@ -3,6 +3,7 @@
 export interface Estimate {
   id: string
   client_id: string
+  client_contact_id?: string | null
   event_name: string
   event_type: string | null
   location: string | null
@@ -12,10 +13,19 @@ export interface Estimate {
   expected_attendance: string | null
   po_number: string | null
   project_id: string | null
+  revenue_segment_id?: string | null
+  event_city?: string | null
+  event_state?: string | null
+  intacct_project_id?: string | null
+  accounting_department_id?: string | null
+  accounting_location_id?: string | null
+  accounting_customer_id?: string | null
+  accounting_payment_terms?: string | null
+  office_accounting_profile_id?: string | null
   cost_structure: 'corporate' | 'office'
   internal_notes: string | null
   published_notes: string | null
-  status: 'pipeline' | 'estimate' | 'in_review' | 'active' | 'recap' | 'invoiced' | 'lost' | 'cancelled' | 'archived'
+  status: 'pipeline' | 'estimate' | 'in_review' | 'active' | 'recap' | 'accounting_review' | 'export_ready' | 'invoiced' | 'lost' | 'cancelled' | 'archived'
   created_by: string | null
   created_at: string
   updated_at: string
@@ -32,7 +42,20 @@ export interface EstimateWithClient extends Estimate {
     third_party_markup: number
     office_payout_pct: number
     billing_contact_email: string | null
+    intacct_customer_id?: string | null
+    default_payment_terms?: string | null
+    default_department_id?: string | null
+    default_location_id?: string | null
+    default_currency?: string
+    default_exchange_rate_type?: string
   }
+  client_contact?: {
+    id: string
+    name: string
+    email: string
+    phone: string | null
+    title: string | null
+  } | null
 }
 
 export interface EstimateWithSegments extends EstimateWithClient {
@@ -48,7 +71,7 @@ export interface LaborLog {
   start_date: string | null
   end_date: string | null
   notes: string | null
-  status: 'pipeline' | 'estimate' | 'in_review' | 'active' | 'recap' | 'invoiced' | 'lost' | 'cancelled'
+  status: 'pipeline' | 'estimate' | 'in_review' | 'active' | 'recap' | 'accounting_review' | 'export_ready' | 'invoiced' | 'lost' | 'cancelled'
   created_at: string
   updated_at: string
 }

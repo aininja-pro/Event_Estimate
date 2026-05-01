@@ -23,6 +23,13 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { DateRangePicker } from '@/components/ui/date-range-picker'
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import {
   Trash2,
   Send,
   Search,
@@ -68,10 +75,17 @@ import {
 } from '@/lib/change-order-service'
 import type { ChangeOrder } from '@/types/change-order'
 import { transitionSegmentStatus, getSegmentEditRules, getRecapActuals, upsertRecapActual, getVarianceReport } from '@/lib/segment-status-service'
+import {
+  getAccountingReview,
+  submitRecapForAccounting,
+  approveRecap,
+  requestRecapCorrections,
+} from '@/lib/accounting-review-service'
 import { useUser } from '@/lib/auth'
 import { hasPermission } from '@/lib/permissions'
 import { getGPThreshold } from '@/lib/system-settings-service'
-import type { ApprovalRequest, SegmentStatus, SegmentEditRules, RecapActual, VarianceRow } from '@/types/workflow'
+import { getAccountingReadinessSummary } from '@/lib/accounting-validation-service'
+import type { AccountingReview, ApprovalRequest, SegmentStatus, SegmentEditRules, RecapActual, VarianceRow } from '@/types/workflow'
 import { RecapActualsCells, RecapComputedCells, RecapColumnHeaders } from '@/components/recap/RecapActualsCells'
 import { FinancialSummaryCards } from '@/components/FinancialSummaryCards'
 import { ReceiptCell } from '@/components/recap/ReceiptCell'
@@ -96,9 +110,16 @@ import {
   updateLineItem,
   deleteLineItem,
 } from '@/lib/estimate-service'
-import { getRateCardItemsBySection, getClientApproverForEstimate } from '@/lib/rate-card-service'
+import {
+  getRateCardItemsBySection,
+  getClientApproverForEstimate,
+  getClientContacts,
+  getOfficeAccountingProfiles,
+  getRevenueSegments,
+} from '@/lib/rate-card-service'
 import type { EstimateWithClient, EstimateUpdate, LaborLog, LaborEntry, EstimateLineItem } from '@/types/estimate'
-import type { RateCardItemsBySection } from '@/types/rate-card'
+import type { ClientContact, RateCardItemsBySection } from '@/types/rate-card'
+import type { AccountingReadinessSummary, OfficeAccountingProfile, RevenueSegment } from '@/types/accounting'
 import type { Nudge } from '@/types/nudge'
 import { fetchNudges, fetchFreshEstimateState, sendChatMessage, dismissNudge, getDismissedNudges } from '@/lib/ai-nudge-service'
 import { generatePDF, type PDFType } from '@/lib/pdf-service'
@@ -122,6 +143,8 @@ const EVENT_TYPES = [
   'Fleet',
   'Other',
 ]
+
+const CLIENT_CONTACT_NONE = '__none__'
 
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -453,11 +476,19 @@ function EventHeader({
   onUpdate,
   readOnly,
   notesEditable,
+  revenueSegments,
+  officeProfiles,
+  clientContacts,
+  accountingEditable,
 }: {
   estimate: EstimateWithClient
   onUpdate: (updates: EstimateUpdate) => void
   readOnly?: boolean
   notesEditable?: boolean
+  revenueSegments: RevenueSegment[]
+  officeProfiles: OfficeAccountingProfile[]
+  clientContacts: ClientContact[]
+  accountingEditable?: boolean
 }) {
   const [eventName, setEventName] = useState(estimate.event_name)
   const [eventType, setEventType] = useState(estimate.event_type ?? '')
@@ -467,6 +498,11 @@ function EventHeader({
   const [attendance, setAttendance] = useState(estimate.expected_attendance?.toString() ?? '')
   const [poNumber, setPoNumber] = useState(estimate.po_number ?? '')
   const [projectId, setProjectId] = useState(estimate.project_id ?? '')
+  const [eventCity, setEventCity] = useState(estimate.event_city ?? '')
+  const [eventState, setEventState] = useState(estimate.event_state ?? '')
+  const [intacctProjectId, setIntacctProjectId] = useState(estimate.intacct_project_id ?? '')
+  const [acctDepartmentId, setAcctDepartmentId] = useState(estimate.accounting_department_id ?? '')
+  const [acctLocationId, setAcctLocationId] = useState(estimate.accounting_location_id ?? '')
   const [internalNotes, setInternalNotes] = useState(estimate.internal_notes ?? '')
   const [publishedNotes, setPublishedNotes] = useState(estimate.published_notes ?? '')
   const [showNotes, setShowNotes] = useState(!!(estimate.internal_notes || estimate.published_notes))
@@ -484,13 +520,37 @@ function EventHeader({
   const fieldLabel = "mb-0.5 text-[10px] uppercase tracking-widest text-muted-foreground font-medium"
   const fieldInput = "h-7 text-[13px] font-medium rounded-none border-0 border-b border-border/40 bg-transparent hover:border-border/60 focus-visible:border-foreground/40 focus-visible:ring-0 px-0 transition-colors"
   const readOnlyField = "h-7 text-[13px] font-medium border-0 bg-transparent cursor-default px-0 text-muted-foreground"
+  const accountingReadOnly = readOnly && !accountingEditable
 
   return (
     <div className="border border-border/50 bg-slate-50 dark:bg-slate-800/50 rounded-md px-4 py-3">
-      <div className="grid grid-cols-4 gap-x-5 gap-y-2">
+      <div className="grid grid-cols-5 gap-x-5 gap-y-2">
         <div>
           <p className={fieldLabel}>Client</p>
           <Input readOnly value={estimate.clients.name} className={readOnlyField} />
+        </div>
+        <div>
+          <p className={fieldLabel}>Client Contact</p>
+          {readOnly ? (
+            <Input readOnly value={estimate.client_contact?.name ?? ''} placeholder="—" className={readOnlyField} />
+          ) : (
+            <Select
+              value={estimate.client_contact_id ?? CLIENT_CONTACT_NONE}
+              onValueChange={(v) => onUpdate({ client_contact_id: v === CLIENT_CONTACT_NONE ? null : v })}
+            >
+              <SelectTrigger className="h-7 text-[13px] rounded-none border-0 border-b border-border/40 bg-transparent px-0 shadow-none focus:ring-0">
+                <SelectValue placeholder="Select contact" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={CLIENT_CONTACT_NONE} className="text-[13px] italic text-muted-foreground">— No selected contact —</SelectItem>
+                {clientContacts.map((contact) => (
+                  <SelectItem key={contact.id} value={contact.id} className="text-[13px]">
+                    {contact.name} · {contact.email}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
         </div>
         <div>
           <p className={fieldLabel}>Event Type</p>
@@ -553,6 +613,64 @@ function EventHeader({
           <Input readOnly value={estimate.duration_days ? `${estimate.duration_days} days` : '—'} className={readOnlyField} />
         </div>
       </div>
+      {estimate.cost_structure === 'office' && (
+        <div className="mt-2.5 pt-2.5 border-t border-border/40 grid grid-cols-4 gap-x-5 gap-y-2">
+          <div>
+            <p className={fieldLabel}>Revenue Segment</p>
+            {accountingReadOnly ? (
+              <Input readOnly value={revenueSegments.find((s) => s.id === estimate.revenue_segment_id)?.name ?? ''} className={readOnlyField} />
+            ) : (
+              <Select value={estimate.revenue_segment_id ?? undefined} onValueChange={(v) => onUpdate({ revenue_segment_id: v })}>
+                <SelectTrigger className="h-7 text-[13px] rounded-none border-0 border-b border-border/40 bg-transparent px-0 shadow-none focus:ring-0">
+                  <SelectValue placeholder="Select segment" />
+                </SelectTrigger>
+                <SelectContent>
+                  {revenueSegments.map((segment) => (
+                    <SelectItem key={segment.id} value={segment.id} className="text-[13px]">{segment.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+          </div>
+          <div>
+            <p className={fieldLabel}>Office Profile</p>
+            {accountingReadOnly ? (
+              <Input readOnly value={officeProfiles.find((p) => p.id === estimate.office_accounting_profile_id)?.office_name ?? ''} className={readOnlyField} />
+            ) : (
+              <Select value={estimate.office_accounting_profile_id ?? undefined} onValueChange={(v) => onUpdate({ office_accounting_profile_id: v })}>
+                <SelectTrigger className="h-7 text-[13px] rounded-none border-0 border-b border-border/40 bg-transparent px-0 shadow-none focus:ring-0">
+                  <SelectValue placeholder="Select office" />
+                </SelectTrigger>
+                <SelectContent>
+                  {officeProfiles.map((profile) => (
+                    <SelectItem key={profile.id} value={profile.id} className="text-[13px]">{profile.office_name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+          </div>
+          <div>
+            <p className={fieldLabel}>Event City</p>
+            <Input value={eventCity} onChange={(e) => setEventCity(e.target.value)} onBlur={() => saveField('event_city', eventCity)} className={accountingReadOnly ? readOnlyField : fieldInput} readOnly={accountingReadOnly} />
+          </div>
+          <div>
+            <p className={fieldLabel}>Event State</p>
+            <Input value={eventState} onChange={(e) => setEventState(e.target.value)} onBlur={() => saveField('event_state', eventState)} className={accountingReadOnly ? readOnlyField : fieldInput} readOnly={accountingReadOnly} />
+          </div>
+          <div>
+            <p className={fieldLabel}>Intacct Project ID</p>
+            <Input value={intacctProjectId} onChange={(e) => setIntacctProjectId(e.target.value)} onBlur={() => saveField('intacct_project_id', intacctProjectId)} className={accountingReadOnly ? readOnlyField : fieldInput} readOnly={accountingReadOnly} />
+          </div>
+          <div>
+            <p className={fieldLabel}>Department Override</p>
+            <Input value={acctDepartmentId} onChange={(e) => setAcctDepartmentId(e.target.value)} onBlur={() => saveField('accounting_department_id', acctDepartmentId)} className={accountingReadOnly ? readOnlyField : fieldInput} readOnly={accountingReadOnly} />
+          </div>
+          <div>
+            <p className={fieldLabel}>Location Override</p>
+            <Input value={acctLocationId} onChange={(e) => setAcctLocationId(e.target.value)} onBlur={() => saveField('accounting_location_id', acctLocationId)} className={accountingReadOnly ? readOnlyField : fieldInput} readOnly={accountingReadOnly} />
+          </div>
+        </div>
+      )}
       {!showNotes ? (
         (!readOnly || notesEditable) && <button onClick={() => setShowNotes(true)} className="mt-2.5 text-[10px] uppercase tracking-widest text-muted-foreground/60 hover:text-muted-foreground/60 transition-colors font-medium">
           + Add notes
@@ -989,6 +1107,8 @@ const SEGMENT_TAB_STYLES: Record<string, { dot: string; selected: string; unsele
   in_review: { dot: 'bg-amber-500',   selected: 'text-amber-700',   unselected: 'text-amber-400/70', underline: 'bg-amber-500' },
   active:    { dot: 'bg-fuchsia-500', selected: 'text-fuchsia-700', unselected: 'text-fuchsia-400/70', underline: 'bg-fuchsia-500' },
   recap:     { dot: 'bg-violet-500',  selected: 'text-violet-700',  unselected: 'text-violet-400/70', underline: 'bg-violet-500' },
+  accounting_review: { dot: 'bg-sky-500', selected: 'text-sky-700', unselected: 'text-sky-400/70', underline: 'bg-sky-500' },
+  export_ready: { dot: 'bg-emerald-500', selected: 'text-emerald-700', unselected: 'text-emerald-400/70', underline: 'bg-emerald-500' },
   invoiced:  { dot: 'bg-teal-500',   selected: 'text-teal-700',    unselected: 'text-teal-400/70',  underline: 'bg-teal-500' },
   lost:      { dot: 'bg-red-500',     selected: 'text-red-700',     unselected: 'text-red-400/70',   underline: 'bg-red-500' },
   cancelled: { dot: 'bg-slate-400',   selected: 'text-slate-600',   unselected: 'text-slate-400/60', underline: 'bg-slate-400' },
@@ -996,7 +1116,8 @@ const SEGMENT_TAB_STYLES: Record<string, { dot: string; selected: string; unsele
 
 const SEGMENT_BADGE_LABELS: Record<string, string> = {
   pipeline: 'PIPELINE', estimate: 'ESTIMATE', in_review: 'IN REVIEW', active: 'ACTIVE',
-  recap: 'RECAP', invoiced: 'INVOICED', lost: 'LOST', cancelled: 'CANCELLED',
+  recap: 'RECAP', accounting_review: 'ACCOUNTING REVIEW', export_ready: 'READY FOR IMPORT',
+  invoiced: 'INVOICED', lost: 'LOST', cancelled: 'CANCELLED',
 }
 
 function LocationSelector({
@@ -1182,17 +1303,6 @@ function LaborLogTab({
   const hasScheduleData = activeScheduleEntries.length > 0
   const activeRollup = hasScheduleData ? computeScheduleRollup(activeScheduleEntries) : []
 
-  // Map rollup rows to first schedule_entry_id per group (for recap actuals keying)
-  const rollupEntryIds = useMemo(() => {
-    if (!hasScheduleData) return [] as string[]
-    const groups = new Map<string, string>()
-    for (const entry of activeScheduleEntries) {
-      const key = `${entry.role_name}:${entry.day_rate}:${entry.cost_rate}`
-      if (!groups.has(key)) groups.set(key, entry.id)
-    }
-    return Array.from(groups.values())
-  }, [activeScheduleEntries, hasScheduleData])
-
   // Name progress tracking
   const namedCount = activeScheduleEntries.filter((e) => e.person_name?.trim()).length
   const totalStaffCount = activeScheduleEntries.length
@@ -1332,8 +1442,6 @@ function LaborLogTab({
               <TableBody>
                 {activeRollup.map((row, idx) => {
                   const gp = row.revenue_total - row.cost_total
-                  const schedEntryId = rollupEntryIds[idx]
-                  const recapKey = `schedule_${schedEntryId}`
                   const rowClass = row.is_unplanned
                     ? "border-b border-border/10 hover:bg-rose-50/40 bg-rose-50/20 [&>td:first-child]:border-l-[3px] [&>td:first-child]:border-l-rose-400"
                     : "border-b border-border/10 hover:bg-muted/30"
@@ -2584,7 +2692,12 @@ function SummaryTab({
 }) {
   // Variance data for recap segments
   const [varianceData, setVarianceData] = useState<Record<string, VarianceRow[]>>({})
-  const recapLogs = laborLogs.filter((l) => l.status === 'recap' || l.status === 'invoiced')
+  const recapLogs = laborLogs.filter((l) =>
+    l.status === 'recap' ||
+    l.status === 'accounting_review' ||
+    l.status === 'export_ready' ||
+    l.status === 'invoiced'
+  )
   const hasRecapData = recapLogs.length > 0
   const recapLogIds = recapLogs.map((l) => l.id).join(',')
 
@@ -2909,6 +3022,58 @@ function SummaryTab({
   )
 }
 
+// ── Intacct Readiness Panel ──────────────────────────────────────────────────
+
+function IntacctReadinessPanel({ summary }: { summary: AccountingReadinessSummary | null | undefined }) {
+  if (!summary || !summary.isOfficeEvent) return null
+
+  const groups = [
+    { label: 'AP Bill Upload', result: summary.ap },
+    { label: 'AR Invoice Upload', result: summary.ar },
+  ]
+
+  return (
+    <div className="border border-border/50 rounded-md bg-white px-3 py-2.5 space-y-2">
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-[11px] uppercase tracking-widest text-muted-foreground font-medium">Intacct Readiness</p>
+          <p className="text-[12px] text-muted-foreground">Validation only. CSV export buttons are not enabled yet.</p>
+        </div>
+        <span className={`text-[11px] font-medium px-2 py-1 rounded border ${summary.isReady ? 'text-emerald-700 bg-emerald-50 border-emerald-200' : 'text-amber-700 bg-amber-50 border-amber-200'}`}>
+          {summary.isReady ? 'Ready' : 'Missing Data'}
+        </span>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        {groups.map(({ label, result }) => (
+          <div key={label} className="border border-border/40 rounded-md p-2">
+            <div className="flex items-center justify-between mb-1.5">
+              <span className="text-[13px] font-medium">{label}</span>
+              <span className={`text-[11px] ${result.isValid ? 'text-emerald-700' : 'text-amber-700'}`}>
+                {result.isValid ? 'Valid' : `${result.missingFields.length} missing`}
+              </span>
+            </div>
+            {result.missingFields.length === 0 ? (
+              <p className="text-[12px] text-muted-foreground">No blocking readiness issues found.</p>
+            ) : (
+              <ul className="space-y-1">
+                {result.missingFields.slice(0, 8).map((issue, idx) => (
+                  <li key={`${issue.field}-${idx}`} className="text-[12px] text-muted-foreground flex gap-1.5">
+                    <AlertTriangle className="h-3 w-3 text-amber-600 mt-0.5 shrink-0" />
+                    <span>{issue.message}</span>
+                  </li>
+                ))}
+                {result.missingFields.length > 8 && (
+                  <li className="text-[12px] text-muted-foreground">+ {result.missingFields.length - 8} more</li>
+                )}
+              </ul>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 // ── Export PDF Button ────────────────────────────────────────────────────────
 
 function ExportButton({ estimateId }: { estimateId: string }) {
@@ -2986,6 +3151,8 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
   const [laborEntriesMap, setLaborEntriesMap] = useState<Record<string, LaborEntry[]>>({})
   const [lineItemsMap, setLineItemsMap] = useState<Record<string, EstimateLineItem[]>>({})
   const [rateCardData, setRateCardData] = useState<RateCardItemsBySection[]>([])
+  const [revenueSegments, setRevenueSegments] = useState<RevenueSegment[]>([])
+  const [officeProfiles, setOfficeProfiles] = useState<OfficeAccountingProfile[]>([])
   const [scheduleEntriesMap, setScheduleEntriesMap] = useState<Record<string, ScheduleEntry[]>>({})
   const [scheduleRefreshKey, setScheduleRefreshKey] = useState(0)
   const [dayTypesMap, setDayTypesMap] = useState<Record<string, ScheduleDayType[]>>({})
@@ -2993,8 +3160,11 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
   const [aiPanelOpen, setAiPanelOpen] = useState(false)
   const [historyOpen, setHistoryOpen] = useState(false)
   const [segmentApprovals, setSegmentApprovals] = useState<Record<string, ApprovalRequest | null>>({})
+  const [accountingReviews, setAccountingReviews] = useState<Record<string, AccountingReview | null>>({})
+  const [accountingReadiness, setAccountingReadiness] = useState<Record<string, AccountingReadinessSummary | null>>({})
   const [draftChangeOrders, setDraftChangeOrders] = useState<Record<string, ChangeOrder | null>>({})
   const [submittedChangeOrders, setSubmittedChangeOrders] = useState<Record<string, ChangeOrder | null>>({})
+  const [clientContacts, setClientContacts] = useState<ClientContact[]>([])
   const [gpThreshold, setGpThreshold] = useState(20)
   const [primaryApprover, setPrimaryApprover] = useState<{ id: string; full_name: string } | null>(null)
   const [clientTokens, setClientTokens] = useState<Record<string, ClientApprovalToken | null>>({})
@@ -3007,10 +3177,13 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
       const est = await getEstimate(estimateId)
       setEstimate(est)
 
-      const [loadedLogs, rcData, approver] = await Promise.all([
+      const [loadedLogs, rcData, approver, contactData, revenueSegmentData, officeProfileData] = await Promise.all([
         getLaborLogs(estimateId),
         getRateCardItemsBySection(est.client_id),
         getClientApproverForEstimate(estimateId),
+        getClientContacts(est.client_id),
+        getRevenueSegments(),
+        getOfficeAccountingProfiles(),
       ])
 
       const logs = loadedLogs.length > 0
@@ -3020,6 +3193,9 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
       setLaborLogs(logs)
       setRateCardData(rcData)
       setPrimaryApprover(approver)
+      setClientContacts(contactData)
+      setRevenueSegments(revenueSegmentData)
+      setOfficeProfiles(officeProfileData)
 
       // Load entries, line items, and schedule entries for all logs in parallel
       const entriesMap: Record<string, LaborEntry[]> = {}
@@ -3059,6 +3235,24 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
       }))
       setSegmentApprovals(approvalsMap)
       setClientTokens(tokensMap)
+
+      const accountingReviewMap: Record<string, AccountingReview | null> = {}
+      await Promise.all(logs.map(async (log) => {
+        if (['recap', 'accounting_review', 'export_ready', 'invoiced'].includes(log.status)) {
+          accountingReviewMap[log.id] = await getAccountingReview(log.id)
+        }
+      }))
+      setAccountingReviews(accountingReviewMap)
+
+      const readinessMap: Record<string, AccountingReadinessSummary | null> = {}
+      if (est.cost_structure === 'office') {
+        await Promise.all(logs.map(async (log) => {
+          if (log.status === 'export_ready') {
+            readinessMap[log.id] = await getAccountingReadinessSummary(log.id)
+          }
+        }))
+      }
+      setAccountingReadiness(readinessMap)
 
       // Load draft and submitted change orders for active/estimate segments
       const draftCOs: Record<string, ChangeOrder | null> = {}
@@ -3275,8 +3469,11 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
     if (!estimate) return
     try {
       const updated = await updateEstimate(estimateId, updates)
-      const nextEstimate = { ...estimate, ...updated }
-      setEstimate((prev) => prev ? { ...prev, ...updated } : prev)
+      const selectedContact = updates.client_contact_id !== undefined
+        ? clientContacts.find((contact) => contact.id === updates.client_contact_id) ?? null
+        : estimate.client_contact ?? null
+      const nextEstimate = { ...estimate, ...updated, client_contact: selectedContact }
+      setEstimate((prev) => prev ? { ...prev, ...updated, client_contact: selectedContact } : prev)
 
       let nextLogs = laborLogs
       if (nextLogs.length === 0) {
@@ -3320,6 +3517,10 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
       if (newLocation && primaryPlaceholder) {
         const renamed = await updateLaborLog(primaryPlaceholder.id, { location_name: newLocation })
         setLaborLogs((prev) => prev.map((log) => log.id === renamed.id ? renamed : log))
+      }
+      if (activeLocationId && activeSegmentStatus === 'export_ready' && nextEstimate.cost_structure === 'office') {
+        const summary = await getAccountingReadinessSummary(activeLocationId)
+        setAccountingReadiness((prev) => ({ ...prev, [activeLocationId]: summary }))
       }
     } catch (err) {
       console.error('Failed to update estimate:', err)
@@ -3668,6 +3869,38 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
     return result
   }
 
+  async function handleSubmitRecapForAccounting(notes?: string) {
+    if (!activeLocationId) return { success: false, error: 'No segment selected' }
+    const result = await submitRecapForAccounting(activeLocationId, userId, notes)
+    if (result.success) await loadData()
+    return result
+  }
+
+  async function handleApproveRecap(notes?: string) {
+    if (!activeLocationId) return { success: false, error: 'No segment selected' }
+    const review = accountingReviews[activeLocationId]
+    if (!review || review.status !== 'pending') {
+      return { success: false, error: 'No pending accounting review found' }
+    }
+    const result = await approveRecap(review.id, userId, notes)
+    if (result.success) await loadData()
+    return result
+  }
+
+  async function handleRequestRecapCorrections(notes: string) {
+    if (!activeLocationId) return { success: false, error: 'No segment selected' }
+    const review = accountingReviews[activeLocationId]
+    if (!review || review.status !== 'pending') {
+      return { success: false, error: 'No pending accounting review found' }
+    }
+    const result = await requestRecapCorrections(review.id, userId, notes)
+    if (result.success) {
+      await loadData()
+      setScheduleRefreshKey((k) => k + 1)
+    }
+    return result
+  }
+
   async function handleCreateChangeOrder(description: string) {
     if (!activeLocationId) return { success: false, error: 'No segment selected' }
     try {
@@ -3708,7 +3941,15 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
   // Segment-aware edit rules: derive from the active segment's status
   const activeLog = laborLogs.find((l) => l.id === activeLocationId)
   const activeSegmentStatus = (activeLog?.status || 'estimate') as SegmentStatus
-  const editRules: SegmentEditRules = getSegmentEditRules(activeSegmentStatus)
+  const activeAccountingReview = activeLocationId ? accountingReviews[activeLocationId] : null
+  const isOfficeEvent = estimate?.cost_structure === 'office'
+  const baseEditRules: SegmentEditRules = getSegmentEditRules(activeSegmentStatus)
+  const canReviewRecap = hasPermission(userRole, 'review_recap')
+  const canEditAccountingMappings = hasPermission(userRole, 'edit_accounting_mappings')
+  const editRules: SegmentEditRules =
+    activeSegmentStatus === 'accounting_review' && canReviewRecap
+      ? { ...baseEditRules, actuals: true, names_required: true, notes: true }
+      : baseEditRules
 
   // ── Render ──
 
@@ -3763,11 +4004,17 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
           onApprove={handleApprove}
           onReject={handleReject}
           changeOrder={submittedChangeOrders[activeLocationId] ?? undefined}
-          clientEmailContext={
-            segmentApprovals[activeLocationId]?.approval_gate === 'client'
-              ? {
-                  defaultEmail: estimate.clients.billing_contact_email,
-                  clientName: estimate.clients.name,
+                clientEmailContext={
+                  segmentApprovals[activeLocationId]?.approval_gate === 'client'
+                    ? {
+                        defaultEmail: estimate.client_contact?.email ?? estimate.clients.billing_contact_email,
+                        contacts: clientContacts.map((contact) => ({
+                          id: contact.id,
+                          name: contact.name,
+                          email: contact.email,
+                          title: contact.title,
+                        })),
+                        clientName: estimate.clients.name,
                   eventName: estimate.event_name,
                   estimateId,
                   segmentId: activeLocationId,
@@ -3818,7 +4065,12 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
           status={activeSegmentStatus}
           userRole={userRole}
           primaryApprover={primaryApprover}
+          isOfficeEvent={isOfficeEvent}
+          accountingReview={activeAccountingReview}
           onTransition={handleSegmentTransition}
+          onSubmitRecapForAccounting={handleSubmitRecapForAccounting}
+          onApproveRecap={handleApproveRecap}
+          onRequestCorrections={handleRequestRecapCorrections}
           onCreateChangeOrder={handleCreateChangeOrder}
           onSubmitChangeOrder={handleSubmitChangeOrder}
           hasDraftCO={!!(activeLocationId && draftChangeOrders[activeLocationId])}
@@ -3830,11 +4082,24 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
         />
       )}
 
+      {isOfficeEvent && activeLocationId && activeSegmentStatus === 'export_ready' && (
+        <IntacctReadinessPanel summary={accountingReadiness[activeLocationId]} />
+      )}
+
       {/* 70/30 Split Layout — AI panel collapsible */}
       <div className="flex gap-0">
         {/* Left Panel — Estimate Working Area */}
         <div className={`min-w-0 space-y-2.5 transition-all duration-200 ${aiPanelOpen ? 'flex-[7]' : 'flex-1'}`}>
-          <EventHeader estimate={estimate} onUpdate={handleUpdateEstimate} readOnly={!editRules.event_details} notesEditable={editRules.notes} />
+          <EventHeader
+            estimate={estimate}
+            onUpdate={handleUpdateEstimate}
+            readOnly={!editRules.event_details}
+            notesEditable={editRules.notes}
+            revenueSegments={revenueSegments}
+            officeProfiles={officeProfiles}
+            clientContacts={clientContacts}
+            accountingEditable={canEditAccountingMappings}
+          />
 
           <FinancialSummaryCards
             laborLogs={laborLogs}

@@ -14,7 +14,6 @@ from services.ai_service import get_supabase
 from services.client_approval_service import get_pending_token_for_segment
 from services.email_service import send_client_approval_email
 from services.pdf_data_service import get_estimate_pdf_data
-from services.pdf_render_service import render_pdf
 
 router = APIRouter(prefix="/api/email")
 
@@ -45,6 +44,8 @@ async def send_client_approval(req: SendClientApprovalRequest) -> dict:
         gross_revenue = float(data.get("totals", {}).get("gross_revenue", 0) or 0)
 
         # 2. Render the client-facing PDF (not detailed — matches "client_summary").
+        from services.pdf_render_service import render_pdf
+
         pdf_bytes = render_pdf("estimate_client.html", data, detailed=False)
         safe_client = client_name.replace(" ", "_")
         safe_event = event_name.replace(" ", "_")

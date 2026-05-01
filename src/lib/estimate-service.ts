@@ -31,7 +31,7 @@ export async function getEstimates(): Promise<EstimateWithSegments[]> {
   const db = requireSupabase()
   const { data, error } = await db
     .from('estimates')
-    .select('*, clients(name, code, third_party_markup, office_payout_pct, billing_contact_email), labor_logs(id, location_name, status, is_primary, location_order)')
+    .select('*, clients(name, code, third_party_markup, office_payout_pct, billing_contact_email, intacct_customer_id, default_payment_terms, default_department_id, default_location_id, default_currency, default_exchange_rate_type), client_contact:client_contacts(id, name, email, phone, title), labor_logs(id, location_name, status, is_primary, location_order)')
     .order('updated_at', { ascending: false })
     .order('location_order', { ascending: true, referencedTable: 'labor_logs' })
   if (error) throw error
@@ -42,7 +42,7 @@ export async function getEstimate(id: string): Promise<EstimateWithClient> {
   const db = requireSupabase()
   const { data, error } = await db
     .from('estimates')
-    .select('*, clients(name, code, third_party_markup, office_payout_pct, billing_contact_email)')
+    .select('*, clients(name, code, third_party_markup, office_payout_pct, billing_contact_email, intacct_customer_id, default_payment_terms, default_department_id, default_location_id, default_currency, default_exchange_rate_type), client_contact:client_contacts(id, name, email, phone, title)')
     .eq('id', id)
     .single()
   if (error) throw error
@@ -247,6 +247,8 @@ function getInitialSegmentStatus(status: Estimate['status'] | null | undefined):
     case 'in_review':
     case 'active':
     case 'recap':
+    case 'accounting_review':
+    case 'export_ready':
     case 'invoiced':
     case 'lost':
     case 'cancelled':
@@ -325,6 +327,7 @@ export async function duplicateEstimate(
   // 2. Create new estimate
   const newEstimate = await createEstimate({
     client_id: source.client_id,
+    client_contact_id: source.client_contact_id ?? null,
     event_name: `Copy of ${source.event_name}`,
     event_type: source.event_type,
     location: source.location,
@@ -334,6 +337,15 @@ export async function duplicateEstimate(
     expected_attendance: source.expected_attendance,
     po_number: null,
     project_id: null,
+    revenue_segment_id: source.revenue_segment_id ?? null,
+    event_city: source.event_city ?? null,
+    event_state: source.event_state ?? null,
+    intacct_project_id: null,
+    accounting_department_id: source.accounting_department_id ?? null,
+    accounting_location_id: source.accounting_location_id ?? null,
+    accounting_customer_id: source.accounting_customer_id ?? null,
+    accounting_payment_terms: source.accounting_payment_terms ?? null,
+    office_accounting_profile_id: source.office_accounting_profile_id ?? null,
     cost_structure: source.cost_structure,
     internal_notes: source.internal_notes,
     published_notes: source.published_notes,

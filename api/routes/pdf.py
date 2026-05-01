@@ -2,6 +2,7 @@ import traceback
 from typing import Literal
 
 from fastapi import APIRouter
+from fastapi.responses import JSONResponse
 from fastapi.responses import Response
 from pydantic import BaseModel
 from datetime import date
@@ -11,8 +12,6 @@ from services.pdf_data_service import (
     get_change_order_pdf_data,
     get_recap_pdf_data,
 )
-from services.pdf_merge_service import generate_invoice_with_receipts
-from services.pdf_render_service import render_pdf
 
 router = APIRouter(prefix="/api/pdf")
 
@@ -58,6 +57,8 @@ async def generate_pdf(request: PDFRequest):
         #    here because it pulls the client-facing detailed PDF itself and
         #    appends receipt attachments — no template branching needed.
         if request.pdf_type == "invoice_with_receipts":
+            from services.pdf_merge_service import generate_invoice_with_receipts
+
             # Need client / event name for the filename — gather data once.
             data = get_estimate_pdf_data(request.estimate_id, request.segment_id)
             client_name = data["estimate"]["client_name"]
@@ -66,12 +67,16 @@ async def generate_pdf(request: PDFRequest):
                 request.estimate_id, request.segment_id
             )
         elif request.pdf_type in ("client_summary", "client_detailed", "internal"):
+            from services.pdf_render_service import render_pdf
+
             data = get_estimate_pdf_data(request.estimate_id, request.segment_id)
             client_name = data["estimate"]["client_name"]
             event_name = data["estimate"]["event_name"]
             template_name, detailed = TEMPLATE_MAP[request.pdf_type]
             pdf_bytes = render_pdf(template_name, data, detailed=detailed)
         elif request.pdf_type == "change_order":
+            from services.pdf_render_service import render_pdf
+
             if not request.change_order_id:
                 return {"error": "change_order_id is required for change_order PDF type"}
             data = get_change_order_pdf_data(request.change_order_id)
@@ -80,6 +85,8 @@ async def generate_pdf(request: PDFRequest):
             template_name, detailed = TEMPLATE_MAP[request.pdf_type]
             pdf_bytes = render_pdf(template_name, data, detailed=detailed)
         elif request.pdf_type == "recap":
+            from services.pdf_render_service import render_pdf
+
             data = get_recap_pdf_data(request.estimate_id, request.segment_id)
             client_name = data["client_name"]
             event_name = data["event_name"]
@@ -104,7 +111,7 @@ async def generate_pdf(request: PDFRequest):
         )
     except Exception as e:
         traceback.print_exc()
-        return {"error": str(e)}
+        return JSONResponse(status_code=500, content={"error": str(e)})
 
 
 @router.post("/debug-data")

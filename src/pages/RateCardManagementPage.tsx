@@ -59,12 +59,16 @@ import {
   createFeeType,
   updateFeeType,
   deleteFeeType,
+  getClientContacts,
+  createClientContact,
+  updateClientContact,
+  deleteClientContact,
   getApproverUsers,
 } from '@/lib/rate-card-service'
 import type { ApproverUser } from '@/lib/rate-card-service'
 import { useUser } from '@/lib/auth'
 import { hasPermission } from '@/lib/permissions'
-import type { ClientUpdate } from '@/types/rate-card'
+import type { ClientContact, ClientUpdate } from '@/types/rate-card'
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -119,9 +123,27 @@ interface RateFormState {
   corporate_cost_is_percent: boolean
   office_cost: string
   office_cost_is_percent: boolean
+  intacct_ar_item_id: string
+  intacct_ap_gl_account_no: string
+  default_unit: string
+  accounting_memo: string
 }
 
-const EMPTY_FORM: RateFormState = { fee_type_id: null, name: '', unit_rate: '', unit_label: '', gl_code: '', corporate_cost: '', corporate_cost_is_percent: false, office_cost: '', office_cost_is_percent: true }
+const EMPTY_FORM: RateFormState = {
+  fee_type_id: null,
+  name: '',
+  unit_rate: '',
+  unit_label: '',
+  gl_code: '',
+  corporate_cost: '',
+  corporate_cost_is_percent: false,
+  office_cost: '',
+  office_cost_is_percent: true,
+  intacct_ar_item_id: '',
+  intacct_ap_gl_account_no: '',
+  default_unit: '',
+  accounting_memo: '',
+}
 
 function formFromItem(item: RateCardItem): RateFormState {
   return {
@@ -134,6 +156,10 @@ function formFromItem(item: RateCardItem): RateFormState {
     corporate_cost_is_percent: item.corporate_cost_is_percent,
     office_cost: item.office_cost != null ? String(item.office_cost) : '',
     office_cost_is_percent: item.office_cost_is_percent,
+    intacct_ar_item_id: item.intacct_ar_item_id ?? '',
+    intacct_ap_gl_account_no: item.intacct_ap_gl_account_no ?? '',
+    default_unit: item.default_unit ?? '',
+    accounting_memo: item.accounting_memo ?? '',
   }
 }
 
@@ -193,6 +219,10 @@ function RateFormDialog({ open, onClose, onSave, onDelete, title, description, i
       name: ft.name,
       gl_code: ft.gl_code,
       unit_label: ft.unit_label ?? form.unit_label,
+      intacct_ar_item_id: ft.intacct_ar_item_id ?? form.intacct_ar_item_id,
+      intacct_ap_gl_account_no: ft.intacct_ap_gl_account_no ?? form.intacct_ap_gl_account_no,
+      default_unit: ft.default_unit ?? form.default_unit,
+      accounting_memo: ft.accounting_memo ?? form.accounting_memo,
     })
     setFeeTypeSearch('')
     setDropdownOpen(false)
@@ -349,6 +379,27 @@ function RateFormDialog({ open, onClose, onSave, onDelete, title, description, i
           {isPassThrough && (
             <p className="text-[13px] text-muted-foreground">Pass-through items are estimated per project. No fixed rate is set here.</p>
           )}
+          <div className="border-t border-border/40 pt-3 space-y-3">
+            <p className="text-[10px] uppercase tracking-widest text-muted-foreground font-medium">Intacct Mapping Override</p>
+            <div className="grid grid-cols-3 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs">AR Item ID</Label>
+                <Input value={form.intacct_ar_item_id} onChange={(e) => setForm({ ...form, intacct_ar_item_id: e.target.value })} placeholder="itemId" className="h-8 text-sm border-border/50" />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">AP GL Account</Label>
+                <Input value={form.intacct_ap_gl_account_no} onChange={(e) => setForm({ ...form, intacct_ap_gl_account_no: e.target.value })} placeholder="glAccountNo" className="h-8 text-sm border-border/50" />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Default Unit</Label>
+                <Input value={form.default_unit} onChange={(e) => setForm({ ...form, default_unit: e.target.value })} placeholder="Each" className="h-8 text-sm border-border/50" />
+              </div>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Default Memo</Label>
+              <Input value={form.accounting_memo} onChange={(e) => setForm({ ...form, accounting_memo: e.target.value })} placeholder="Optional export memo" className="h-8 text-sm border-border/50" />
+            </div>
+          </div>
         </div>
         <DialogFooter>
           {onDelete && (
@@ -461,6 +512,194 @@ function ApproverSelect({ value, approvers, disabled, onChange }: ApproverSelect
   )
 }
 
+// ── Client Contacts Dialog ──────────────────────────────────────────────────
+
+interface ClientContactsDialogProps {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  clientName: string
+  contacts: ClientContact[]
+  readOnly: boolean
+  onCreate: (contact: Omit<ClientContact, 'id' | 'client_id' | 'active' | 'created_at' | 'updated_at'>) => Promise<void>
+  onUpdate: (contact: ClientContact, updates: Partial<Pick<ClientContact, 'name' | 'email' | 'phone' | 'title' | 'is_primary'>>) => Promise<void>
+  onDelete: (contact: ClientContact) => Promise<void>
+}
+
+const EMPTY_CONTACT_FORM = {
+  name: '',
+  email: '',
+  phone: '',
+  title: '',
+  is_primary: false,
+}
+
+function ClientContactsDialog({ open, onOpenChange, clientName, contacts, readOnly, onCreate, onUpdate, onDelete }: ClientContactsDialogProps) {
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [form, setForm] = useState(EMPTY_CONTACT_FORM)
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    if (!open) {
+      setEditingId(null)
+      setForm(EMPTY_CONTACT_FORM)
+      setSaving(false)
+    }
+  }, [open])
+
+  function startAdd() {
+    setEditingId('new')
+    setForm({ ...EMPTY_CONTACT_FORM, is_primary: contacts.length === 0 })
+  }
+
+  function startEdit(contact: ClientContact) {
+    setEditingId(contact.id)
+    setForm({
+      name: contact.name,
+      email: contact.email,
+      phone: contact.phone ?? '',
+      title: contact.title ?? '',
+      is_primary: contact.is_primary,
+    })
+  }
+
+  async function handleSave() {
+    if (!form.name.trim() || !form.email.trim()) return
+    setSaving(true)
+    try {
+      const payload = {
+        name: form.name.trim(),
+        email: form.email.trim(),
+        phone: form.phone.trim() || null,
+        title: form.title.trim() || null,
+        is_primary: form.is_primary,
+      }
+      if (editingId === 'new') {
+        await onCreate(payload)
+      } else {
+        const contact = contacts.find((c) => c.id === editingId)
+        if (contact) await onUpdate(contact, payload)
+      }
+      setEditingId(null)
+      setForm(EMPTY_CONTACT_FORM)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const canSave = form.name.trim() && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())
+  const editing = editingId !== null
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[620px]">
+        <DialogHeader>
+          <DialogTitle className="text-sm font-semibold">Client Contacts</DialogTitle>
+          <DialogDescription className="text-xs">External recipients for {clientName} estimates.</DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-3">
+          {contacts.length === 0 && !editing && (
+            <div className="border border-dashed border-border/50 rounded-md px-3 py-5 text-center text-[13px] text-muted-foreground">
+              No contacts yet.
+            </div>
+          )}
+
+          {contacts.length > 0 && (
+            <div className="border border-border/40 rounded-md overflow-hidden">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-slate-50 hover:bg-slate-50">
+                    <TableHead className="text-[10px] uppercase tracking-widest text-muted-foreground">Name</TableHead>
+                    <TableHead className="text-[10px] uppercase tracking-widest text-muted-foreground">Email</TableHead>
+                    <TableHead className="text-[10px] uppercase tracking-widest text-muted-foreground">Phone</TableHead>
+                    <TableHead className="text-[10px] uppercase tracking-widest text-muted-foreground">Role</TableHead>
+                    <TableHead className="w-20" />
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {contacts.map((contact) => (
+                    <TableRow key={contact.id}>
+                      <TableCell className="py-2 text-[13px]">
+                        <span className="font-medium">{contact.name}</span>
+                        {contact.is_primary && (
+                          <span className="ml-2 text-[9px] uppercase tracking-widest text-green-700 bg-green-50 px-1.5 py-0.5 rounded">Default</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="py-2 text-[13px] text-muted-foreground">{contact.email}</TableCell>
+                      <TableCell className="py-2 text-[13px] text-muted-foreground">{contact.phone || '—'}</TableCell>
+                      <TableCell className="py-2 text-[13px] text-muted-foreground">{contact.title || '—'}</TableCell>
+                      <TableCell className="py-2">
+                        {!readOnly && (
+                          <div className="flex items-center justify-end gap-1">
+                            <button onClick={() => startEdit(contact)} className="p-1 rounded hover:bg-muted/60 text-muted-foreground hover:text-foreground">
+                              <Pencil className="h-3.5 w-3.5" />
+                            </button>
+                            <button onClick={() => onDelete(contact)} className="p-1 rounded hover:bg-red-50 text-muted-foreground hover:text-red-700">
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+
+          {editing && (
+            <div className="border border-border/40 rounded-md p-3 space-y-3 bg-slate-50/60">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label className="text-[11px]">Name *</Label>
+                  <Input value={form.name} onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))} className="h-8 text-[13px]" />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-[11px]">Email *</Label>
+                  <Input value={form.email} onChange={(e) => setForm((prev) => ({ ...prev, email: e.target.value }))} className="h-8 text-[13px]" />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-[11px]">Phone</Label>
+                  <Input value={form.phone} onChange={(e) => setForm((prev) => ({ ...prev, phone: e.target.value }))} className="h-8 text-[13px]" />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-[11px]">Role</Label>
+                  <Input value={form.title} onChange={(e) => setForm((prev) => ({ ...prev, title: e.target.value }))} placeholder="Marketing, Finance, Legal..." className="h-8 text-[13px]" />
+                </div>
+              </div>
+              <label className="flex items-center gap-2 text-[12px] text-muted-foreground">
+                <input
+                  type="checkbox"
+                  checked={form.is_primary}
+                  onChange={(e) => setForm((prev) => ({ ...prev, is_primary: e.target.checked }))}
+                  className="h-3.5 w-3.5"
+                />
+                Use as default estimate recipient
+              </label>
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" size="sm" onClick={() => { setEditingId(null); setForm(EMPTY_CONTACT_FORM) }} disabled={saving} className="text-[13px]">Cancel</Button>
+                <Button size="sm" onClick={handleSave} disabled={saving || !canSave} className="text-[13px] bg-white hover:bg-green-800/10 text-foreground border border-border/50 hover:border-green-800/30 hover:text-green-800/80 shadow-sm">
+                  {saving ? 'Saving...' : 'Save Contact'}
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <DialogFooter>
+          {!readOnly && !editing && (
+            <Button variant="outline" size="sm" onClick={startAdd} className="mr-auto text-[13px]">
+              <Plus className="h-3.5 w-3.5 mr-1.5" />
+              Add Contact
+            </Button>
+          )}
+          <Button variant="outline" size="sm" onClick={() => onOpenChange(false)} className="text-[13px]">Done</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 // ── Section Table ────────────────────────────────────────────────────────────
 
 interface SectionTableProps {
@@ -522,6 +761,8 @@ function SectionTable({ section, items, search, thirdPartyMarkup, collapsed, onT
                 {!isPassThrough && <TableHead className="text-right w-[10%] text-[10px] uppercase tracking-wider text-muted-foreground font-medium py-2 pr-8">Office Cost</TableHead>}
                 <TableHead className={`${isPassThrough ? 'w-[15%]' : 'w-[13%]'} text-[10px] uppercase tracking-wider text-muted-foreground font-medium py-2 pl-6`}>Unit Label</TableHead>
                 <TableHead className="w-[10%] text-[10px] uppercase tracking-wider text-muted-foreground font-medium py-2">GL Code</TableHead>
+                <TableHead className="w-[12%] text-[10px] uppercase tracking-wider text-muted-foreground font-medium py-2">AR Item</TableHead>
+                <TableHead className="w-[12%] text-[10px] uppercase tracking-wider text-muted-foreground font-medium py-2">AP GL</TableHead>
                 <TableHead className="w-[8%] text-[10px] uppercase tracking-wider text-muted-foreground font-medium py-2">Source</TableHead>
                 <TableHead className="w-[6%]" />
               </TableRow>
@@ -563,6 +804,12 @@ function SectionTable({ section, items, search, thirdPartyMarkup, collapsed, onT
                     <span className="text-[13px] text-muted-foreground tabular-nums font-mono">{item.gl_code ?? '—'}</span>
                   </TableCell>
                   <TableCell className="py-1">
+                    <span className="text-[13px] text-muted-foreground tabular-nums font-mono">{item.intacct_ar_item_id ?? '—'}</span>
+                  </TableCell>
+                  <TableCell className="py-1">
+                    <span className="text-[13px] text-muted-foreground tabular-nums font-mono">{item.intacct_ap_gl_account_no ?? item.gl_code ?? '—'}</span>
+                  </TableCell>
+                  <TableCell className="py-1">
                     {item.is_from_msa ? (
                       <span className="text-[11px] text-green-800/60 font-medium">MSA</span>
                     ) : (
@@ -596,7 +843,7 @@ function SectionTable({ section, items, search, thirdPartyMarkup, collapsed, onT
               ))}
               {filtered.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={isPassThrough ? 5 : 8} className="text-center text-muted-foreground/70 text-xs py-6">
+                  <TableCell colSpan={isPassThrough ? 7 : 10} className="text-center text-muted-foreground/70 text-xs py-6">
                     No items in this section
                   </TableCell>
                 </TableRow>
@@ -627,9 +874,23 @@ interface FeeTypeFormState {
   cost_type: string
   unit_label: string
   section: string
+  intacct_ar_item_id: string
+  intacct_ap_gl_account_no: string
+  default_unit: string
+  accounting_memo: string
 }
 
-const EMPTY_FEE_TYPE_FORM: FeeTypeFormState = { name: '', gl_code: '', cost_type: 'labor', unit_label: '', section: FEE_TYPE_SECTIONS[0].key }
+const EMPTY_FEE_TYPE_FORM: FeeTypeFormState = {
+  name: '',
+  gl_code: '',
+  cost_type: 'labor',
+  unit_label: '',
+  section: FEE_TYPE_SECTIONS[0].key,
+  intacct_ar_item_id: '',
+  intacct_ap_gl_account_no: '',
+  default_unit: 'Each',
+  accounting_memo: '',
+}
 
 function feeTypeFormFromItem(item: FeeType): FeeTypeFormState {
   return {
@@ -638,6 +899,10 @@ function feeTypeFormFromItem(item: FeeType): FeeTypeFormState {
     cost_type: item.cost_type,
     unit_label: item.unit_label ?? '',
     section: item.section,
+    intacct_ar_item_id: item.intacct_ar_item_id ?? '',
+    intacct_ap_gl_account_no: item.intacct_ap_gl_account_no ?? '',
+    default_unit: item.default_unit ?? 'Each',
+    accounting_memo: item.accounting_memo ?? '',
   }
 }
 
@@ -728,6 +993,27 @@ function FeeTypeFormDialog({ open, onClose, onSave, onDelete, title, description
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+          </div>
+          <div className="border-t border-border/40 pt-3 space-y-3">
+            <p className="text-[10px] uppercase tracking-widest text-muted-foreground font-medium">Intacct Mapping</p>
+            <div className="grid grid-cols-3 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs">AR Item ID</Label>
+                <Input value={form.intacct_ar_item_id} onChange={(e) => setForm({ ...form, intacct_ar_item_id: e.target.value })} placeholder="itemId" className="h-8 text-sm border-border/50" />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">AP GL Account</Label>
+                <Input value={form.intacct_ap_gl_account_no} onChange={(e) => setForm({ ...form, intacct_ap_gl_account_no: e.target.value })} placeholder={form.gl_code || 'glAccountNo'} className="h-8 text-sm border-border/50" />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Default Unit</Label>
+                <Input value={form.default_unit} onChange={(e) => setForm({ ...form, default_unit: e.target.value })} placeholder="Each" className="h-8 text-sm border-border/50" />
+              </div>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Default Memo</Label>
+              <Input value={form.accounting_memo} onChange={(e) => setForm({ ...form, accounting_memo: e.target.value })} placeholder="Optional export memo" className="h-8 text-sm border-border/50" />
             </div>
           </div>
         </div>
@@ -864,6 +1150,10 @@ function FeeTypesTab({ readOnly }: { readOnly?: boolean }) {
       cost_type: form.cost_type as FeeType['cost_type'],
       unit_label: form.unit_label || null,
       section: form.section,
+      intacct_ar_item_id: form.intacct_ar_item_id || null,
+      intacct_ap_gl_account_no: form.intacct_ap_gl_account_no || null,
+      default_unit: form.default_unit || 'Each',
+      accounting_memo: form.accounting_memo || null,
       display_order: 0,
     })
     await loadFeeTypes()
@@ -877,6 +1167,10 @@ function FeeTypesTab({ readOnly }: { readOnly?: boolean }) {
       cost_type: form.cost_type as FeeType['cost_type'],
       unit_label: form.unit_label || null,
       section: form.section,
+      intacct_ar_item_id: form.intacct_ar_item_id || null,
+      intacct_ap_gl_account_no: form.intacct_ap_gl_account_no || null,
+      default_unit: form.default_unit || 'Each',
+      accounting_memo: form.accounting_memo || null,
     })
     await loadFeeTypes()
   }
@@ -971,9 +1265,11 @@ function FeeTypesTab({ readOnly }: { readOnly?: boolean }) {
                     <TableRow className="border-b border-border/40 hover:bg-transparent">
                       <TableHead className="w-[40%] text-[10px] uppercase tracking-wider text-muted-foreground font-medium py-2">Name</TableHead>
                       <TableHead className="w-[15%] text-[10px] uppercase tracking-wider text-muted-foreground font-medium py-2">GL Code</TableHead>
-                      <TableHead className="w-[15%] text-[10px] uppercase tracking-wider text-muted-foreground font-medium py-2">Cost Type</TableHead>
-                      <TableHead className="w-[15%] text-[10px] uppercase tracking-wider text-muted-foreground font-medium py-2">Unit Label</TableHead>
-                      <TableHead className="w-[15%]" />
+                      <TableHead className="w-[12%] text-[10px] uppercase tracking-wider text-muted-foreground font-medium py-2">Cost Type</TableHead>
+                      <TableHead className="w-[12%] text-[10px] uppercase tracking-wider text-muted-foreground font-medium py-2">Unit</TableHead>
+                      <TableHead className="w-[14%] text-[10px] uppercase tracking-wider text-muted-foreground font-medium py-2">AR Item</TableHead>
+                      <TableHead className="w-[14%] text-[10px] uppercase tracking-wider text-muted-foreground font-medium py-2">AP GL</TableHead>
+                      <TableHead className="w-[8%]" />
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -989,7 +1285,13 @@ function FeeTypesTab({ readOnly }: { readOnly?: boolean }) {
                           <span className="text-[13px] text-muted-foreground">{COST_TYPE_LABELS[ft.cost_type] ?? ft.cost_type}</span>
                         </TableCell>
                         <TableCell className="py-1">
-                          <span className="text-[13px] text-muted-foreground">{ft.unit_label ?? '—'}</span>
+                          <span className="text-[13px] text-muted-foreground">{ft.default_unit ?? ft.unit_label ?? 'Each'}</span>
+                        </TableCell>
+                        <TableCell className="py-1">
+                          <span className="text-[13px] text-muted-foreground tabular-nums font-mono">{ft.intacct_ar_item_id ?? '—'}</span>
+                        </TableCell>
+                        <TableCell className="py-1">
+                          <span className="text-[13px] text-muted-foreground tabular-nums font-mono">{ft.intacct_ap_gl_account_no ?? ft.gl_code ?? '—'}</span>
                         </TableCell>
                         <TableCell className="py-1 text-right">
                           {!readOnly && (
@@ -1009,7 +1311,7 @@ function FeeTypesTab({ readOnly }: { readOnly?: boolean }) {
                     ))}
                     {filtered.length === 0 && (
                       <TableRow>
-                        <TableCell colSpan={5} className="text-center text-muted-foreground/70 text-xs py-6">
+                        <TableCell colSpan={7} className="text-center text-muted-foreground/70 text-xs py-6">
                           No fee types in this section
                         </TableCell>
                       </TableRow>
@@ -1191,6 +1493,10 @@ function BulkImportDialog({ open, onClose, clientId, clientName, onImportComplet
           created_by: null,
           fee_type_id: ft.id,
           is_rate_locked: false,
+          intacct_ar_item_id: ft.intacct_ar_item_id ?? null,
+          intacct_ap_gl_account_no: ft.intacct_ap_gl_account_no ?? null,
+          default_unit: ft.default_unit ?? ft.unit_label ?? 'Each',
+          accounting_memo: ft.accounting_memo ?? null,
         })
       }
       onImportComplete()
@@ -1347,9 +1653,12 @@ function BulkImportDialog({ open, onClose, clientId, clientName, onImportComplet
 export function RateCardManagementPage() {
   const { profile } = useUser()
   const canEditRateCards = hasPermission(profile?.role || '', 'edit_rate_cards')
+  const canEditAccounting = hasPermission(profile?.role || '', 'edit_accounting_mappings')
   const [activeTab, setActiveTab] = useState<'rate-cards' | 'fee-types'>('rate-cards')
   const [clients, setClients] = useState<Client[]>([])
   const [approvers, setApprovers] = useState<ApproverUser[]>([])
+  const [clientContacts, setClientContacts] = useState<ClientContact[]>([])
+  const [contactsOpen, setContactsOpen] = useState(false)
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null)
   const [sectionsWithItems, setSectionsWithItems] = useState<RateCardItemsBySection[]>([])
   const [loading, setLoading] = useState(true)
@@ -1370,6 +1679,7 @@ export function RateCardManagementPage() {
   const [bulkImportOpen, setBulkImportOpen] = useState(false)
 
   const selectedClient = clients.find((c) => c.id === selectedClientId) ?? null
+  const primaryContact = clientContacts.find((contact) => contact.is_primary) ?? clientContacts[0] ?? null
 
   async function handleUpdateClientField(field: keyof ClientUpdate, value: string | null) {
     if (!selectedClientId) return
@@ -1380,6 +1690,37 @@ export function RateCardManagementPage() {
     } catch {
       // silently fail — field will revert on next load
     }
+  }
+
+  async function loadClientContacts(clientId: string) {
+    try {
+      const contacts = await getClientContacts(clientId)
+      setClientContacts(contacts)
+    } catch {
+      setClientContacts([])
+    }
+  }
+
+  async function handleCreateContact(contact: Omit<ClientContact, 'id' | 'client_id' | 'active' | 'created_at' | 'updated_at'>) {
+    if (!selectedClientId) return
+    await createClientContact({
+      ...contact,
+      client_id: selectedClientId,
+      active: true,
+    })
+    await loadClientContacts(selectedClientId)
+  }
+
+  async function handleUpdateContact(contact: ClientContact, updates: Partial<Pick<ClientContact, 'name' | 'email' | 'phone' | 'title' | 'is_primary'>>) {
+    if (!selectedClientId) return
+    await updateClientContact(contact.id, selectedClientId, updates)
+    await loadClientContacts(selectedClientId)
+  }
+
+  async function handleDeleteContact(contact: ClientContact) {
+    if (!selectedClientId) return
+    await deleteClientContact(contact.id)
+    await loadClientContacts(selectedClientId)
   }
 
   // Load clients + approver-eligible users on mount. Approvers are static for the
@@ -1428,6 +1769,14 @@ export function RateCardManagementPage() {
   useEffect(() => {
     if (selectedClientId) loadItems(selectedClientId)
   }, [selectedClientId, loadItems])
+
+  useEffect(() => {
+    if (selectedClientId) {
+      loadClientContacts(selectedClientId)
+    } else {
+      setClientContacts([])
+    }
+  }, [selectedClientId])
 
   // Total item count
   const totalItems = sectionsWithItems.reduce((sum, s) => sum + s.items.length, 0)
@@ -1490,6 +1839,10 @@ export function RateCardManagementPage() {
       is_rate_locked: false,
       created_by: null,
       fee_type_id: form.fee_type_id,
+      intacct_ar_item_id: form.intacct_ar_item_id || null,
+      intacct_ap_gl_account_no: form.intacct_ap_gl_account_no || null,
+      default_unit: form.default_unit || null,
+      accounting_memo: form.accounting_memo || null,
     })
     await loadItems(selectedClientId)
   }
@@ -1503,6 +1856,10 @@ export function RateCardManagementPage() {
       corporate_cost_is_percent: form.corporate_cost_is_percent,
       office_cost: form.office_cost ? parseFloat(form.office_cost) : null,
       office_cost_is_percent: form.office_cost_is_percent,
+      intacct_ar_item_id: form.intacct_ar_item_id || null,
+      intacct_ap_gl_account_no: form.intacct_ap_gl_account_no || null,
+      default_unit: form.default_unit || null,
+      accounting_memo: form.accounting_memo || null,
     })
     await loadItems(selectedClientId)
   }
@@ -1551,7 +1908,7 @@ export function RateCardManagementPage() {
     <div className="space-y-3">
       <div>
         <h1 className="text-lg font-semibold tracking-tight">Rate Card Management</h1>
-        <p className="text-sm text-muted-foreground">Manage client-specific pricing and master fee types</p>
+        <p className="text-sm text-muted-foreground">Manage client pricing, fee types, and accounting mappings</p>
       </div>
 
       {/* Tab switcher */}
@@ -1603,29 +1960,27 @@ export function RateCardManagementPage() {
 
             {selectedClient && (
               <div className="flex items-end gap-4 flex-1 min-w-0">
-                <div className="min-w-[140px] max-w-[180px]">
-                  <EditableField
-                    value={selectedClient.billing_contact_name}
-                    placeholder="Contact name"
-                    label="Contact"
-                    onSave={(v) => handleUpdateClientField('billing_contact_name', v)}
-                  />
-                </div>
-                <div className="min-w-[120px] max-w-[140px]">
-                  <EditableField
-                    value={selectedClient.billing_phone}
-                    placeholder="Phone"
-                    label="Phone"
-                    onSave={(v) => handleUpdateClientField('billing_phone', v)}
-                  />
-                </div>
-                <div className="min-w-[160px] max-w-[200px]">
-                  <EditableField
-                    value={selectedClient.billing_contact_email}
-                    placeholder="Email"
-                    label="Email"
-                    onSave={(v) => handleUpdateClientField('billing_contact_email', v)}
-                  />
+                <div className="min-w-[270px] max-w-[330px]">
+                  <div className="space-y-0.5">
+                    <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Contacts</span>
+                    <button
+                      type="button"
+                      onClick={() => setContactsOpen(true)}
+                      className="h-7 w-full text-left flex items-center justify-between gap-2 rounded border border-border/50 px-2 text-[13px] hover:bg-muted/40 transition-colors"
+                    >
+                      <span className="truncate">
+                        {primaryContact ? (
+                          <>
+                            <span className="font-medium">{primaryContact.name}</span>
+                            <span className="text-muted-foreground"> · {primaryContact.email}</span>
+                          </>
+                        ) : (
+                          <span className="text-muted-foreground/50 italic">No contacts</span>
+                        )}
+                      </span>
+                      <span className="text-[11px] text-muted-foreground shrink-0">{clientContacts.length} total</span>
+                    </button>
+                  </div>
                 </div>
                 <div className="min-w-[160px] max-w-[220px]">
                   <EditableField
@@ -1641,6 +1996,22 @@ export function RateCardManagementPage() {
                     approvers={approvers}
                     disabled={!canEditRateCards}
                     onChange={(v) => handleUpdateClientField('primary_approver_id', v)}
+                  />
+                </div>
+                <div className="min-w-[150px] max-w-[180px]">
+                  <EditableField
+                    value={selectedClient.intacct_customer_id ?? null}
+                    placeholder="Customer ID"
+                    label="Intacct Customer"
+                    onSave={(v) => canEditAccounting && handleUpdateClientField('intacct_customer_id', v)}
+                  />
+                </div>
+                <div className="min-w-[130px] max-w-[160px]">
+                  <EditableField
+                    value={selectedClient.default_payment_terms ?? null}
+                    placeholder="Terms"
+                    label="Pay Terms"
+                    onSave={(v) => canEditAccounting && handleUpdateClientField('default_payment_terms', v)}
                   />
                 </div>
               </div>
@@ -1691,6 +2062,35 @@ export function RateCardManagementPage() {
             </div>
           )}
 
+          {selectedClient && (
+            <div className="grid grid-cols-4 gap-3 border border-border/40 rounded-md px-3 py-2 bg-slate-50/60">
+              <EditableField
+                value={selectedClient.default_department_id ?? null}
+                placeholder="Department ID"
+                label="Default Department"
+                onSave={(v) => canEditAccounting && handleUpdateClientField('default_department_id', v)}
+              />
+              <EditableField
+                value={selectedClient.default_location_id ?? null}
+                placeholder="Location ID"
+                label="Default Location"
+                onSave={(v) => canEditAccounting && handleUpdateClientField('default_location_id', v)}
+              />
+              <EditableField
+                value={selectedClient.default_currency ?? 'USD'}
+                placeholder="USD"
+                label="Currency"
+                onSave={(v) => canEditAccounting && handleUpdateClientField('default_currency', v || 'USD')}
+              />
+              <EditableField
+                value={selectedClient.default_exchange_rate_type ?? 'Intacct Daily Rate'}
+                placeholder="Intacct Daily Rate"
+                label="Exchange Rate Type"
+                onSave={(v) => canEditAccounting && handleUpdateClientField('default_exchange_rate_type', v || 'Intacct Daily Rate')}
+              />
+            </div>
+          )}
+
           {/* Section-grouped rate tables */}
           {loadingItems ? (
             <div className="flex items-center gap-2 text-muted-foreground py-8 justify-center">
@@ -1715,6 +2115,19 @@ export function RateCardManagementPage() {
                 />
               ))}
             </div>
+          )}
+
+          {selectedClient && (
+            <ClientContactsDialog
+              open={contactsOpen}
+              onOpenChange={setContactsOpen}
+              clientName={selectedClient.name}
+              contacts={clientContacts}
+              readOnly={!canEditRateCards}
+              onCreate={handleCreateContact}
+              onUpdate={handleUpdateContact}
+              onDelete={handleDeleteContact}
+            />
           )}
 
           {/* Add/Edit dialog */}

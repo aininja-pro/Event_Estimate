@@ -7,6 +7,7 @@ import {
   notifyByRole,
   getEstimateCreatorId,
 } from './notification-service'
+import { hasPermission, type Permission } from './permissions'
 import { getClientApproverForEstimate } from './rate-card-service'
 import type {
   SegmentStatus,
@@ -23,6 +24,26 @@ function requireSupabase() {
   return supabase
 }
 
+function uuidOrNull(value?: string): string | null {
+  if (!value) return null
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value)
+    ? value
+    : null
+}
+
+async function userHasPermission(userIdOrName: string | undefined, permission: Permission): Promise<boolean> {
+  const profileId = uuidOrNull(userIdOrName)
+  if (!profileId) return false
+
+  const db = requireSupabase()
+  const { data } = await db
+    .from('profiles')
+    .select('role')
+    .eq('id', profileId)
+    .maybeSingle()
+  return data?.role ? hasPermission(data.role, permission) : false
+}
+
 // ---- Segment Status Transitions ----
 
 const VALID_SEGMENT_TRANSITIONS: Record<string, string[]> = {
@@ -30,7 +51,9 @@ const VALID_SEGMENT_TRANSITIONS: Record<string, string[]> = {
   estimate: ['in_review', 'active', 'lost', 'cancelled'],
   in_review: ['active', 'estimate', 'lost', 'cancelled'],
   active: ['estimate', 'recap'],
-  recap: ['invoiced'],
+  recap: ['accounting_review', 'invoiced'],
+  accounting_review: ['recap', 'export_ready'],
+  export_ready: ['invoiced'],
   invoiced: ['recap'],
   lost: ['estimate'],
   cancelled: ['estimate'],
@@ -73,6 +96,14 @@ export async function transitionSegmentStatus(
 
   const fromStatus = (log.status || 'estimate') as string
 
+  const { data: estimate, error: estErr } = await db
+    .from('estimates')
+    .select('cost_structure')
+    .eq('id', log.estimate_id)
+    .single()
+  if (estErr) return { success: false, error: estErr.message }
+  const isOfficeEvent = estimate.cost_structure === 'office'
+
   // Validate transition
   if (!canTransitionSegment(fromStatus, toStatus)) {
     return { success: false, error: `Cannot transition segment from "${fromStatus}" to "${toStatus}"` }
@@ -88,9 +119,50 @@ export async function transitionSegmentStatus(
   if ((toStatus === 'lost' || toStatus === 'cancelled') && !comment) {
     return { success: false, error: 'A reason is required when marking a segment as lost or cancelled' }
   }
+  if (toStatus === 'recap' && fromStatus === 'accounting_review' && !comment) {
+    return { success: false, error: 'Correction notes are required when sending a recap back' }
+  }
+  if (fromStatus === 'recap' && toStatus === 'accounting_review' && !isOfficeEvent) {
+    return { success: false, error: 'Corporate Events do not use accounting review.' }
+  }
+  if (toStatus === 'export_ready' && !isOfficeEvent) {
+    return { success: false, error: 'Corporate Events do not use the Intacct export-ready gate.' }
+  }
+  if (
+    fromStatus === 'recap' &&
+    toStatus === 'accounting_review' &&
+    !(await userHasPermission(userName, 'submit_recap_for_accounting'))
+  ) {
+    return { success: false, error: 'You do not have permission to submit this recap for accounting review.' }
+  }
+  if (
+    fromStatus === 'accounting_review' &&
+    toStatus === 'export_ready' &&
+    !(await userHasPermission(userName, 'approve_recap'))
+  ) {
+    return { success: false, error: 'You do not have permission to approve this recap.' }
+  }
+  if (
+    fromStatus === 'accounting_review' &&
+    toStatus === 'recap' &&
+    !(await userHasPermission(userName, 'request_recap_corrections'))
+  ) {
+    return { success: false, error: 'You do not have permission to request recap corrections.' }
+  }
+  if (
+    fromStatus === 'export_ready' &&
+    toStatus === 'invoiced' &&
+    isOfficeEvent &&
+    !(await userHasPermission(userName, 'mark_export_ready_invoiced'))
+  ) {
+    return { success: false, error: 'You do not have permission to mark this export-ready segment invoiced.' }
+  }
+  if (fromStatus === 'recap' && toStatus === 'invoiced' && isOfficeEvent) {
+    return { success: false, error: 'Office Event recaps must be approved by accounting before invoicing.' }
+  }
 
   // Block recap → invoiced if staff names are missing
-  if (fromStatus === 'recap' && toStatus === 'invoiced') {
+  if ((fromStatus === 'recap' || fromStatus === 'export_ready') && toStatus === 'invoiced') {
     const { data: schedEntries, error: seErr } = await db
       .from('schedule_entries')
       .select('id, person_name')
@@ -299,9 +371,13 @@ export async function computeEstimateStatus(estimateId: string): Promise<string>
 
   if (statuses.every((s: string) => s === 'invoiced')) {
     computedStatus = 'invoiced'
+  } else if (statuses.every((s: string) => s === 'export_ready' || s === 'invoiced')) {
+    computedStatus = 'export_ready'
+  } else if (statuses.some((s: string) => s === 'accounting_review')) {
+    computedStatus = 'accounting_review'
   } else if (statuses.every((s: string) => s === 'lost' || s === 'cancelled')) {
     computedStatus = 'lost'
-  } else if (statuses.some((s: string) => s === 'active' || s === 'recap' || s === 'invoiced')) {
+  } else if (statuses.some((s: string) => s === 'active' || s === 'recap' || s === 'export_ready' || s === 'invoiced')) {
     computedStatus = 'active'
   } else if (statuses.some((s: string) => s === 'in_review')) {
     computedStatus = 'in_review'
@@ -333,6 +409,8 @@ const SEGMENT_EDIT_RULES: Record<string, SegmentEditRules> = {
   in_review:  { schedule_hours: false, schedule_names: false, schedule_add_remove: false, schedule_dates: false, labor_log: false, line_items: false, event_details: false, notes: false, actuals: false, names_required: false },
   active:     { schedule_hours: false, schedule_names: true,  schedule_add_remove: false, schedule_dates: false, labor_log: false, line_items: false, event_details: false, notes: true,  actuals: false, names_required: false },
   recap:      { schedule_hours: false, schedule_names: true,  schedule_add_remove: false, schedule_dates: false, labor_log: false, line_items: false, event_details: false, notes: true,  actuals: true,  names_required: true },
+  accounting_review: { schedule_hours: false, schedule_names: false, schedule_add_remove: false, schedule_dates: false, labor_log: false, line_items: false, event_details: false, notes: false, actuals: false, names_required: false },
+  export_ready: { schedule_hours: false, schedule_names: false, schedule_add_remove: false, schedule_dates: false, labor_log: false, line_items: false, event_details: false, notes: false, actuals: false, names_required: false },
   invoiced:   { schedule_hours: false, schedule_names: false, schedule_add_remove: false, schedule_dates: false, labor_log: false, line_items: false, event_details: false, notes: false, actuals: false, names_required: false },
   lost:       { schedule_hours: false, schedule_names: false, schedule_add_remove: false, schedule_dates: false, labor_log: false, line_items: false, event_details: false, notes: false, actuals: false, names_required: false },
   cancelled:  { schedule_hours: false, schedule_names: false, schedule_add_remove: false, schedule_dates: false, labor_log: false, line_items: false, event_details: false, notes: false, actuals: false, names_required: false },
