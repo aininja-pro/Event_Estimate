@@ -599,7 +599,7 @@ export function ScheduleGrid({
   const debounceTimers = useRef<Map<string, NodeJS.Timeout>>(new Map())
 
   // ── Sort state ──
-  const [sortField, setSortField] = useState<'name' | 'role' | null>(null)
+  const [sortField, setSortField] = useState<'name' | 'role' | null>('role')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
 
   function handleSortClick(field: 'name' | 'role') {
@@ -621,7 +621,15 @@ export function ScheduleGrid({
       if (!aVal && bVal) return 1
       if (aVal && !bVal) return -1
       const cmp = aVal.localeCompare(bVal, undefined, { sensitivity: 'base' })
-      return sortDir === 'asc' ? cmp : -cmp
+      if (cmp !== 0) return sortDir === 'asc' ? cmp : -cmp
+
+      const roleCmp = a.role_name.localeCompare(b.role_name, undefined, { sensitivity: 'base' })
+      if (roleCmp !== 0) return roleCmp
+
+      const nameCmp = (a.person_name ?? '').localeCompare(b.person_name ?? '', undefined, { sensitivity: 'base' })
+      if (nameCmp !== 0) return nameCmp
+
+      return (a.row_index ?? 0) - (b.row_index ?? 0)
     })
   }, [entries, sortField, sortDir])
 

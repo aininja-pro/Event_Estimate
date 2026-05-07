@@ -34,6 +34,7 @@ const adminItems = [
 ]
 
 const SIDEBAR_STORAGE_KEY = 'sidebar-collapsed'
+const SHOW_DEMO_NAV_ONLY = true
 
 type NavItemData = { to: string; label: string; icon: React.ComponentType<{ className?: string }> }
 
@@ -103,10 +104,14 @@ export function Sidebar() {
       )}
       <Separator className="bg-sidebar-border" />
       <nav className={`flex-1 space-y-1 overflow-y-auto py-4 ${collapsed ? 'px-1' : 'px-3'}`}>
-        <NavSection title="Discovery Intelligence" items={discoveryItems} collapsed={collapsed} />
-        <NavSection title="Phase 1 Deliverables" items={deliverableItems} collapsed={collapsed} />
+        {!SHOW_DEMO_NAV_ONLY && (
+          <>
+            <NavSection title="Discovery Intelligence" items={discoveryItems} collapsed={collapsed} />
+            <NavSection title="Phase 1 Deliverables" items={deliverableItems} collapsed={collapsed} />
+          </>
+        )}
         <NavSection title="Production" items={productionItems} collapsed={collapsed} />
-        <NavSection title="UI Concepts" items={uiConceptItems} collapsed={collapsed} />
+        {!SHOW_DEMO_NAV_ONLY && <NavSection title="UI Concepts" items={uiConceptItems} collapsed={collapsed} />}
         {isAdmin && <NavSection title="Admin" items={adminItems} collapsed={collapsed} />}
       </nav>
       <div className={`flex ${collapsed ? 'justify-center' : 'justify-end'} px-3 py-1`}>

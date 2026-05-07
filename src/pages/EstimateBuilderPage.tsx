@@ -1948,7 +1948,7 @@ function LineItemTab({
                 <TableHead className="text-center w-14 text-[10px] uppercase tracking-widest text-muted-foreground font-medium py-2">Qty</TableHead>
                 <TableHead className="text-right w-24 text-[10px] uppercase tracking-widest text-muted-foreground font-medium py-2">Unit Cost</TableHead>
                 <TableHead className="text-right w-24 text-[10px] uppercase tracking-widest text-muted-foreground font-medium py-2">Total</TableHead>
-                <TableHead className="text-center w-18 text-[10px] uppercase tracking-widest text-muted-foreground font-medium py-2">Markup</TableHead>
+                <TableHead className="text-center w-18 text-[10px] uppercase tracking-widest text-muted-foreground font-medium py-2">Markup %</TableHead>
                 <TableHead className="text-right w-28 text-[10px] uppercase tracking-widest text-muted-foreground font-medium py-2">Client Total</TableHead>
                 {isRecapMode && (
                   <>
@@ -2116,7 +2116,17 @@ function LineItemRow({
       </TableCell>
       <TableCell className="text-center py-1">
         {isUnplanned ? dash : (
-          <Input value={markup} onChange={(e) => setMarkup(e.target.value)} onBlur={() => onUpdate(item.id, { markup_pct: parseFloat(markup) || 0 })} onFocus={selectOnFocus} className={`${cellInput} w-12 text-center mx-auto`} readOnly={readOnly} />
+          <div className="relative w-14 mx-auto">
+            <Input
+              value={markup}
+              onChange={(e) => setMarkup(e.target.value)}
+              onBlur={() => onUpdate(item.id, { markup_pct: parseFloat(markup.replace('%', '')) || 0 })}
+              onFocus={selectOnFocus}
+              className={`${cellInput} w-full text-right pr-4`}
+              readOnly={readOnly}
+            />
+            <span className="absolute right-1 top-1/2 -translate-y-1/2 text-[12px] text-muted-foreground/60 pointer-events-none">%</span>
+          </div>
         )}
       </TableCell>
       <TableCell className="text-right py-1">
