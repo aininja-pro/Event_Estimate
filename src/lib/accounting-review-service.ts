@@ -325,7 +325,7 @@ export async function approveRecap(
     await notifySubmitterAndAssignee(
       updated,
       'Recap approved by accounting',
-      'Accounting approved the recap. This segment is ready for future Intacct import.',
+      'Accounting approved the recap. This segment is Ready for Intacct Upload.',
       { accounting_review_id: reviewId, decision: 'approved' }
     )
 

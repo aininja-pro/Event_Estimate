@@ -1117,7 +1117,7 @@ const SEGMENT_TAB_STYLES: Record<string, { dot: string; selected: string; unsele
 
 const SEGMENT_BADGE_LABELS: Record<string, string> = {
   pipeline: 'PIPELINE', estimate: 'ESTIMATE', in_review: 'IN REVIEW', active: 'ACTIVE',
-  recap: 'RECAP', accounting_review: 'ACCOUNTING REVIEW', export_ready: 'READY FOR UPLOAD',
+  recap: 'RECAP', accounting_review: 'ACCOUNTING REVIEW', export_ready: 'READY FOR INTACCT UPLOAD',
   invoiced: 'INVOICED', lost: 'LOST', cancelled: 'CANCELLED',
 }
 
@@ -3136,7 +3136,7 @@ function ExportButton({ estimateId }: { estimateId: string }) {
     { type: 'client_summary', label: 'Client Estimate (Summary)' },
     { type: 'client_detailed', label: 'Client Estimate (Detailed)' },
     { type: 'internal', label: 'Internal P&L' },
-    { type: 'invoice_with_receipts', label: 'Invoice with Receipts' },
+    { type: 'invoice_with_receipts', label: 'Receipt Backup Packet' },
   ]
 
   return (

@@ -51,7 +51,7 @@ export function VarianceSummary({ varianceRows, segmentName }: VarianceSummaryPr
     <div className="space-y-2">
       <div className="flex items-center gap-2">
         <h3 className="text-[10px] uppercase tracking-widest text-muted-foreground font-medium">
-          Recap: Estimated vs Actual
+          Recap: Estimated vs Actual Cost
         </h3>
         {segmentName && (
           <span className="text-[10px] text-muted-foreground/60">— {segmentName}</span>

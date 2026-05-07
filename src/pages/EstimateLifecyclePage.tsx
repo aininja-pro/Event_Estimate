@@ -132,18 +132,18 @@ const lifecycleStates: { id: string; label: string; detail: StateDetail }[] = [
   },
   {
     id: 'intacct',
-    label: 'Intacct',
+    label: 'Intacct Readiness',
     detail: {
       whatHappens: [
-        'Invoice generated in Sage Intacct',
-        'GL codes applied per section',
-        'Revenue recognition triggered',
-        'Financial reporting updated',
+        'Approved recap data prepared for a future Intacct upload workflow',
+        'GL mappings available for accounting review',
+        'Upload readiness tracked before finance finalization',
+        'Financial reporting inputs retained for reconciliation',
       ],
       whoActs: ['System (automatic)', 'Finance Team'],
       triggers: ['Event marked complete with approved actuals'],
       dataCaptured: [
-        'Intacct invoice ID',
+        'Future Intacct upload reference',
         'GL code mappings',
         'Payment status',
         'Sync confirmation timestamp',
@@ -211,12 +211,12 @@ const dataFlows = [
     icon: FileOutput,
     iconColor: 'text-emerald-500',
     title: 'Estimate Engine → Intacct',
-    subtitle: 'Invoicing and financial sync',
+    subtitle: 'Upload readiness and financial reconciliation',
     items: [
-      'Approved estimate data mapped to Intacct invoice format',
+      'Approved estimate and recap data mapped for Intacct upload readiness',
       'GL codes assigned per section (labor, travel, equipment, etc.)',
-      'Invoice created in Intacct via API',
-      'Payment status synced back to Estimate Engine for tracking',
+      'Future Intacct upload workflow receives approved accounting data',
+      'Payment and reconciliation status can be tracked after finance finalization',
     ],
   },
   {

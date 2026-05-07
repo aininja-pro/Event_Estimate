@@ -1,4 +1,4 @@
-"""Invoice-with-receipts PDF merger.
+"""Receipt backup packet PDF merger.
 
 Produces a single PDF containing the client-facing estimate followed by every
 receipt attachment for the estimate. PDFs are appended directly; images
@@ -40,8 +40,8 @@ def generate_invoice_with_receipts(
     """
     db = get_supabase()
 
-    # 1. Base estimate PDF — always the detailed client view. Invoicing wants
-    #    the full itemization, not the summary.
+    # 1. Base estimate PDF — always the detailed client view. The receipt
+    #    backup packet needs the full itemization, not the summary.
     from services.pdf_render_service import render_pdf
 
     data = get_estimate_pdf_data(estimate_id, segment_id)

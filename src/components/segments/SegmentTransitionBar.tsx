@@ -255,7 +255,7 @@ export function SegmentTransitionBar({
                 : confirmAction?.action === 'submit_recap'
                 ? `Submit "${segmentName}" recap actuals and receipts to accounting for review.`
                 : confirmAction?.action === 'approve_recap'
-                ? `Approve "${segmentName}" recap and mark it ready for future Intacct import.`
+                ? `Approve "${segmentName}" recap and mark it Ready for Intacct Upload.`
                 : confirmAction?.action === 'request_corrections'
                 ? `Explain what needs to be corrected. The segment will return to Recap.`
                 : confirmAction?.requiresReason

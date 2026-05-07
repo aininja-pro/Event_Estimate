@@ -134,7 +134,7 @@ export function SendToClientModal({
         <div className="space-y-3">
           <div className="space-y-1">
             <label className="text-[11px] font-medium text-slate-600 uppercase tracking-wide">
-              Recipient
+              Approval Recipient
             </label>
             {contacts.length > 0 && (
               <Select value={selectedRecipient} onValueChange={handleRecipientChange}>

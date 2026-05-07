@@ -512,7 +512,7 @@ function ApproverSelect({ value, approvers, disabled, onChange }: ApproverSelect
   )
 }
 
-// ── Client Contacts Dialog ──────────────────────────────────────────────────
+// ── Client Approval Contacts Dialog ─────────────────────────────────────────
 
 interface ClientContactsDialogProps {
   open: boolean
@@ -593,7 +593,7 @@ function ClientContactsDialog({ open, onOpenChange, clientName, contacts, readOn
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[620px]">
         <DialogHeader>
-          <DialogTitle className="text-sm font-semibold">Client Contacts</DialogTitle>
+          <DialogTitle className="text-sm font-semibold">Client Approval Contacts</DialogTitle>
           <DialogDescription className="text-xs">External recipients for {clientName} estimates.</DialogDescription>
         </DialogHeader>
 
@@ -1962,7 +1962,7 @@ export function RateCardManagementPage() {
               <div className="flex items-end gap-4 flex-1 min-w-0">
                 <div className="min-w-[270px] max-w-[330px]">
                   <div className="space-y-0.5">
-                    <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Contacts</span>
+                    <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Client Approval Contacts</span>
                     <button
                       type="button"
                       onClick={() => setContactsOpen(true)}

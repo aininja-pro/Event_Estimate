@@ -96,8 +96,8 @@ const layers = [
       description:
         'Connections to existing DriveShop systems for accounting, reporting, and document generation.',
       modules: [
-        { name: 'Sage Intacct API', detail: 'Two-way sync for invoice generation, GL coding, and financial reconciliation' },
-        { name: 'WeasyPrint PDF', detail: 'Server-side PDF generation with branded templates for client-facing estimates and invoices' },
+        { name: 'Intacct Upload Readiness', detail: 'Approved accounting data prepared for future AP/AR upload workflows, GL coding, and financial reconciliation' },
+        { name: 'WeasyPrint PDF', detail: 'Server-side PDF generation with branded templates for client estimates and receipt backup packets' },
         { name: 'PowerBI Feed', detail: 'Automated data feed for executive dashboards, pipeline reporting, and financial analytics' },
       ],
     },
@@ -110,7 +110,7 @@ const techStack = [
   { layer: 'Database', technology: 'PostgreSQL (Supabase)', notes: 'Managed Postgres with RLS and Realtime' },
   { layer: 'AI', technology: 'Claude API (Anthropic)', notes: 'LLM for scoping, nudges, and pattern analysis' },
   { layer: 'PDF', technology: 'WeasyPrint', notes: 'HTML/CSS to PDF for branded estimate documents' },
-  { layer: 'Accounting', technology: 'Sage Intacct API', notes: 'Invoice sync and GL coding' },
+  { layer: 'Accounting', technology: 'Intacct upload readiness', notes: 'Future AP/AR upload support and GL coding' },
   { layer: 'Reporting', technology: 'PowerBI', notes: 'Executive dashboards and pipeline analytics' },
 ]
 
