@@ -86,7 +86,7 @@ const LOCK_MESSAGES: Partial<Record<SegmentStatus, string>> = {
   active: 'This segment is active. Staff names can be updated. Other fields are locked.',
   recap: 'This segment is in recap. Enter actual costs and assign staff names.',
   accounting_review: 'This recap is under Accounting Review. Recap actuals are locked for office users.',
-  export_ready: 'This segment is ready for future AP/AR Intacct import.',
+  export_ready: 'This segment is ready for future AP/AR Intacct upload.',
   invoiced: 'This segment is invoiced and locked.',
   lost: 'This segment is marked as lost and locked.',
   cancelled: 'This segment is cancelled and locked.',

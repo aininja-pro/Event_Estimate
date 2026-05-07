@@ -10,7 +10,7 @@ const STATUSES: { key: EstimateStatus; label: string; accent: string }[] = [
   { key: 'active', label: 'Active', accent: 'bg-fuchsia-500' },
   { key: 'recap', label: 'Recap', accent: 'bg-violet-500' },
   { key: 'accounting_review', label: 'Accounting Review', accent: 'bg-sky-500' },
-  { key: 'export_ready', label: 'Ready for Intacct Import', accent: 'bg-emerald-500' },
+  { key: 'export_ready', label: 'Ready for Intacct Upload', accent: 'bg-emerald-500' },
   { key: 'invoiced', label: 'Invoiced', accent: 'bg-teal-500' },
 ]
 

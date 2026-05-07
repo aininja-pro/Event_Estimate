@@ -3,6 +3,7 @@ import { Input } from '@/components/ui/input'
 import { TableCell } from '@/components/ui/table'
 import { Check } from 'lucide-react'
 import type { RecapActual } from '@/types/workflow'
+import { getActualCostTotal } from '@/lib/accounting-amounts'
 
 const cellInput = "h-6 text-[13px] bg-transparent border-0 focus-visible:ring-0 focus-visible:bg-muted/50 rounded-sm transition-colors tabular-nums"
 
@@ -13,7 +14,7 @@ function fmt(n: number) {
 interface RecapActualsCellsProps {
   recapActual: RecapActual | null
   estimatedTotal: number
-  onSave: (updates: { actual_days?: number | null; actual_total?: number | null }) => void
+  onSave: (updates: { actual_days?: number | null; actual_total?: number | null; actual_cost_total?: number | null }) => void
   /** If provided, auto-calculates act cost = actDays × qty × rate */
   autoCalcRate?: number
   autoCalcQty?: number
@@ -27,13 +28,13 @@ export function RecapActualsCells({
   autoCalcQty,
 }: RecapActualsCellsProps) {
   const [actDays, setActDays] = useState(recapActual?.actual_days?.toString() ?? '')
-  const [actCost, setActCost] = useState(recapActual?.actual_total?.toString() ?? '')
+  const [actCost, setActCost] = useState(getActualCostTotal(recapActual)?.toString() ?? '')
   const [saved, setSaved] = useState(false)
 
   // Sync local state when async-loaded recapActual arrives
   useEffect(() => {
     setActDays(recapActual?.actual_days?.toString() ?? '')
-    setActCost(recapActual?.actual_total?.toString() ?? '')
+    setActCost(getActualCostTotal(recapActual)?.toString() ?? '')
   }, [recapActual?.id])
 
   const actCostNum = parseFloat(actCost) || 0
@@ -52,7 +53,7 @@ export function RecapActualsCells({
     if (days && autoCalcRate && autoCalcQty && actCost === '') {
       const suggested = days * autoCalcQty * autoCalcRate
       setActCost(suggested.toString())
-      onSave({ actual_days: days, actual_total: suggested })
+      onSave({ actual_days: days, actual_cost_total: suggested, actual_total: suggested })
     } else {
       onSave({ actual_days: days })
     }
@@ -61,7 +62,7 @@ export function RecapActualsCells({
 
   function handleCostBlur() {
     const cost = parseFloat(actCost) || null
-    onSave({ actual_total: cost })
+    onSave({ actual_cost_total: cost, actual_total: cost })
     showSaved()
   }
 
@@ -157,7 +158,7 @@ export function RecapColumnHeaders() {
   return (
     <>
       <th className={`text-center w-14 ${headerClass}`}>Act Days</th>
-      <th className={`text-right w-24 ${headerClass}`}>Act Cost</th>
+      <th className={`text-right w-24 ${headerClass}`}>Actual Cost</th>
       <th className={`text-right w-24 ${headerClass}`}>Variance</th>
       <th className={`text-right w-14 ${headerClass}`}>Var%</th>
     </>

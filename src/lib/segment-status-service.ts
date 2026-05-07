@@ -9,6 +9,7 @@ import {
 } from './notification-service'
 import { hasPermission, type Permission } from './permissions'
 import { getClientApproverForEstimate } from './rate-card-service'
+import { getActualCostTotal } from './accounting-amounts'
 import type {
   SegmentStatus,
   SegmentActivity,
@@ -528,7 +529,7 @@ export async function getVarianceReport(laborLogId: string): Promise<VarianceRow
       const actual = (actuals || []).find(
         (a: RecapActual) => a.labor_entry_id === entry.id
       )
-      const actualTotal = actual?.actual_total ?? 0
+      const actualTotal = getActualCostTotal(actual) ?? 0
 
       const variance = estimatedTotal - actualTotal
       rows.push({
@@ -552,7 +553,7 @@ export async function getVarianceReport(laborLogId: string): Promise<VarianceRow
     const actual = (actuals || []).find(
       (a: RecapActual) => a.line_item_id === item.id
     )
-    const actualTotal = actual?.actual_total ?? 0
+    const actualTotal = getActualCostTotal(actual) ?? 0
 
     const variance = estimatedTotal - actualTotal
     rows.push({

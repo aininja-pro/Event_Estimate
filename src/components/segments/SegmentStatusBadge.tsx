@@ -20,7 +20,7 @@ const BADGE_LABELS: Record<SegmentStatus, string> = {
   active: 'Active',
   recap: 'Recap',
   accounting_review: 'Accounting Review',
-  export_ready: 'Ready for Intacct Import',
+  export_ready: 'Ready for Intacct Upload',
   invoiced: 'Invoiced',
   lost: 'Lost',
   cancelled: 'Cancelled',

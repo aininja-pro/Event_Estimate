@@ -63,7 +63,7 @@ export function VarianceSummary({ varianceRows, segmentName }: VarianceSummaryPr
           <TableRow className="border-b border-border/40 bg-slate-50 dark:bg-slate-800/30 hover:bg-slate-50">
             <TableHead className={`w-[200px] ${headerClass}`}>Section</TableHead>
             <TableHead className={`text-right w-28 ${headerClass}`}>Estimated</TableHead>
-            <TableHead className={`text-right w-28 ${headerClass}`}>Actual</TableHead>
+            <TableHead className={`text-right w-28 ${headerClass}`}>Actual Cost</TableHead>
             <TableHead className={`text-right w-28 ${headerClass}`}>Variance</TableHead>
             <TableHead className={`text-right w-16 ${headerClass}`}>Var%</TableHead>
           </TableRow>

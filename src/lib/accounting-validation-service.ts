@@ -1,6 +1,11 @@
 import { supabase } from './supabase'
 import { getAccountingReview } from './accounting-review-service'
 import { computeScheduleRollup } from './schedule-service'
+import {
+  getActualBillableTotal,
+  getActualCostTotal,
+  usesLegacyActualCost,
+} from './accounting-amounts'
 import type {
   AccountingReadinessIssue,
   AccountingReadinessSummary,
@@ -31,6 +36,13 @@ type MappingEntity = {
     default_unit?: string | null
     accounting_memo?: string | null
   } | null
+}
+
+type ActualTotals = {
+  actual_total: number | null
+  actual_cost_total: number | null
+  actual_billable_total: number | null
+  actual_days: number | null
 }
 
 function firstJoin<T>(value: T | T[] | null | undefined): T | null {
@@ -98,6 +110,16 @@ function addMissing(
   extra: Partial<AccountingReadinessIssue> = {}
 ) {
   result.missingFields.push({ field, source, message, ...extra })
+}
+
+function addWarning(
+  result: AccountingValidationResult,
+  field: string,
+  source: AccountingReadinessIssue['source'],
+  message: string,
+  extra: Partial<AccountingReadinessIssue> = {}
+) {
+  result.warnings.push({ field, source, message, ...extra })
 }
 
 function requireValue(
@@ -192,7 +214,7 @@ async function validateGate(ctx: AccountingContext, result: AccountingValidation
   }
 
   if (ctx.laborLog.status !== 'export_ready') {
-    addMissing(result, 'segment_status', 'segment', 'Segment must be Ready for Intacct Import.')
+    addMissing(result, 'segment_status', 'segment', 'Segment must be Ready for Intacct Upload.')
   }
 
   const review = await getAccountingReview(ctx.laborLog.id)
@@ -257,6 +279,7 @@ async function getManualLaborRows(laborLogId: string) {
       id,
       role_name,
       rate_card_item_id,
+      is_unplanned,
       quantity,
       days,
       unit_rate,
@@ -279,6 +302,7 @@ async function getManualLaborRows(laborLogId: string) {
     id: string
     role_name: string
     rate_card_item_id: string | null
+    is_unplanned: boolean
     quantity: number
     days: number
     unit_rate: number
@@ -299,6 +323,9 @@ async function getLineRows(laborLogId: string) {
       id,
       item_name,
       rate_card_item_id,
+      section,
+      is_unplanned,
+      fee_basis,
       quantity,
       unit_cost,
       markup_pct,
@@ -320,6 +347,9 @@ async function getLineRows(laborLogId: string) {
     id: string
     item_name: string
     rate_card_item_id: string | null
+    section: string | null
+    is_unplanned: boolean
+    fee_basis: string | null
     quantity: number
     unit_cost: number
     markup_pct: number
@@ -335,15 +365,21 @@ async function getActualTotals(laborLogId: string) {
   const db = requireSupabase()
   const { data, error } = await db
     .from('recap_actuals')
-    .select('labor_entry_id, line_item_id, actual_total')
+    .select('labor_entry_id, line_item_id, actual_total, actual_cost_total, actual_billable_total, actual_days')
     .eq('labor_log_id', laborLogId)
   if (error) throw error
 
-  const labor = new Map<string, number>()
-  const line = new Map<string, number>()
+  const labor = new Map<string, ActualTotals>()
+  const line = new Map<string, ActualTotals>()
   for (const row of data || []) {
-    if (row.labor_entry_id) labor.set(row.labor_entry_id, Number(row.actual_total || 0))
-    if (row.line_item_id) line.set(row.line_item_id, Number(row.actual_total || 0))
+    const totals = {
+      actual_total: row.actual_total == null ? null : Number(row.actual_total),
+      actual_cost_total: row.actual_cost_total == null ? null : Number(row.actual_cost_total),
+      actual_billable_total: row.actual_billable_total == null ? null : Number(row.actual_billable_total),
+      actual_days: row.actual_days == null ? null : Number(row.actual_days),
+    }
+    if (row.labor_entry_id) labor.set(row.labor_entry_id, totals)
+    if (row.line_item_id) line.set(row.line_item_id, totals)
   }
   return { labor, line }
 }
@@ -390,7 +426,7 @@ export async function validateApReadiness(laborLogId: string): Promise<Accountin
   if (scheduleRows.length > 0) {
     for (const entry of scheduleRows) {
       const amount = computeScheduleRollup([entry]).reduce((sum, row) => sum + row.actual_cost_total, 0)
-      if (amount <= 0) continue
+      if (amount == null || amount <= 0) continue
       const mapping = { ...entry.rate_card_items, gl_code: entry.gl_code } as MappingEntity
       if (!resolveApGl(mapping)) {
         addMissing(result, 'glAccountNo', 'schedule_entry', `${entry.role_name} is missing AP GL account mapping.`, {
@@ -404,8 +440,15 @@ export async function validateApReadiness(laborLogId: string): Promise<Accountin
     }
   } else {
     for (const entry of laborRows) {
-      const amount = actuals.labor.get(entry.id) ?? entry.quantity * entry.days * (entry.cost_rate || 0)
-      if (amount <= 0) continue
+      const actual = actuals.labor.get(entry.id)
+      const amount = getActualCostTotal(actual) ?? entry.quantity * entry.days * (entry.cost_rate || 0)
+      if (amount == null || amount <= 0) continue
+      if (usesLegacyActualCost(actual)) {
+        addWarning(result, 'actual_total', 'labor_entry', `AP cost amount for ${entry.role_name} found from legacy actual_total.`, {
+          laborEntryId: entry.id,
+          rateCardItemId: entry.rate_card_items?.id || undefined,
+        })
+      }
       const mapping = { ...entry.rate_card_items, gl_code: entry.gl_code } as MappingEntity
       if (!resolveApGl(mapping)) {
         addMissing(result, 'glAccountNo', 'labor_entry', `${entry.role_name} is missing AP GL account mapping.`, {
@@ -417,8 +460,15 @@ export async function validateApReadiness(laborLogId: string): Promise<Accountin
   }
 
   for (const item of lineRows) {
-    const amount = actuals.line.get(item.id) ?? item.quantity * item.unit_cost
-    if (amount <= 0) continue
+    const actual = actuals.line.get(item.id)
+    const amount = getActualCostTotal(actual) ?? item.quantity * item.unit_cost
+    if (amount == null || amount <= 0) continue
+    if (usesLegacyActualCost(actual)) {
+      addWarning(result, 'actual_total', 'line_item', `AP cost amount for ${item.item_name} found from legacy actual_total.`, {
+        lineItemId: item.id,
+        rateCardItemId: item.rate_card_items?.id || undefined,
+      })
+    }
     const mapping = { ...item.rate_card_items, gl_code: item.gl_code } as MappingEntity
     if (!resolveApGl(mapping)) {
       addMissing(result, 'glAccountNo', 'line_item', `${item.item_name} is missing AP GL account mapping.`, {
@@ -463,7 +513,7 @@ export async function validateArReadiness(laborLogId: string): Promise<Accountin
       const rollup = computeScheduleRollup([entry])
       const amount = rollup.reduce((sum, row) => sum + row.actual_revenue_total, 0)
       const quantity = rollup.reduce((sum, row) => sum + row.actual_days, 0)
-      if (amount <= 0) continue
+      if (amount == null || amount <= 0) continue
       if (!resolveArItem(entry.rate_card_items)) {
         addMissing(result, 'itemId', 'schedule_entry', `${entry.role_name} is missing AR item ID mapping.`, {
           scheduleEntryId: entry.id,
@@ -476,8 +526,17 @@ export async function validateArReadiness(laborLogId: string): Promise<Accountin
     }
   } else {
     for (const entry of laborRows) {
-      const amount = actuals.labor.get(entry.id) ?? entry.quantity * entry.days * entry.unit_rate
-      if (amount <= 0) continue
+      const actual = actuals.labor.get(entry.id)
+      const amount = getActualBillableTotal({ sourceType: 'manual_labor', source: entry }, actual)
+      const actualCost = getActualCostTotal(actual)
+      if (actualCost != null && actualCost > 0 && amount == null) {
+        addMissing(result, 'actual_billable_total', 'labor_entry', `Actual cost exists for ${entry.role_name}, but client billable amount could not be safely derived.`, {
+          laborEntryId: entry.id,
+          rateCardItemId: entry.rate_card_items?.id || undefined,
+        })
+        continue
+      }
+      if (amount == null || amount <= 0) continue
       if (!resolveArItem(entry.rate_card_items)) {
         addMissing(result, 'itemId', 'labor_entry', `${entry.role_name} is missing AR item ID mapping.`, {
           laborEntryId: entry.id,
@@ -491,8 +550,17 @@ export async function validateArReadiness(laborLogId: string): Promise<Accountin
   }
 
   for (const item of lineRows) {
-    const amount = actuals.line.get(item.id) ?? item.quantity * item.unit_cost * (1 + item.markup_pct / 100)
-    if (amount <= 0) continue
+    const actual = actuals.line.get(item.id)
+    const amount = getActualBillableTotal({ sourceType: 'line_item', source: item }, actual)
+    const actualCost = getActualCostTotal(actual)
+    if (actualCost != null && actualCost > 0 && amount == null) {
+      addMissing(result, 'actual_billable_total', 'line_item', `Actual cost exists for ${item.item_name}, but client billable amount could not be safely derived.`, {
+        lineItemId: item.id,
+        rateCardItemId: item.rate_card_items?.id || undefined,
+      })
+      continue
+    }
+    if (amount == null || amount <= 0) continue
     if (!resolveArItem(item.rate_card_items)) {
       addMissing(result, 'itemId', 'line_item', `${item.item_name} is missing AR item ID mapping.`, {
         lineItemId: item.id,

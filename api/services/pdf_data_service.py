@@ -30,6 +30,16 @@ def _round2(n: float) -> float:
     return round(n * 100) / 100
 
 
+def _actual_cost_total(actual: dict | None) -> float:
+    """Return canonical actual cost, falling back to legacy actual_total."""
+    if not actual:
+        return 0.0
+    value = actual.get("actual_cost_total")
+    if value is None:
+        value = actual.get("actual_total")
+    return float(value or 0)
+
+
 def _compute_schedule_rollup(schedule_entries: list[dict], day_entries: list[dict]) -> list[dict]:
     """
     Compute labor rollup from schedule entries + day entries.
@@ -539,7 +549,7 @@ def _get_variance_rows(sb, labor_log_id: str) -> list[dict]:
                     # Note: variance report in frontend uses this OT formula (differs from rollup)
 
             actual = next((a for a in actuals if a.get("schedule_entry_id") == group["first_id"]), None)
-            actual_total = float(actual.get("actual_total") or 0) if actual else 0
+            actual_total = _actual_cost_total(actual)
 
             variance = revenue_total - actual_total
             rows.append({
@@ -558,7 +568,7 @@ def _get_variance_rows(sb, labor_log_id: str) -> list[dict]:
             estimated = qty * days * rate
 
             actual = next((a for a in actuals if a.get("labor_entry_id") == entry["id"]), None)
-            actual_total = float(actual.get("actual_total") or 0) if actual else 0
+            actual_total = _actual_cost_total(actual)
 
             variance = estimated - actual_total
             rows.append({
@@ -577,7 +587,7 @@ def _get_variance_rows(sb, labor_log_id: str) -> list[dict]:
         estimated = qty * unit_cost
 
         actual = next((a for a in actuals if a.get("line_item_id") == item["id"]), None)
-        actual_total = float(actual.get("actual_total") or 0) if actual else 0
+        actual_total = _actual_cost_total(actual)
 
         variance = estimated - actual_total
         rows.append({

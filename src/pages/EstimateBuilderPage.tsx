@@ -91,6 +91,7 @@ import { FinancialSummaryCards } from '@/components/FinancialSummaryCards'
 import { ReceiptCell } from '@/components/recap/ReceiptCell'
 import { VarianceSummary } from '@/components/recap/VarianceSummary'
 import { getReceiptsByEstimate } from '@/lib/receipt-service'
+import { getActualCostTotal } from '@/lib/accounting-amounts'
 import type { ReceiptAttachment } from '@/types/workflow'
 import type { ScheduleEntry, ScheduleDayType, LaborRollupRow } from '@/types/schedule'
 import {
@@ -1116,7 +1117,7 @@ const SEGMENT_TAB_STYLES: Record<string, { dot: string; selected: string; unsele
 
 const SEGMENT_BADGE_LABELS: Record<string, string> = {
   pipeline: 'PIPELINE', estimate: 'ESTIMATE', in_review: 'IN REVIEW', active: 'ACTIVE',
-  recap: 'RECAP', accounting_review: 'ACCOUNTING REVIEW', export_ready: 'READY FOR IMPORT',
+  recap: 'RECAP', accounting_review: 'ACCOUNTING REVIEW', export_ready: 'READY FOR UPLOAD',
   invoiced: 'INVOICED', lost: 'LOST', cancelled: 'CANCELLED',
 }
 
@@ -1311,7 +1312,7 @@ function LaborLogTab({
   async function handleSaveRecapActual(
     key: string,
     entryRef: { labor_entry_id?: string; schedule_entry_id?: string },
-    updates: { actual_days?: number | null; actual_total?: number | null }
+    updates: { actual_days?: number | null; actual_total?: number | null; actual_cost_total?: number | null }
   ) {
     if (!activeLocationId || !estimateId) return
     const existing = recapMap[key]
@@ -1324,6 +1325,7 @@ function LaborLogTab({
         schedule_entry_id: entryRef.schedule_entry_id || null,
         line_item_id: null,
         actual_days: updates.actual_days ?? existing?.actual_days ?? null,
+        actual_cost_total: updates.actual_cost_total ?? existing?.actual_cost_total ?? null,
         actual_total: updates.actual_total ?? existing?.actual_total ?? null,
       })
       setRecapMap((prev) => ({ ...prev, [key]: result }))
@@ -1349,6 +1351,7 @@ function LaborLogTab({
         labor_entry_id: newEntry.id,
         schedule_entry_id: null,
         line_item_id: null,
+        actual_cost_total: data.actual_cost,
         actual_total: data.actual_cost,
         notes: data.description || null,
       })
@@ -1667,7 +1670,7 @@ function LaborEntryRow({
   onDelete: (id: string) => void
   readOnly?: boolean
   recapActual?: RecapActual | null
-  onSaveRecapActual?: (updates: { actual_days?: number | null; actual_total?: number | null }) => void
+  onSaveRecapActual?: (updates: { actual_days?: number | null; actual_total?: number | null; actual_cost_total?: number | null }) => void
 }) {
   const [qty, setQty] = useState(entry.quantity.toString())
   const [days, setDays] = useState(entry.days.toString())
@@ -1874,7 +1877,7 @@ function LineItemTab({
     }
   }, [isRecapMode, activeLocationId, estimateId])
 
-  async function handleSaveLineItemActual(lineItemId: string, updates: { actual_total?: number | null }) {
+  async function handleSaveLineItemActual(lineItemId: string, updates: { actual_total?: number | null; actual_cost_total?: number | null }) {
     if (!activeLocationId || !estimateId) return
     const existing = recapMap[lineItemId]
     try {
@@ -1885,6 +1888,7 @@ function LineItemTab({
         line_item_id: lineItemId,
         labor_entry_id: null,
         schedule_entry_id: null,
+        actual_cost_total: updates.actual_cost_total ?? existing?.actual_cost_total ?? null,
         actual_total: updates.actual_total ?? existing?.actual_total ?? null,
       })
       setRecapMap((prev) => ({ ...prev, [lineItemId]: result }))
@@ -1909,6 +1913,7 @@ function LineItemTab({
         line_item_id: newItem.id,
         labor_entry_id: null,
         schedule_entry_id: null,
+        actual_cost_total: data.actual_cost,
         actual_total: data.actual_cost,
         notes: data.description || null,
       })
@@ -1952,7 +1957,7 @@ function LineItemTab({
                 <TableHead className="text-right w-28 text-[10px] uppercase tracking-widest text-muted-foreground font-medium py-2">Client Total</TableHead>
                 {isRecapMode && (
                   <>
-                    <th className="text-right w-24 text-[10px] uppercase tracking-widest text-muted-foreground font-medium py-2">Actual</th>
+                    <th className="text-right w-24 text-[10px] uppercase tracking-widest text-muted-foreground font-medium py-2">Actual Cost</th>
                     <th className="text-right w-24 text-[10px] uppercase tracking-widest text-muted-foreground font-medium py-2">Variance</th>
                     <th className="text-center w-10 text-[10px] uppercase tracking-widest text-muted-foreground font-medium py-2">Receipt</th>
                   </>
@@ -2034,7 +2039,7 @@ function LineItemRow({
   onDelete: (id: string) => void
   readOnly?: boolean
   recapActual?: RecapActual | null
-  onSaveRecapActual?: (updates: { actual_total?: number | null }) => void
+  onSaveRecapActual?: (updates: { actual_total?: number | null; actual_cost_total?: number | null }) => void
   receipt?: ReceiptAttachment | null
   estimateId?: string
   onReceiptUpload?: (receipt: ReceiptAttachment) => void
@@ -2044,12 +2049,12 @@ function LineItemRow({
   const [unitCost, setUnitCost] = useState(item.unit_cost.toString())
   const [markup, setMarkup] = useState(item.markup_pct.toString())
   const [desc, setDesc] = useState(item.description || '')
-  const [actTotal, setActTotal] = useState(recapActual?.actual_total?.toString() ?? '')
+  const [actTotal, setActTotal] = useState(getActualCostTotal(recapActual)?.toString() ?? '')
   const [saved, setSaved] = useState(false)
 
   // Sync local state when async-loaded recapActual arrives
   useEffect(() => {
-    setActTotal(recapActual?.actual_total?.toString() ?? '')
+    setActTotal(getActualCostTotal(recapActual)?.toString() ?? '')
   }, [recapActual?.id])
 
   const qtyNum = parseFloat(qty) || 0
@@ -2059,14 +2064,14 @@ function LineItemRow({
   const clientTotal = total * (1 + markupNum / 100)
   const actTotalNum = parseFloat(actTotal) || 0
   const hasActual = actTotal !== '' && recapActual !== undefined
-  const variance = hasActual ? clientTotal - actTotalNum : null
+  const variance = hasActual ? total - actTotalNum : null
 
   const cellInput = "h-6 text-[13px] bg-transparent border-0 focus-visible:ring-0 focus-visible:bg-muted/50 rounded-sm transition-colors tabular-nums"
 
   function handleActualBlur() {
     if (!onSaveRecapActual) return
     const val = parseFloat(actTotal) || null
-    onSaveRecapActual({ actual_total: val })
+    onSaveRecapActual({ actual_cost_total: val, actual_total: val })
     setSaved(true)
     setTimeout(() => setSaved(false), 1200)
   }
@@ -3074,6 +3079,19 @@ function IntacctReadinessPanel({ summary }: { summary: AccountingReadinessSummar
                 ))}
                 {result.missingFields.length > 8 && (
                   <li className="text-[12px] text-muted-foreground">+ {result.missingFields.length - 8} more</li>
+                )}
+              </ul>
+            )}
+            {result.warnings.length > 0 && (
+              <ul className="space-y-1 mt-2 border-t border-border/30 pt-2">
+                {result.warnings.slice(0, 4).map((issue, idx) => (
+                  <li key={`${issue.field}-warning-${idx}`} className="text-[12px] text-muted-foreground flex gap-1.5">
+                    <AlertTriangle className="h-3 w-3 text-slate-500 mt-0.5 shrink-0" />
+                    <span>{issue.message}</span>
+                  </li>
+                ))}
+                {result.warnings.length > 4 && (
+                  <li className="text-[12px] text-muted-foreground">+ {result.warnings.length - 4} more warnings</li>
                 )}
               </ul>
             )}

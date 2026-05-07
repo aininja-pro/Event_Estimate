@@ -95,7 +95,11 @@ export interface RecapActual {
   actual_days: number | null
   actual_hours: number | null
   actual_unit_cost: number | null
+  /** Legacy actual amount. Treat as actual cost for backward compatibility. */
   actual_total: number | null
+  actual_cost_total: number | null
+  actual_billable_total: number | null
+  actual_amount_notes: string | null
   notes: string | null
   created_at: string
   updated_at: string

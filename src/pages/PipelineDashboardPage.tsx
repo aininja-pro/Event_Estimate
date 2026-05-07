@@ -60,7 +60,7 @@ const STATUS_LABELS: Record<string, string> = {
   active: 'Active',
   recap: 'Recap',
   accounting_review: 'Accounting Review',
-  export_ready: 'Ready for Intacct Import',
+  export_ready: 'Ready for Intacct Upload',
   invoiced: 'Invoiced',
   complete: 'Complete',
   lost: 'Lost',
