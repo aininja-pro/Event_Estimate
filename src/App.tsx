@@ -19,6 +19,8 @@ import { AdminFeedbackPage } from '@/pages/AdminFeedbackPage'
 import { LoginPage } from '@/pages/LoginPage'
 import { AdminUsersPage } from '@/pages/AdminUsersPage'
 import { AdminSettingsPage } from '@/pages/AdminSettingsPage'
+import { AccountingSetupPage } from '@/pages/AccountingSetupPage'
+import { hasPermission } from '@/lib/permissions'
 
 function RequireAuth() {
   const { session, loading } = useAuth()
@@ -54,6 +56,24 @@ function RequireAdmin() {
   return <Outlet />
 }
 
+function RequireAccountingSetup() {
+  const { profile, loading } = useAuth()
+
+  if (loading) {
+    return (
+      <div className="flex h-screen items-center justify-center">
+        <p className="text-sm text-muted-foreground">Loading...</p>
+      </div>
+    )
+  }
+
+  if (!profile || !hasPermission(profile.role, 'edit_accounting_mappings')) {
+    return <Navigate to="/estimates" replace />
+  }
+
+  return <Outlet />
+}
+
 function App() {
   return (
     <BrowserRouter>
@@ -78,6 +98,9 @@ function App() {
               <Route path="/estimate-builder" element={<EstimateBuilderPage />} />
               <Route path="/rate-card-management" element={<RateCardManagementPage />} />
               <Route path="/admin/feedback" element={<AdminFeedbackPage />} />
+              <Route element={<RequireAccountingSetup />}>
+                <Route path="/admin/accounting-setup" element={<AccountingSetupPage />} />
+              </Route>
 
               <Route element={<RequireAdmin />}>
                 <Route path="/admin/users" element={<AdminUsersPage />} />

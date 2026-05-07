@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import { NavLink } from 'react-router-dom'
-import { BarChart3, ClipboardList, Bot, Layers, Database, GitBranch, Map, FileSpreadsheet, DollarSign, MessageSquare, Briefcase, Users, ChevronsLeft, ChevronsRight, LayoutDashboard, Settings } from 'lucide-react'
+import { BarChart3, ClipboardList, Bot, Layers, Database, GitBranch, Map, FileSpreadsheet, DollarSign, MessageSquare, Briefcase, Users, ChevronsLeft, ChevronsRight, LayoutDashboard, Settings, Landmark } from 'lucide-react'
 import { Separator } from '@/components/ui/separator'
 import { useAuth } from '@/lib/auth'
+import { hasPermission } from '@/lib/permissions'
 
 const discoveryItems = [
   { to: '/dashboard', label: 'Historical Dashboard', icon: BarChart3 },
@@ -28,6 +29,7 @@ const uiConceptItems = [
 ]
 
 const adminItems = [
+  { to: '/admin/accounting-setup', label: 'Accounting Setup', icon: Landmark },
   { to: '/admin/feedback', label: 'Feedback Management', icon: MessageSquare },
   { to: '/admin/users', label: 'User Management', icon: Users },
   { to: '/admin/settings', label: 'System Settings', icon: Settings },
@@ -82,6 +84,8 @@ function NavItem({ to, label, icon: Icon, collapsed }: NavItemData & { collapsed
 export function Sidebar() {
   const { profile, signOut } = useAuth()
   const isAdmin = profile?.role === 'admin'
+  const canEditAccountingSetup = !!profile && hasPermission(profile.role, 'edit_accounting_mappings')
+  const visibleAdminItems = isAdmin ? adminItems : adminItems.filter((item) => item.to === '/admin/accounting-setup')
 
   const [collapsed, setCollapsed] = useState(() => {
     return localStorage.getItem(SIDEBAR_STORAGE_KEY) === 'true'
@@ -112,7 +116,7 @@ export function Sidebar() {
         )}
         <NavSection title="Production" items={productionItems} collapsed={collapsed} />
         {!SHOW_DEMO_NAV_ONLY && <NavSection title="UI Concepts" items={uiConceptItems} collapsed={collapsed} />}
-        {isAdmin && <NavSection title="Admin" items={adminItems} collapsed={collapsed} />}
+        {canEditAccountingSetup && <NavSection title="Admin" items={visibleAdminItems} collapsed={collapsed} />}
       </nav>
       <div className={`flex ${collapsed ? 'justify-center' : 'justify-end'} px-3 py-1`}>
         <button

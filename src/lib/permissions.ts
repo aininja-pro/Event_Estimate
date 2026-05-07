@@ -12,6 +12,7 @@ export type Permission =
   | 'approve_recap'
   | 'request_recap_corrections'
   | 'mark_export_ready_invoiced'
+  | 'export_intacct_csv'
   | 'edit_accounting_mappings'
   | 'delete_estimate'
   | 'transition_segment'
@@ -23,19 +24,20 @@ const ROLE_PERMISSIONS: Record<string, Permission[]> = {
     'edit_rate_cards', 'edit_recap', 'mark_invoiced',
     'submit_recap_for_accounting', 'review_recap', 'approve_recap',
     'request_recap_corrections', 'mark_export_ready_invoiced',
-    'edit_accounting_mappings',
+    'export_intacct_csv', 'edit_accounting_mappings',
     'delete_estimate', 'transition_segment',
   ],
   cfo: [
     'create_estimate', 'edit_estimate', 'submit_for_review',
     'approve_standard', 'approve_threshold',
     'edit_recap', 'mark_invoiced', 'review_recap', 'approve_recap',
-    'request_recap_corrections', 'mark_export_ready_invoiced', 'transition_segment',
+    'request_recap_corrections', 'mark_export_ready_invoiced', 'export_intacct_csv',
+    'edit_accounting_mappings', 'transition_segment',
   ],
   accounting: [
     'edit_recap', 'mark_invoiced', 'review_recap', 'approve_recap',
     'request_recap_corrections', 'mark_export_ready_invoiced',
-    'edit_accounting_mappings', 'transition_segment',
+    'export_intacct_csv', 'edit_accounting_mappings', 'transition_segment',
   ],
   account_manager: [
     'create_estimate', 'edit_estimate', 'submit_for_review',

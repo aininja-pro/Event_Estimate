@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
-import { useParams, Navigate } from 'react-router-dom'
+import { Link, useParams, Navigate } from 'react-router-dom'
+import { toast } from 'sonner'
 import {
   Table,
   TableHeader,
@@ -85,6 +86,10 @@ import { useUser } from '@/lib/auth'
 import { hasPermission } from '@/lib/permissions'
 import { getGPThreshold } from '@/lib/system-settings-service'
 import { getAccountingReadinessSummary } from '@/lib/accounting-validation-service'
+import {
+  downloadAccountingCsvForSegment,
+  getAccountingExports,
+} from '@/lib/accounting-csv-service'
 import type { AccountingReview, ApprovalRequest, SegmentStatus, SegmentEditRules, RecapActual, VarianceRow } from '@/types/workflow'
 import { RecapActualsCells, RecapComputedCells, RecapColumnHeaders } from '@/components/recap/RecapActualsCells'
 import { FinancialSummaryCards } from '@/components/FinancialSummaryCards'
@@ -120,7 +125,7 @@ import {
 } from '@/lib/rate-card-service'
 import type { EstimateWithClient, EstimateUpdate, LaborLog, LaborEntry, EstimateLineItem } from '@/types/estimate'
 import type { ClientContact, RateCardItemsBySection } from '@/types/rate-card'
-import type { AccountingReadinessSummary, OfficeAccountingProfile, RevenueSegment } from '@/types/accounting'
+import type { AccountingExportRecord, AccountingExportType, AccountingReadinessIssue, AccountingReadinessSummary, OfficeAccountingProfile, RevenueSegment } from '@/types/accounting'
 import type { Nudge } from '@/types/nudge'
 import { fetchNudges, fetchFreshEstimateState, sendChatMessage, dismissNudge, getDismissedNudges } from '@/lib/ai-nudge-service'
 import { generatePDF, type PDFType } from '@/lib/pdf-service'
@@ -168,6 +173,12 @@ function computeDuration(start: string | null, end: string | null): number | nul
   if (!start || !end) return null
   const d = Math.ceil((new Date(end).getTime() - new Date(start).getTime()) / 86400000) + 1
   return d > 0 ? d : null
+}
+
+function parseSimpleCityState(location: string | null | undefined): { city: string; state: string } | null {
+  const match = location?.trim().match(/^([A-Za-z][A-Za-z .'-]+),\s*([A-Z]{2})$/)
+  if (!match) return null
+  return { city: match[1].trim(), state: match[2].trim() }
 }
 
 // ── AI Intelligence Panel ────────────────────────────────────────────────────
@@ -481,6 +492,7 @@ function EventHeader({
   officeProfiles,
   clientContacts,
   accountingEditable,
+  canManageAccountingSetup,
 }: {
   estimate: EstimateWithClient
   onUpdate: (updates: EstimateUpdate) => void
@@ -490,6 +502,7 @@ function EventHeader({
   officeProfiles: OfficeAccountingProfile[]
   clientContacts: ClientContact[]
   accountingEditable?: boolean
+  canManageAccountingSetup?: boolean
 }) {
   const [eventName, setEventName] = useState(estimate.event_name)
   const [eventType, setEventType] = useState(estimate.event_type ?? '')
@@ -504,9 +517,13 @@ function EventHeader({
   const [intacctProjectId, setIntacctProjectId] = useState(estimate.intacct_project_id ?? '')
   const [acctDepartmentId, setAcctDepartmentId] = useState(estimate.accounting_department_id ?? '')
   const [acctLocationId, setAcctLocationId] = useState(estimate.accounting_location_id ?? '')
+  const [acctCustomerId, setAcctCustomerId] = useState(estimate.accounting_customer_id ?? '')
+  const [acctPaymentTerms, setAcctPaymentTerms] = useState(estimate.accounting_payment_terms ?? '')
   const [internalNotes, setInternalNotes] = useState(estimate.internal_notes ?? '')
   const [publishedNotes, setPublishedNotes] = useState(estimate.published_notes ?? '')
   const [showNotes, setShowNotes] = useState(!!(estimate.internal_notes || estimate.published_notes))
+  const [accountingFieldsOpen, setAccountingFieldsOpen] = useState(true)
+  const locationPrefillKey = useRef<string | null>(null)
 
   function saveField(field: string, value: string | number | null) {
     const updates: EstimateUpdate = { [field]: value || null }
@@ -522,6 +539,31 @@ function EventHeader({
   const fieldInput = "h-7 text-[13px] font-medium rounded-none border-0 border-b border-border/40 bg-transparent hover:border-border/60 focus-visible:border-foreground/40 focus-visible:ring-0 px-0 transition-colors"
   const readOnlyField = "h-7 text-[13px] font-medium border-0 bg-transparent cursor-default px-0 text-muted-foreground"
   const accountingReadOnly = readOnly && !accountingEditable
+  const accountingSectionLabel = "text-[10px] uppercase tracking-widest text-foreground/60 font-semibold"
+  const helpText = "mt-1 text-[11px] leading-snug text-muted-foreground/70"
+  const emptySetupText = "mt-1 text-[11px] leading-snug text-amber-700"
+  const accountingSetupLink = (
+    <Link to="/admin/accounting-setup" className="ml-1 font-medium underline underline-offset-2 hover:text-amber-800">
+      Open Accounting Setup
+    </Link>
+  )
+
+  useEffect(() => {
+    if (estimate.cost_structure !== 'office' || accountingReadOnly) return
+    if ((estimate.event_city ?? '').trim() || (estimate.event_state ?? '').trim()) return
+    if (eventCity.trim() || eventState.trim()) return
+
+    const parsed = parseSimpleCityState(estimate.location)
+    if (!parsed) return
+
+    const key = `${estimate.id}:${estimate.location}`
+    if (locationPrefillKey.current === key) return
+    locationPrefillKey.current = key
+
+    setEventCity(parsed.city)
+    setEventState(parsed.state)
+    onUpdate({ event_city: parsed.city, event_state: parsed.state })
+  }, [accountingReadOnly, estimate.cost_structure, estimate.event_city, estimate.event_state, estimate.id, estimate.location, eventCity, eventState, onUpdate])
 
   return (
     <div className="border border-border/50 bg-slate-50 dark:bg-slate-800/50 rounded-md px-4 py-3">
@@ -615,61 +657,115 @@ function EventHeader({
         </div>
       </div>
       {estimate.cost_structure === 'office' && (
-        <div className="mt-2.5 pt-2.5 border-t border-border/40 grid grid-cols-4 gap-x-5 gap-y-2">
+        <div className="mt-2.5 pt-2.5 border-t border-border/40 space-y-3">
+          <button
+            type="button"
+            onClick={() => setAccountingFieldsOpen((prev) => !prev)}
+            className="flex w-full items-center justify-between text-left"
+          >
+            <span className={accountingSectionLabel}>Accounting Fields</span>
+            <span className="text-[11px] text-muted-foreground">
+              {accountingFieldsOpen ? 'Hide' : 'Show'}
+            </span>
+          </button>
+          {accountingFieldsOpen && (
+            <>
           <div>
-            <p className={fieldLabel}>Revenue Segment</p>
-            {accountingReadOnly ? (
-              <Input readOnly value={revenueSegments.find((s) => s.id === estimate.revenue_segment_id)?.name ?? ''} className={readOnlyField} />
-            ) : (
-              <Select value={estimate.revenue_segment_id ?? undefined} onValueChange={(v) => onUpdate({ revenue_segment_id: v })}>
-                <SelectTrigger className="h-7 text-[13px] rounded-none border-0 border-b border-border/40 bg-transparent px-0 shadow-none focus:ring-0">
-                  <SelectValue placeholder="Select segment" />
-                </SelectTrigger>
-                <SelectContent>
-                  {revenueSegments.map((segment) => (
-                    <SelectItem key={segment.id} value={segment.id} className="text-[13px]">{segment.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
+            <p className={accountingSectionLabel}>Required Event Accounting Fields</p>
+            <div className="mt-1.5 grid grid-cols-5 gap-x-5 gap-y-2">
+              <div>
+                <p className={fieldLabel}>Revenue Segment</p>
+                {accountingReadOnly ? (
+                  <Input readOnly value={revenueSegments.find((s) => s.id === estimate.revenue_segment_id)?.name ?? ''} className={readOnlyField} />
+                ) : (
+                  <Select value={estimate.revenue_segment_id ?? undefined} onValueChange={(v) => onUpdate({ revenue_segment_id: v })} disabled={revenueSegments.length === 0}>
+                    <SelectTrigger className="h-7 text-[13px] rounded-none border-0 border-b border-border/40 bg-transparent px-0 shadow-none focus:ring-0">
+                      <SelectValue placeholder={revenueSegments.length === 0 ? 'No segments configured' : 'Select segment'} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {revenueSegments.map((segment) => (
+                        <SelectItem key={segment.id} value={segment.id} className="text-[13px]">{segment.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+                <p className={helpText}>Accounting classification used for Intacct AR upload. Managed by Accounting.</p>
+                {revenueSegments.length === 0 && (
+                  <p className={emptySetupText}>
+                    {canManageAccountingSetup ? 'No revenue segments configured. Add them in Admin → Accounting Setup.' : 'Ask Accounting/Admin to configure this in Accounting Setup.'}
+                    {canManageAccountingSetup && accountingSetupLink}
+                  </p>
+                )}
+              </div>
+              <div>
+                <p className={fieldLabel}>Office Profile</p>
+                {accountingReadOnly ? (
+                  <Input readOnly value={officeProfiles.find((p) => p.id === estimate.office_accounting_profile_id)?.office_name ?? ''} className={readOnlyField} />
+                ) : (
+                  <Select value={estimate.office_accounting_profile_id ?? undefined} onValueChange={(v) => onUpdate({ office_accounting_profile_id: v })} disabled={officeProfiles.length === 0}>
+                    <SelectTrigger className="h-7 text-[13px] rounded-none border-0 border-b border-border/40 bg-transparent px-0 shadow-none focus:ring-0">
+                      <SelectValue placeholder={officeProfiles.length === 0 ? 'No profiles configured' : 'Select office'} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {officeProfiles.map((profile) => (
+                        <SelectItem key={profile.id} value={profile.id} className="text-[13px]">{profile.office_name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+                <p className={helpText}>Office/vendor profile used for AP bill upload. Managed by Accounting.</p>
+                {officeProfiles.length === 0 && (
+                  <p className={emptySetupText}>
+                    {canManageAccountingSetup ? 'No office profiles configured. Add office/vendor profiles in Admin → Accounting Setup.' : 'Ask Accounting/Admin to configure this in Accounting Setup.'}
+                    {canManageAccountingSetup && accountingSetupLink}
+                  </p>
+                )}
+              </div>
+              <div>
+                <p className={fieldLabel}>Event City</p>
+                <Input value={eventCity} onChange={(e) => setEventCity(e.target.value)} onBlur={() => saveField('event_city', eventCity)} className={accountingReadOnly ? readOnlyField : fieldInput} readOnly={accountingReadOnly} />
+                <p className={helpText}>City where the event occurred. Required for accounting/tax setup.</p>
+              </div>
+              <div>
+                <p className={fieldLabel}>Event State</p>
+                <Input value={eventState} onChange={(e) => setEventState(e.target.value)} onBlur={() => saveField('event_state', eventState)} className={accountingReadOnly ? readOnlyField : fieldInput} readOnly={accountingReadOnly} />
+                <p className={helpText}>State where the event occurred. Required for accounting/tax setup.</p>
+              </div>
+              <div>
+                <p className={fieldLabel}>Intacct Project ID</p>
+                <Input value={intacctProjectId} onChange={(e) => setIntacctProjectId(e.target.value)} onBlur={() => saveField('intacct_project_id', intacctProjectId)} className={accountingReadOnly ? readOnlyField : fieldInput} readOnly={accountingReadOnly} />
+                <p className={helpText}>Project dimension used in Intacct upload. Usually provided by accounting/project setup.</p>
+              </div>
+            </div>
           </div>
-          <div>
-            <p className={fieldLabel}>Office Profile</p>
-            {accountingReadOnly ? (
-              <Input readOnly value={officeProfiles.find((p) => p.id === estimate.office_accounting_profile_id)?.office_name ?? ''} className={readOnlyField} />
-            ) : (
-              <Select value={estimate.office_accounting_profile_id ?? undefined} onValueChange={(v) => onUpdate({ office_accounting_profile_id: v })}>
-                <SelectTrigger className="h-7 text-[13px] rounded-none border-0 border-b border-border/40 bg-transparent px-0 shadow-none focus:ring-0">
-                  <SelectValue placeholder="Select office" />
-                </SelectTrigger>
-                <SelectContent>
-                  {officeProfiles.map((profile) => (
-                    <SelectItem key={profile.id} value={profile.id} className="text-[13px]">{profile.office_name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
+
+          <div className="pt-2 border-t border-border/30">
+            <p className={accountingSectionLabel}>Advanced Intacct Overrides</p>
+            <div className="mt-1.5 grid grid-cols-4 gap-x-5 gap-y-2">
+              <div>
+                <p className={fieldLabel}>Intacct Department Override</p>
+                <Input value={acctDepartmentId} onChange={(e) => setAcctDepartmentId(e.target.value)} onBlur={() => saveField('accounting_department_id', acctDepartmentId)} className={accountingReadOnly ? readOnlyField : fieldInput} readOnly={accountingReadOnly} />
+                <p className={helpText}>Only overrides the default Intacct department when needed.</p>
+              </div>
+              <div>
+                <p className={fieldLabel}>Intacct Location Override</p>
+                <Input value={acctLocationId} onChange={(e) => setAcctLocationId(e.target.value)} onBlur={() => saveField('accounting_location_id', acctLocationId)} className={accountingReadOnly ? readOnlyField : fieldInput} readOnly={accountingReadOnly} />
+                <p className={helpText}>Intacct location dimension override, not the event city/state.</p>
+              </div>
+              <div>
+                <p className={fieldLabel}>Intacct Customer ID Override</p>
+                <Input value={acctCustomerId} onChange={(e) => setAcctCustomerId(e.target.value)} onBlur={() => saveField('accounting_customer_id', acctCustomerId)} className={accountingReadOnly ? readOnlyField : fieldInput} readOnly={accountingReadOnly} />
+                <p className={helpText}>Only overrides the client's default Intacct customer ID when needed.</p>
+              </div>
+              <div>
+                <p className={fieldLabel}>Intacct Payment Terms Override</p>
+                <Input value={acctPaymentTerms} onChange={(e) => setAcctPaymentTerms(e.target.value)} onBlur={() => saveField('accounting_payment_terms', acctPaymentTerms)} className={accountingReadOnly ? readOnlyField : fieldInput} readOnly={accountingReadOnly} />
+                <p className={helpText}>Only overrides the client/office default terms when needed.</p>
+              </div>
+            </div>
           </div>
-          <div>
-            <p className={fieldLabel}>Event City</p>
-            <Input value={eventCity} onChange={(e) => setEventCity(e.target.value)} onBlur={() => saveField('event_city', eventCity)} className={accountingReadOnly ? readOnlyField : fieldInput} readOnly={accountingReadOnly} />
-          </div>
-          <div>
-            <p className={fieldLabel}>Event State</p>
-            <Input value={eventState} onChange={(e) => setEventState(e.target.value)} onBlur={() => saveField('event_state', eventState)} className={accountingReadOnly ? readOnlyField : fieldInput} readOnly={accountingReadOnly} />
-          </div>
-          <div>
-            <p className={fieldLabel}>Intacct Project ID</p>
-            <Input value={intacctProjectId} onChange={(e) => setIntacctProjectId(e.target.value)} onBlur={() => saveField('intacct_project_id', intacctProjectId)} className={accountingReadOnly ? readOnlyField : fieldInput} readOnly={accountingReadOnly} />
-          </div>
-          <div>
-            <p className={fieldLabel}>Department Override</p>
-            <Input value={acctDepartmentId} onChange={(e) => setAcctDepartmentId(e.target.value)} onBlur={() => saveField('accounting_department_id', acctDepartmentId)} className={accountingReadOnly ? readOnlyField : fieldInput} readOnly={accountingReadOnly} />
-          </div>
-          <div>
-            <p className={fieldLabel}>Location Override</p>
-            <Input value={acctLocationId} onChange={(e) => setAcctLocationId(e.target.value)} onBlur={() => saveField('accounting_location_id', acctLocationId)} className={accountingReadOnly ? readOnlyField : fieldInput} readOnly={accountingReadOnly} />
-          </div>
+            </>
+          )}
         </div>
       )}
       {!showNotes ? (
@@ -3039,27 +3135,131 @@ function SummaryTab({
 
 // ── Intacct Readiness Panel ──────────────────────────────────────────────────
 
-function IntacctReadinessPanel({ summary }: { summary: AccountingReadinessSummary | null | undefined }) {
+function IntacctReadinessPanel({
+  summary,
+  exportHistory,
+  lastGeneratedCsv,
+  lastSavedCsvPath,
+  canExportCsv,
+  canEditActualBillable,
+  exportingType,
+  onDownload,
+  onSaveActualBillable,
+}: {
+  summary: AccountingReadinessSummary | null | undefined
+  exportHistory: AccountingExportRecord[]
+  lastGeneratedCsv: { filename: string; url: string } | null
+  lastSavedCsvPath: string | null
+  canExportCsv: boolean
+  canEditActualBillable: boolean
+  exportingType: AccountingExportType | null
+  onDownload: (exportType: AccountingExportType) => void
+  onSaveActualBillable: (issue: AccountingReadinessIssue, amount: number) => Promise<void>
+}) {
+  const [exportHistoryOpen, setExportHistoryOpen] = useState(false)
+
   if (!summary || !summary.isOfficeEvent) return null
 
+  const getFixLocation = (issue: AccountingReadinessIssue): string => {
+    if (issue.fixLocation) return issue.fixLocation
+
+    switch (issue.field) {
+      case 'customerId':
+      case 'lineCustomerId':
+        return 'Rate Cards → Client Intacct Defaults'
+      case 'paymentTerms':
+        return issue.exportType === 'ap'
+          ? 'Accounting Setup → Office Profiles, or Estimate Builder → Advanced Intacct Overrides'
+          : 'Rate Cards → Client Intacct Defaults, or Estimate Builder → Advanced Intacct Overrides'
+      case 'office_accounting_profile_id':
+        return 'Estimate Builder → Required Event Accounting Fields'
+      case 'vendorId':
+        return 'Accounting Setup → Office Profiles'
+      case 'lineDepartmentId':
+        return 'Estimate Builder → Advanced Intacct Overrides, or Rate Cards → Client Intacct Defaults'
+      case 'lineLocationId':
+        return 'Estimate Builder → Advanced Intacct Overrides, or Rate Cards → Client Intacct Defaults'
+      case 'lineProjectId':
+      case 'lineprojectId':
+        return 'Estimate Builder → Required Event Accounting Fields'
+      case 'revenue_segment_id':
+        return 'Estimate Builder → Required Event Accounting Fields'
+      case 'event_city':
+        return 'Estimate Builder → Required Event Accounting Fields'
+      case 'event_state':
+        return 'Estimate Builder → Required Event Accounting Fields'
+      case 'itemId':
+        return 'Rate Cards → Fee Type Mapping'
+      case 'glAccountNo':
+        return 'Rate Cards → Fee Type Mapping'
+      case 'actual_billable_total':
+        return 'Estimate Builder → Recap, or confirm safe billable derivation with accounting'
+      case 'transAmount':
+        return 'Estimate Builder → Recap, or Rate Cards → Fee Type Mapping'
+      case 'quantity':
+        return 'Estimate Builder → Labor/Schedule or Recap actual days/quantity'
+      case 'price':
+        return 'Estimate Builder → Rate Card pricing or Recap actual billable amount'
+      case 'accounting_review':
+        return 'Estimate Builder → Accounting Review'
+      case 'segment_status':
+        return 'Estimate Builder → Segment Workflow'
+      case 'cost_structure':
+        return 'Estimate Builder → Event Details'
+      case 'permission':
+        return 'Admin Users → User Role / Accounting export permission'
+      case 'lines':
+        return 'Estimate Builder → Recap actuals and accounting mappings'
+      default:
+        break
+    }
+
+    switch (issue.source) {
+      case 'client':
+        return 'Rate Cards → Client Intacct Defaults'
+      case 'office_profile':
+        return 'Accounting Setup → Office Profiles'
+      case 'estimate':
+        return 'Estimate Builder → Required Event Accounting Fields'
+      case 'fee_type':
+      case 'rate_card_item':
+        return 'Rate Cards → Fee Type Mapping'
+      case 'line_item':
+        return 'Estimate Builder → Line Items / Recap'
+      case 'labor_entry':
+      case 'schedule_entry':
+        return 'Estimate Builder → Labor/Schedule / Recap'
+      case 'accounting_review':
+        return 'Estimate Builder → Accounting Review'
+      case 'segment':
+        return 'Estimate Builder → Segment Workflow'
+      default:
+        return issue.actionHint || 'Review the source record and accounting mapping.'
+    }
+  }
+
   const groups = [
-    { label: 'AP Bill Upload', result: summary.ap },
-    { label: 'AR Invoice Upload', result: summary.ar },
+    { label: 'AP Bill Upload', result: summary.ap, exportType: 'ap' as const, buttonLabel: 'Download AP Bill Upload CSV' },
+    { label: 'AR Invoice Upload', result: summary.ar, exportType: 'ar' as const, buttonLabel: 'Download AR Invoice Upload CSV' },
   ]
+
+  const formatExportType = (value: string) => value === 'ap_bill' ? 'AP Bill' : 'AR Invoice'
+  const formatGeneratedBy = (record: AccountingExportRecord) =>
+    record.generated_by_profile?.full_name || record.generated_by_profile?.email || 'Unknown user'
 
   return (
     <div className="border border-border/50 rounded-md bg-white px-3 py-2.5 space-y-2">
       <div className="flex items-center justify-between">
         <div>
           <p className="text-[11px] uppercase tracking-widest text-muted-foreground font-medium">Intacct Readiness</p>
-          <p className="text-[12px] text-muted-foreground">Validation only. CSV export buttons are not enabled yet.</p>
+          <p className="text-[12px] text-muted-foreground">Generate AP/AR upload files after accounting approval.</p>
         </div>
         <span className={`text-[11px] font-medium px-2 py-1 rounded border ${summary.isReady ? 'text-emerald-700 bg-emerald-50 border-emerald-200' : 'text-amber-700 bg-amber-50 border-amber-200'}`}>
           {summary.isReady ? 'Ready' : 'Missing Data'}
         </span>
       </div>
       <div className="grid grid-cols-2 gap-3">
-        {groups.map(({ label, result }) => (
+        {groups.map(({ label, result, exportType, buttonLabel }) => (
           <div key={label} className="border border-border/40 rounded-md p-2">
             <div className="flex items-center justify-between mb-1.5">
               <span className="text-[13px] font-medium">{label}</span>
@@ -3074,7 +3274,15 @@ function IntacctReadinessPanel({ summary }: { summary: AccountingReadinessSummar
                 {result.missingFields.slice(0, 8).map((issue, idx) => (
                   <li key={`${issue.field}-${idx}`} className="text-[12px] text-muted-foreground flex gap-1.5">
                     <AlertTriangle className="h-3 w-3 text-amber-600 mt-0.5 shrink-0" />
-                    <span>{issue.message}</span>
+                    <span>
+                      <span>{issue.message}</span>
+                      <span className="block text-[11px] text-muted-foreground/70 mt-0.5">
+                        Fix in: {getFixLocation(issue)}
+                      </span>
+                      {issue.exportType === 'ar' && issue.field === 'actual_billable_total' && canEditActualBillable && (
+                        <ActualBillableFixControl issue={issue} onSave={onSaveActualBillable} />
+                      )}
+                    </span>
                   </li>
                 ))}
                 {result.missingFields.length > 8 && (
@@ -3082,22 +3290,124 @@ function IntacctReadinessPanel({ summary }: { summary: AccountingReadinessSummar
                 )}
               </ul>
             )}
-            {result.warnings.length > 0 && (
-              <ul className="space-y-1 mt-2 border-t border-border/30 pt-2">
-                {result.warnings.slice(0, 4).map((issue, idx) => (
-                  <li key={`${issue.field}-warning-${idx}`} className="text-[12px] text-muted-foreground flex gap-1.5">
-                    <AlertTriangle className="h-3 w-3 text-slate-500 mt-0.5 shrink-0" />
-                    <span>{issue.message}</span>
-                  </li>
-                ))}
-                {result.warnings.length > 4 && (
-                  <li className="text-[12px] text-muted-foreground">+ {result.warnings.length - 4} more warnings</li>
-                )}
-              </ul>
+            {canExportCsv && (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={!result.isValid || exportingType === exportType}
+                onClick={() => onDownload(exportType)}
+                className="mt-2 h-7 text-[11px] gap-1"
+              >
+                <Download className="h-3 w-3" />
+                {exportingType === exportType ? 'Generating...' : buttonLabel}
+              </Button>
             )}
           </div>
         ))}
       </div>
+      {lastGeneratedCsv && (
+        <div className="rounded border border-emerald-200 bg-emerald-50 px-2 py-1.5 text-[12px] text-emerald-800">
+          {lastSavedCsvPath ? (
+            <>
+              CSV saved to <span className="font-mono">{lastSavedCsvPath}</span>.
+            </>
+          ) : (
+            <>CSV generated:</>
+          )}
+          <a
+            href={lastGeneratedCsv.url}
+            download={lastGeneratedCsv.filename}
+            className="ml-1 font-medium underline underline-offset-2"
+          >
+            Download again
+          </a>
+        </div>
+      )}
+      {exportHistory.length > 0 && (
+        <div className="border-t border-border/40 pt-2">
+          <button
+            type="button"
+            onClick={() => setExportHistoryOpen((prev) => !prev)}
+            className="flex w-full items-center justify-between text-left"
+          >
+            <span className="text-[11px] uppercase tracking-widest text-muted-foreground font-medium">
+              Export History <span className="normal-case tracking-normal">({exportHistory.length})</span>
+            </span>
+            <span className="text-[11px] text-muted-foreground">
+              {exportHistoryOpen ? 'Hide' : 'Show'}
+            </span>
+          </button>
+          {exportHistoryOpen && (
+            <div className="space-y-1 mt-1.5">
+              {exportHistory.slice(0, 6).map((record) => {
+                const warningCount = Array.isArray(record.warnings) ? record.warnings.length : 0
+                return (
+                  <div key={record.id} className="grid grid-cols-[80px_1fr_90px_115px_54px] gap-2 items-center text-[11px] text-muted-foreground">
+                    <span className="font-medium text-foreground/80">{formatExportType(record.export_type)}</span>
+                    <span className="truncate" title={record.file_name}>{record.file_name}</span>
+                    <span className="truncate" title={formatGeneratedBy(record)}>{formatGeneratedBy(record)}</span>
+                    <span>{new Date(record.generated_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</span>
+                    <span className="text-right">{record.row_count} row{record.row_count === 1 ? '' : 's'}{warningCount > 0 ? ` · ${warningCount} warn` : ''}</span>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function ActualBillableFixControl({
+  issue,
+  onSave,
+}: {
+  issue: AccountingReadinessIssue
+  onSave: (issue: AccountingReadinessIssue, amount: number) => Promise<void>
+}) {
+  const [value, setValue] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  async function handleSave() {
+    const amount = Number(value)
+    if (!Number.isFinite(amount)) {
+      toast.error('Enter a valid Actual Billable amount.')
+      return
+    }
+
+    setSaving(true)
+    try {
+      await onSave(issue, amount)
+      setValue('')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="mt-1.5 flex items-center gap-1.5">
+      <div className="relative w-28">
+        <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[12px] text-muted-foreground/60 pointer-events-none">$</span>
+        <Input
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          placeholder="Billable"
+          className="h-7 text-[12px] pl-5"
+          inputMode="decimal"
+        />
+      </div>
+      <Button
+        type="button"
+        size="sm"
+        variant="outline"
+        className="h-7 text-[11px]"
+        disabled={saving || value.trim() === ''}
+        onClick={handleSave}
+      >
+        {saving ? 'Saving...' : 'Save Actual Billable'}
+      </Button>
     </div>
   )
 }
@@ -3171,7 +3481,7 @@ function ExportButton({ estimateId }: { estimateId: string }) {
 // ── Main Page ────────────────────────────────────────────────────────────────
 
 function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
-  const { displayName, profile } = useUser()
+  const { user, displayName, profile } = useUser()
   const userRole = profile?.role || 'account_manager'
   const [estimate, setEstimate] = useState<EstimateWithClient | null>(null)
   const [laborLogs, setLaborLogs] = useState<LaborLog[]>([])
@@ -3190,12 +3500,22 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
   const [segmentApprovals, setSegmentApprovals] = useState<Record<string, ApprovalRequest | null>>({})
   const [accountingReviews, setAccountingReviews] = useState<Record<string, AccountingReview | null>>({})
   const [accountingReadiness, setAccountingReadiness] = useState<Record<string, AccountingReadinessSummary | null>>({})
+  const [accountingExports, setAccountingExports] = useState<Record<string, AccountingExportRecord[]>>({})
+  const [exportingType, setExportingType] = useState<AccountingExportType | null>(null)
+  const [lastGeneratedCsv, setLastGeneratedCsv] = useState<{ filename: string; url: string; laborLogId: string } | null>(null)
+  const [lastSavedCsvPath, setLastSavedCsvPath] = useState<string | null>(null)
   const [draftChangeOrders, setDraftChangeOrders] = useState<Record<string, ChangeOrder | null>>({})
   const [submittedChangeOrders, setSubmittedChangeOrders] = useState<Record<string, ChangeOrder | null>>({})
   const [clientContacts, setClientContacts] = useState<ClientContact[]>([])
   const [gpThreshold, setGpThreshold] = useState(20)
   const [primaryApprover, setPrimaryApprover] = useState<{ id: string; full_name: string } | null>(null)
   const [clientTokens, setClientTokens] = useState<Record<string, ClientApprovalToken | null>>({})
+
+  useEffect(() => {
+    return () => {
+      if (lastGeneratedCsv?.url) URL.revokeObjectURL(lastGeneratedCsv.url)
+    }
+  }, [lastGeneratedCsv?.url])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => { getGPThreshold().then(setGpThreshold) }, [])
@@ -3273,14 +3593,21 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
       setAccountingReviews(accountingReviewMap)
 
       const readinessMap: Record<string, AccountingReadinessSummary | null> = {}
+      const exportMap: Record<string, AccountingExportRecord[]> = {}
       if (est.cost_structure === 'office') {
         await Promise.all(logs.map(async (log) => {
           if (log.status === 'export_ready') {
-            readinessMap[log.id] = await getAccountingReadinessSummary(log.id)
+            const [summary, exports] = await Promise.all([
+              getAccountingReadinessSummary(log.id),
+              getAccountingExports(log.id),
+            ])
+            readinessMap[log.id] = summary
+            exportMap[log.id] = exports
           }
         }))
       }
       setAccountingReadiness(readinessMap)
+      setAccountingExports(exportMap)
 
       // Load draft and submitted change orders for active/estimate segments
       const draftCOs: Record<string, ChangeOrder | null> = {}
@@ -3915,6 +4242,70 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
     return result
   }
 
+  async function handleDownloadAccountingCsv(exportType: AccountingExportType) {
+    if (!activeLocationId || !user?.id) {
+      toast.error('You must be signed in to generate Intacct upload CSVs.')
+      return
+    }
+    setExportingType(exportType)
+    try {
+      const result = await downloadAccountingCsvForSegment(activeLocationId, exportType, user.id)
+      if (result.blockingIssues.length > 0) {
+        toast.error(result.blockingIssues.slice(0, 3).map((issue) => issue.message).join(' '))
+        return
+      }
+      if (result.csvText) {
+        const blob = new Blob([result.csvText], { type: 'text/csv;charset=utf-8' })
+        const url = URL.createObjectURL(blob)
+        setLastGeneratedCsv({ filename: result.filename, url, laborLogId: activeLocationId })
+        setLastSavedCsvPath(result.savedPath ?? null)
+      }
+      toast.success(result.savedPath ? `Saved ${result.filename}` : `Generated ${result.filename}`)
+      const [summary, exports] = await Promise.all([
+        getAccountingReadinessSummary(activeLocationId),
+        getAccountingExports(activeLocationId),
+      ])
+      setAccountingReadiness((prev) => ({ ...prev, [activeLocationId]: summary }))
+      setAccountingExports((prev) => ({ ...prev, [activeLocationId]: exports }))
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to generate Intacct upload CSV.')
+    } finally {
+      setExportingType(null)
+    }
+  }
+
+  async function handleSaveActualBillableFromReadiness(issue: AccountingReadinessIssue, amount: number) {
+    if (!activeLocationId || !estimate) return
+    if (!issue.lineItemId && !issue.laborEntryId) {
+      toast.error('This readiness issue is not linked to a recap line.')
+      return
+    }
+
+    try {
+      const actuals = await getRecapActuals(activeLocationId)
+      const existing = actuals.find((actual) =>
+        (issue.lineItemId && actual.line_item_id === issue.lineItemId) ||
+        (issue.laborEntryId && actual.labor_entry_id === issue.laborEntryId)
+      )
+
+      await upsertRecapActual({
+        ...(existing ?? {}),
+        estimate_id: estimate.id,
+        labor_log_id: activeLocationId,
+        line_item_id: issue.lineItemId ?? existing?.line_item_id ?? null,
+        labor_entry_id: issue.laborEntryId ?? existing?.labor_entry_id ?? null,
+        actual_billable_total: amount,
+        actual_amount_notes: existing?.actual_amount_notes ?? 'Actual billable entered from Intacct Readiness.',
+      })
+
+      const summary = await getAccountingReadinessSummary(activeLocationId)
+      setAccountingReadiness((prev) => ({ ...prev, [activeLocationId]: summary }))
+      toast.success('Actual Billable saved.')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to save Actual Billable.')
+    }
+  }
+
   async function handleRequestRecapCorrections(notes: string) {
     if (!activeLocationId) return { success: false, error: 'No segment selected' }
     const review = accountingReviews[activeLocationId]
@@ -3974,6 +4365,9 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
   const baseEditRules: SegmentEditRules = getSegmentEditRules(activeSegmentStatus)
   const canReviewRecap = hasPermission(userRole, 'review_recap')
   const canEditAccountingMappings = hasPermission(userRole, 'edit_accounting_mappings')
+  const canEditExportReadyAccountingMetadata =
+    isOfficeEvent && activeSegmentStatus === 'export_ready' && canEditAccountingMappings
+  const canExportCsv = hasPermission(userRole, 'export_intacct_csv')
   const editRules: SegmentEditRules =
     activeSegmentStatus === 'accounting_review' && canReviewRecap
       ? { ...baseEditRules, actuals: true, names_required: true, notes: true }
@@ -4111,7 +4505,17 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
       )}
 
       {isOfficeEvent && activeLocationId && activeSegmentStatus === 'export_ready' && (
-        <IntacctReadinessPanel summary={accountingReadiness[activeLocationId]} />
+        <IntacctReadinessPanel
+          summary={accountingReadiness[activeLocationId]}
+          exportHistory={accountingExports[activeLocationId] ?? []}
+          lastGeneratedCsv={lastGeneratedCsv?.laborLogId === activeLocationId ? lastGeneratedCsv : null}
+          lastSavedCsvPath={lastGeneratedCsv?.laborLogId === activeLocationId ? lastSavedCsvPath : null}
+          canExportCsv={canExportCsv}
+          canEditActualBillable={canEditAccountingMappings || canExportCsv}
+          exportingType={exportingType}
+          onDownload={handleDownloadAccountingCsv}
+          onSaveActualBillable={handleSaveActualBillableFromReadiness}
+        />
       )}
 
       {/* 70/30 Split Layout — AI panel collapsible */}
@@ -4126,7 +4530,8 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
             revenueSegments={revenueSegments}
             officeProfiles={officeProfiles}
             clientContacts={clientContacts}
-            accountingEditable={canEditAccountingMappings}
+            accountingEditable={canEditExportReadyAccountingMetadata}
+            canManageAccountingSetup={canEditAccountingMappings}
           />
 
           <FinancialSummaryCards
