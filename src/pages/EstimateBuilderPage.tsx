@@ -129,6 +129,7 @@ import type { AccountingExportRecord, AccountingExportType, AccountingReadinessI
 import type { Nudge } from '@/types/nudge'
 import { fetchNudges, fetchFreshEstimateState, sendChatMessage, dismissNudge, getDismissedNudges } from '@/lib/ai-nudge-service'
 import { generatePDF, type PDFType } from '@/lib/pdf-service'
+import { ESTIMATE_SECTION_LABELS, estimateSectionLabel, type EstimateSectionKey } from '@/lib/section-labels'
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -2321,7 +2322,7 @@ function AddLineItemModal({
   // Find matching rate card section
   const rcSectionName = TAB_TO_RC_SECTION[section]
   const rcSection = rateCardData.find((s) => s.section.name === rcSectionName)
-  const rcItems = (rcSection?.items ?? []).map((item) => ({ ...item, sectionName: rcSection?.section.name ?? '' }))
+  const rcItems = (rcSection?.items ?? []).map((item) => ({ ...item, sectionName: estimateSectionLabel(section) }))
   const filtered = search
     ? rcItems.filter((r) => r.name.toLowerCase().includes(search.toLowerCase()))
     : rcItems
@@ -2377,7 +2378,7 @@ function AddLineItemModal({
     return <AddLineItemManualModal open={open} onOpenChange={onOpenChange} section={section} defaultMarkup={defaultMarkup} onAdd={(item) => onAdd([item])} />
   }
 
-  const sectionLabel = rcSectionName.replace(' Expenses', '').replace(' Costs', '')
+  const sectionLabel = estimateSectionLabel(section)
   const totalSelected = selectedIds.size
 
   return (
@@ -2541,7 +2542,7 @@ function AddLineItemManualModal({
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
           <DialogTitle className="text-sm font-semibold">Add Line Item</DialogTitle>
-          <DialogDescription className="text-xs">Add to {section} section</DialogDescription>
+          <DialogDescription className="text-xs">Add to {estimateSectionLabel(section)} section</DialogDescription>
         </DialogHeader>
         <div className="space-y-2.5">
           <div className="space-y-1">
@@ -2616,7 +2617,7 @@ function AddUnplannedLineItemModal({
 
   const rcSectionName = TAB_TO_RC_SECTION[section]
   const rcSection = rateCardData.find((s) => s.section.name === rcSectionName)
-  const rcItems = (rcSection?.items ?? []).map((item) => ({ ...item, sectionName: rcSection?.section.name ?? '' }))
+  const rcItems = (rcSection?.items ?? []).map((item) => ({ ...item, sectionName: estimateSectionLabel(section) }))
   const filtered = search
     ? rcItems.filter((r) => r.name.toLowerCase().includes(search.toLowerCase()))
     : rcItems
@@ -2630,7 +2631,7 @@ function AddUnplannedLineItemModal({
   const costNum = parseFloat(actualCost)
   const valid = resolvedName.length > 0 && !isNaN(costNum) && costNum > 0
 
-  const sectionLabel = (rcSectionName ?? section).replace(' Expenses', '').replace(' Costs', '')
+  const sectionLabel = estimateSectionLabel(section)
 
   function pickItem(id: string) {
     setSelectedId(id)
@@ -2775,14 +2776,14 @@ function AddUnplannedLineItemModal({
 
 // Rate card section display order and line-item key mapping
 const SUMMARY_SECTIONS = [
-  { name: 'Planning & Administration Labor', type: 'labor', lineItemKey: null, passThrough: false },
-  { name: 'Onsite Event Labor', type: 'labor', lineItemKey: null, passThrough: false },
-  { name: 'Travel Expenses', type: 'line_item', lineItemKey: 'travel', passThrough: true },
-  { name: 'Creative Costs', type: 'line_item', lineItemKey: 'creative', passThrough: false },
-  { name: 'Production Expenses', type: 'line_item', lineItemKey: 'production', passThrough: true },
-  { name: 'Logistics Expenses', type: 'line_item', lineItemKey: 'access', passThrough: false },
-  { name: 'Misc', type: 'line_item', lineItemKey: 'misc', passThrough: false },
-  { name: 'Fees & Markups', type: 'line_item', lineItemKey: 'fees', passThrough: false },
+  { name: 'Planning & Administration Labor', label: 'Planning & Administration Labor', type: 'labor', lineItemKey: null, passThrough: false },
+  { name: 'Onsite Event Labor', label: 'Onsite Event Labor', type: 'labor', lineItemKey: null, passThrough: false },
+  { name: 'Travel', label: ESTIMATE_SECTION_LABELS.travel, type: 'line_item', lineItemKey: 'travel', passThrough: true },
+  { name: 'Creative', label: ESTIMATE_SECTION_LABELS.creative, type: 'line_item', lineItemKey: 'creative', passThrough: false },
+  { name: 'Production', label: ESTIMATE_SECTION_LABELS.production, type: 'line_item', lineItemKey: 'production', passThrough: true },
+  { name: 'Logistics', label: ESTIMATE_SECTION_LABELS.access, type: 'line_item', lineItemKey: 'access', passThrough: false },
+  { name: 'Miscellaneous', label: ESTIMATE_SECTION_LABELS.misc, type: 'line_item', lineItemKey: 'misc', passThrough: false },
+  { name: 'Fees & Markups', label: ESTIMATE_SECTION_LABELS.fees, type: 'line_item', lineItemKey: 'fees', passThrough: false },
 ] as const
 
 function SummaryTab({
@@ -3001,7 +3002,7 @@ function SummaryTab({
     }
 
     if (details.length > 0) {
-      blocks.push({ name: sec.name, details, total: { revenue: totalRevenue, cost: totalCost }, passThrough: sec.passThrough, resourceBreakdown: hasResourceData ? resByType : null })
+      blocks.push({ name: sec.label, details, total: { revenue: totalRevenue, cost: totalCost }, passThrough: sec.passThrough, resourceBreakdown: hasResourceData ? resByType : null })
     }
   }
 
@@ -4396,12 +4397,12 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
   const activeLineItems = activeLocationId ? (lineItemsMap[activeLocationId] ?? []) : []
 
   const lineItemTabs = [
-    { key: 'production', label: 'Production', pt: true },
-    { key: 'travel', label: 'Travel & Logistics', pt: true },
-    { key: 'creative', label: 'Creative', pt: false },
-    { key: 'access', label: 'Access Fees & Insurance', pt: false },
-    { key: 'misc', label: 'Misc', pt: false },
-    { key: 'fees', label: 'Fees & Markups', pt: false },
+    { key: 'production' as EstimateSectionKey, label: ESTIMATE_SECTION_LABELS.production, pt: true },
+    { key: 'travel' as EstimateSectionKey, label: ESTIMATE_SECTION_LABELS.travel, pt: true },
+    { key: 'creative' as EstimateSectionKey, label: ESTIMATE_SECTION_LABELS.creative, pt: false },
+    { key: 'access' as EstimateSectionKey, label: ESTIMATE_SECTION_LABELS.access, pt: false },
+    { key: 'misc' as EstimateSectionKey, label: ESTIMATE_SECTION_LABELS.misc, pt: false },
+    { key: 'fees' as EstimateSectionKey, label: ESTIMATE_SECTION_LABELS.fees, pt: false },
   ]
 
   return (

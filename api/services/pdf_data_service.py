@@ -14,11 +14,11 @@ from services.ai_service import get_supabase
 # Section display names (matches frontend VarianceSummary.tsx)
 SECTION_LABELS = {
     "labor": "Labor",
-    "production": "Production Expenses",
-    "travel": "Travel & Logistics",
-    "creative": "Creative Costs",
-    "access": "Access Fees & Insurance",
-    "misc": "Misc",
+    "production": "Production",
+    "travel": "Travel",
+    "creative": "Creative",
+    "access": "Logistics",
+    "misc": "Miscellaneous",
     "fees": "Fees & Markups",
 }
 

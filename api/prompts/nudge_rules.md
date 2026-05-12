@@ -4,7 +4,7 @@
 - If the event spans multiple days AND the location is not the client's home market, check for travel day columns in the schedule. Flag if missing.
 - If out-of-market staff are scheduled (resource_type = external), check for per diem, hotel, and airfare line items. Flag any that are missing.
 - If the event type is "Ride & Drive", check for vehicle detailing line items in Production. Flag if missing.
-- If the event has any labor scheduled, check for insurance line items in Access Fees & Insurance section. Flag if missing.
+- If the event has any labor scheduled, check for insurance line items in Logistics section. Flag if missing.
 - If the event spans 3+ days, check for a site survey or advance day. Flag if missing.
 
 ## Rate Validation

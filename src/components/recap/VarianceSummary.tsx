@@ -7,6 +7,7 @@ import {
   TableCell,
 } from '@/components/ui/table'
 import type { VarianceRow } from '@/types/workflow'
+import { estimateSectionLabel } from '@/lib/section-labels'
 
 function fmt(n: number) {
   return '$' + Math.round(n).toLocaleString('en-US')
@@ -15,16 +16,6 @@ function fmt(n: number) {
 interface VarianceSummaryProps {
   varianceRows: VarianceRow[]
   segmentName?: string
-}
-
-const SECTION_LABELS: Record<string, string> = {
-  labor: 'Labor',
-  production: 'Production Expenses',
-  travel: 'Travel & Logistics',
-  creative: 'Creative Costs',
-  access: 'Access Fees & Insurance',
-  misc: 'Misc',
-  fees: 'Fees & Markups',
 }
 
 export function VarianceSummary({ varianceRows, segmentName }: VarianceSummaryProps) {
@@ -79,7 +70,7 @@ export function VarianceSummary({ varianceRows, segmentName }: VarianceSummaryPr
             return (
               <TableRow key={section} className="border-b border-border/20 hover:bg-muted/30">
                 <TableCell className="py-1.5 text-[13px] font-medium">
-                  {SECTION_LABELS[section] || section}
+                  {section === 'labor' ? 'Labor' : estimateSectionLabel(section)}
                 </TableCell>
                 <TableCell className="py-1.5 text-[13px] text-right tabular-nums">
                   {fmt(secEstimated)}

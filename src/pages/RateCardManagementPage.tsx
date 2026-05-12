@@ -92,6 +92,7 @@ const SECTION_TO_FEE_TYPE_KEY: Record<string, string> = {
   'Planning & Administration Labor': 'planning_admin',
   'Onsite Event Labor': 'onsite_labor',
   'Travel Expenses': 'travel',
+  'Creative Costs': 'creative',
   'Production Expenses': 'production',
   'Logistics Expenses': 'logistics',
 }
@@ -101,6 +102,7 @@ const FEE_TYPE_KEY_LABELS: Record<string, string> = {
   planning_admin: 'Planning & Admin',
   onsite_labor: 'Onsite Labor',
   travel: 'Travel',
+  creative: 'Creative',
   production: 'Production',
   logistics: 'Logistics',
 }
@@ -862,6 +864,7 @@ const FEE_TYPE_SECTIONS = [
   { key: 'planning_admin', label: 'Planning & Admin' },
   { key: 'onsite_labor', label: 'Onsite Labor' },
   { key: 'travel', label: 'Travel' },
+  { key: 'creative', label: 'Creative' },
   { key: 'production', label: 'Production' },
   { key: 'logistics', label: 'Logistics' },
 ] as const

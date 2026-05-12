@@ -2,16 +2,17 @@ import type { LaborLog, LaborEntry, EstimateLineItem } from '../types/estimate'
 import type { ScheduleEntry } from '../types/schedule'
 import type { RateCardItemsBySection } from '../types/rate-card'
 import { computeScheduleRollup } from './schedule-service'
+import { ESTIMATE_SECTION_LABELS } from './section-labels'
 
 export const SUMMARY_SECTIONS = [
   { name: 'Planning & Administration Labor', type: 'labor', lineItemKey: null, passThrough: false },
   { name: 'Onsite Event Labor',              type: 'labor', lineItemKey: null, passThrough: false },
-  { name: 'Travel Expenses',                 type: 'line_item', lineItemKey: 'travel',     passThrough: true },
-  { name: 'Creative Costs',                  type: 'line_item', lineItemKey: 'creative',   passThrough: false },
-  { name: 'Production Expenses',             type: 'line_item', lineItemKey: 'production', passThrough: true },
-  { name: 'Logistics Expenses',              type: 'line_item', lineItemKey: 'access',     passThrough: false },
-  { name: 'Misc',                            type: 'line_item', lineItemKey: 'misc',       passThrough: false },
-  { name: 'Fees & Markups',                  type: 'line_item', lineItemKey: 'fees',       passThrough: false },
+  { name: ESTIMATE_SECTION_LABELS.travel,     type: 'line_item', lineItemKey: 'travel',     passThrough: true },
+  { name: ESTIMATE_SECTION_LABELS.creative,   type: 'line_item', lineItemKey: 'creative',   passThrough: false },
+  { name: ESTIMATE_SECTION_LABELS.production, type: 'line_item', lineItemKey: 'production', passThrough: true },
+  { name: ESTIMATE_SECTION_LABELS.access,     type: 'line_item', lineItemKey: 'access',     passThrough: false },
+  { name: ESTIMATE_SECTION_LABELS.misc,       type: 'line_item', lineItemKey: 'misc',       passThrough: false },
+  { name: ESTIMATE_SECTION_LABELS.fees,       type: 'line_item', lineItemKey: 'fees',       passThrough: false },
 ] as const
 
 export interface EstimateTotals {
