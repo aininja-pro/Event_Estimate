@@ -523,7 +523,8 @@ function EventHeader({
   const [internalNotes, setInternalNotes] = useState(estimate.internal_notes ?? '')
   const [publishedNotes, setPublishedNotes] = useState(estimate.published_notes ?? '')
   const [showNotes, setShowNotes] = useState(!!(estimate.internal_notes || estimate.published_notes))
-  const [accountingFieldsOpen, setAccountingFieldsOpen] = useState(true)
+  const [detailsOpen, setDetailsOpen] = useState(true)
+  const [accountingFieldsOpen, setAccountingFieldsOpen] = useState(false)
   const locationPrefillKey = useRef<string | null>(null)
 
   function saveField(field: string, value: string | number | null) {
@@ -568,7 +569,18 @@ function EventHeader({
 
   return (
     <div className="border border-border/50 bg-slate-50 dark:bg-slate-800/50 rounded-md px-4 py-3">
-      <div className="grid grid-cols-5 gap-x-5 gap-y-2">
+      <button
+        type="button"
+        onClick={() => setDetailsOpen((prev) => !prev)}
+        className="flex w-full items-center justify-between text-left"
+      >
+        <span className={accountingSectionLabel}>Estimate Details</span>
+        <span className="text-[11px] text-muted-foreground">
+          {detailsOpen ? 'Hide' : 'Show'}
+        </span>
+      </button>
+      {detailsOpen && (
+      <div className="mt-2 grid grid-cols-5 gap-x-5 gap-y-2">
         <div>
           <p className={fieldLabel}>Client</p>
           <Input readOnly value={estimate.clients.name} className={readOnlyField} />
@@ -657,6 +669,7 @@ function EventHeader({
           <Input readOnly value={estimate.duration_days ? `${estimate.duration_days} days` : '—'} className={readOnlyField} />
         </div>
       </div>
+      )}
       {estimate.cost_structure === 'office' && (
         <div className="mt-2.5 pt-2.5 border-t border-border/40 space-y-3">
           <button
