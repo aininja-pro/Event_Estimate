@@ -5,6 +5,16 @@ import tailwindcss from '@tailwindcss/vite'
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
+  server: {
+    watch: {
+      ignored: [
+        "**/api/**",
+        "**/api/venv/**",
+        "**/__pycache__/**",
+        "**/*.pyc",
+      ],
+    },
+  },
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),

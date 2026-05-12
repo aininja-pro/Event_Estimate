@@ -11,6 +11,7 @@ import type {
 import { hasPermission } from './permissions'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+const LOCAL_FILE_SAVE_ENABLED = import.meta.env.VITE_ENABLE_LOCAL_FILE_SAVE === 'true'
 
 export const AP_BILL_UPLOAD_HEADERS = [
   'billDate',
@@ -364,6 +365,7 @@ function triggerCsvDownload(csvText: string, filename: string) {
 }
 
 async function saveCsvToLocalDownloads(csvText: string, filename: string): Promise<string | null> {
+  if (!LOCAL_FILE_SAVE_ENABLED) return null
   try {
     const res = await fetch(`${API_URL}/api/local-files/save-csv`, {
       method: 'POST',
@@ -556,11 +558,41 @@ export async function downloadAccountingCsvForSegment(
   userId: string,
   options: ApBillCsvOptions | ArInvoiceCsvOptions = {},
 ): Promise<AccountingCsvDownloadResult> {
-  const result = await buildAndRecordAccountingCsvForSegment(laborLogId, exportType, userId, options)
+  const role = await getUserRole(userId)
+  if (!role || !hasPermission(role, 'export_intacct_csv')) {
+    return {
+      csvText: '',
+      filename: buildAccountingCsvFilename(exportType),
+      rowCount: 0,
+      warnings: [],
+      blockingIssues: [issue('permission', exportType, 'You do not have permission to generate Intacct upload CSVs.')],
+      auditRecordId: null,
+      savedPath: null,
+    }
+  }
+
+  const [lineResult, result] = await Promise.all([
+    buildLineResult(laborLogId),
+    buildAccountingCsvForSegment(laborLogId, exportType, options),
+  ])
   let savedPath: string | null = null
   if (result.csvText && result.blockingIssues.length === 0) {
     savedPath = await saveCsvToLocalDownloads(result.csvText, result.filename)
     triggerCsvDownload(result.csvText, result.filename)
+    const lines = exportType === 'ap' ? lineResult.apLines : lineResult.arLines
+    const audit = await recordAccountingExport({
+      estimate_id: lineResult.estimateId || lines[0]?.estimateId,
+      labor_log_id: laborLogId,
+      accounting_review_id: lineResult.reviewId,
+      export_type: auditTypeFor(exportType),
+      file_name: result.filename,
+      row_count: result.rowCount,
+      generated_by: userId,
+      checksum: await checksumCsv(result.csvText),
+      warnings: result.warnings.length > 0 ? result.warnings : null,
+      metadata: buildExportMetadata(exportType, lineResult, lines),
+    })
+    return { ...result, auditRecordId: audit.id, savedPath }
   }
-  return { ...result, savedPath }
+  return { ...result, auditRecordId: null, savedPath }
 }

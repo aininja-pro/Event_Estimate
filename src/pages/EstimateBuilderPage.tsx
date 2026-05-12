@@ -4261,7 +4261,7 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
         setLastGeneratedCsv({ filename: result.filename, url, laborLogId: activeLocationId })
         setLastSavedCsvPath(result.savedPath ?? null)
       }
-      toast.success(result.savedPath ? `Saved ${result.filename}` : `Generated ${result.filename}`)
+      toast.success(result.savedPath ? `CSV saved locally to: ${result.savedPath}` : 'CSV downloaded.')
       const [summary, exports] = await Promise.all([
         getAccountingReadinessSummary(activeLocationId),
         getAccountingExports(activeLocationId),
