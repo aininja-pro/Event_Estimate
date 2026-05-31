@@ -1,0 +1,8 @@
+# System libraries required by WeasyPrint (PDF generation) on Render's native runtime.
+# Render installs these via the apt buildpack before the build command runs.
+# Without them, `from weasyprint import HTML` fails at runtime in production.
+libpango-1.0-0
+libpangocairo-1.0-0
+libpangoft2-1.0-0
+libgdk-pixbuf2.0-0
+libcairo2

@@ -22,11 +22,32 @@ services:
     buildCommand: cd api && pip install -r requirements.txt
     startCommand: cd api && uvicorn main:app --host 0.0.0.0 --port $PORT
     envVars:
+      # --- Secrets: set the value in the Render dashboard (never committed) ---
       - key: ANTHROPIC_API_KEY
         sync: false
       - key: SUPABASE_URL
         sync: false
       - key: SUPABASE_SERVICE_KEY
         sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: DATA_FEED_API_KEY
+        sync: false
+      # --- URLs: set to the production URLs in the dashboard (NOT localhost).
+      #     FRONTEND_URL = static site origin (CORS); APPROVAL_BASE_URL = this
+      #     backend's public URL (serves /api/approval/confirm/{token}). ---
       - key: FRONTEND_URL
         sync: false
+      - key: APPROVAL_BASE_URL
+        sync: false
+      - key: EXTRA_CORS_ORIGINS
+        sync: false
+      # --- Non-secret config (committed values) ---
+      # Beta from-address while driveshop.com is unverified in Resend (see DECISIONS).
+      - key: RESEND_FROM_EMAIL
+        value: onboarding@resend.dev
+      # W5 hybrid email mode: client-facing approval email OFF for beta; internal
+      # approval routing stays fully functional. Flip to "true" once the Resend
+      # sender domain is verified.
+      - key: CLIENT_APPROVAL_EMAIL_ENABLED
+        value: "false"

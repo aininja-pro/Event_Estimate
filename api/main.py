@@ -52,4 +52,7 @@ app.include_router(local_files_router)
 
 @app.get("/api/health")
 async def health_check():
-    return {"status": "ok"}
+    return {
+        "status": "ok",
+        "client_approval_email_enabled": os.getenv("CLIENT_APPROVAL_EMAIL_ENABLED", "false").strip().lower() == "true",
+    }

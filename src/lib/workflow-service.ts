@@ -1,11 +1,12 @@
 import { supabase } from './supabase'
-import { computeScheduleRollup } from './schedule-service'
+import { computeEstimateTotals } from './estimate-totals'
 import {
   createNotification,
   notifyByRole,
   getEstimateCreatorId,
 } from './notification-service'
 import type { ScheduleEntry } from '../types/schedule'
+import type { LaborLog, LaborEntry, EstimateLineItem } from '../types/estimate'
 import { hasPermission } from './permissions'
 import { getApprovalThreshold } from './system-settings-service'
 import { getClientApproverForEstimate } from './rate-card-service'
@@ -217,89 +218,77 @@ async function buildSnapshot(estimateId: string): Promise<EstimateSnapshot> {
     scheduleDayTypes = sdt || []
   }
 
-  // 6. Calculate totals from labor entries (manual) or schedule entries + line items
-  let totalRevenue = 0
-  let totalCost = 0
-
-  // Build a set of labor log IDs that have schedule data
-  const logsWithSchedule = new Set(scheduleEntries.map((se) => se.labor_log_id as string))
-
-  // Nest day entries under their parent schedule entries for rollup
+  // 6. Compute totals via the canonical engine — single source of truth for
+  //    fee-basis revenue and unplanned exclusion; keeps snapshots aligned with
+  //    the on-screen Summary P&L.
   const dayEntriesByScheduleEntry = new Map<string, Record<string, unknown>[]>()
   for (const de of scheduleDayEntries) {
     const seId = de.schedule_entry_id as string
-    const list = dayEntriesByScheduleEntry.get(seId) || []
-    list.push(de)
-    dayEntriesByScheduleEntry.set(seId, list)
+    dayEntriesByScheduleEntry.set(seId, [...(dayEntriesByScheduleEntry.get(seId) || []), de])
   }
 
-  // Compute schedule rollup for logs that use schedule
-  for (const logId of logsWithSchedule) {
-    const logScheduleEntries: ScheduleEntry[] = scheduleEntries
-      .filter((se) => se.labor_log_id === logId)
-      .map((se) => ({
-        id: se.id as string,
-        labor_log_id: se.labor_log_id as string,
-        rate_card_item_id: (se.rate_card_item_id as string) || null,
-        role_name: (se.role_name as string) || '',
-        person_name: (se.person_name as string) || null,
-        row_index: Number(se.row_index) || 0,
-        staff_group_id: (se.staff_group_id as string) || null,
-        needs_airfare: Boolean(se.needs_airfare),
-        needs_hotel: Boolean(se.needs_hotel),
-        hotel_nights: (se.hotel_nights as number) ?? null,
-        needs_per_diem: Boolean(se.needs_per_diem),
-        day_rate: Number(se.day_rate) || 0,
-        cost_rate: Number(se.cost_rate) || 0,
-        ot_hourly_rate: Number(se.ot_hourly_rate) || 0,
-        ot_cost_rate: Number(se.ot_cost_rate) || 0,
-        gl_code: (se.gl_code as string) || null,
-        notes: (se.notes as string) || null,
-        resource_type: (se.resource_type as 'internal' | 'external' | 'vendor') || 'external',
-        is_unplanned: Boolean(se.is_unplanned),
-        created_at: (se.created_at as string) || '',
-        updated_at: (se.updated_at as string) || '',
-        day_entries: (dayEntriesByScheduleEntry.get(se.id as string) || []).map((de) => ({
-          id: de.id as string,
-          schedule_entry_id: de.schedule_entry_id as string,
-          work_date: de.work_date as string,
-          hours: Number(de.hours) || 0,
-          actual_hours: de.actual_hours != null ? Number(de.actual_hours) : null,
-          per_diem_override: (de.per_diem_override as boolean | null) ?? null,
-          created_at: (de.created_at as string) || '',
-          updated_at: (de.updated_at as string) || '',
-        })),
-      }))
-
-    const rollup = computeScheduleRollup(logScheduleEntries)
-    for (const row of rollup) {
-      totalRevenue += row.revenue_total
-      totalCost += row.cost_total
-    }
+  const scheduleEntriesMap: Record<string, ScheduleEntry[]> = {}
+  for (const se of scheduleEntries) {
+    const logId = se.labor_log_id as string
+    ;(scheduleEntriesMap[logId] ||= []).push({
+      id: se.id as string,
+      labor_log_id: logId,
+      rate_card_item_id: (se.rate_card_item_id as string) || null,
+      role_name: (se.role_name as string) || '',
+      person_name: (se.person_name as string) || null,
+      row_index: Number(se.row_index) || 0,
+      staff_group_id: (se.staff_group_id as string) || null,
+      needs_airfare: Boolean(se.needs_airfare),
+      needs_hotel: Boolean(se.needs_hotel),
+      hotel_nights: (se.hotel_nights as number) ?? null,
+      needs_per_diem: Boolean(se.needs_per_diem),
+      day_rate: Number(se.day_rate) || 0,
+      cost_rate: Number(se.cost_rate) || 0,
+      ot_hourly_rate: Number(se.ot_hourly_rate) || 0,
+      ot_cost_rate: Number(se.ot_cost_rate) || 0,
+      gl_code: (se.gl_code as string) || null,
+      notes: (se.notes as string) || null,
+      resource_type: (se.resource_type as 'internal' | 'external' | 'vendor') || 'external',
+      is_unplanned: Boolean(se.is_unplanned),
+      created_at: (se.created_at as string) || '',
+      updated_at: (se.updated_at as string) || '',
+      day_entries: (dayEntriesByScheduleEntry.get(se.id as string) || []).map((de) => ({
+        id: de.id as string,
+        schedule_entry_id: de.schedule_entry_id as string,
+        work_date: de.work_date as string,
+        hours: Number(de.hours) || 0,
+        actual_hours: de.actual_hours != null ? Number(de.actual_hours) : null,
+        per_diem_override: (de.per_diem_override as boolean | null) ?? null,
+        created_at: (de.created_at as string) || '',
+        updated_at: (de.updated_at as string) || '',
+      })),
+    })
   }
 
-  // Only use manual labor entries for logs WITHOUT schedule data
-  for (const entry of laborEntries) {
-    const logId = entry.labor_log_id as string
-    if (logsWithSchedule.has(logId)) continue
-    const qty = (entry.quantity as number) || 0
-    const days = (entry.days as number) || 0
-    const rate = (entry.unit_rate as number) || 0
-    const costRate = (entry.cost_rate as number) || 0
-    totalRevenue += qty * days * rate
-    totalCost += qty * days * costRate
-  }
-  for (const item of (lineItems || [])) {
-    const qty = (item.quantity as number) || 0
-    const unitCost = (item.unit_cost as number) || 0
-    const markupPct = (item.markup_pct as number) || 0
-    const cost = qty * unitCost
-    totalCost += cost
-    totalRevenue += cost * (1 + markupPct / 100)
+  const allEntriesMap: Record<string, LaborEntry[]> = {}
+  for (const e of laborEntries) {
+    const logId = e.labor_log_id as string
+    ;(allEntriesMap[logId] ||= []).push(e as unknown as LaborEntry)
   }
 
-  const grossProfit = totalRevenue - totalCost
-  const grossMarginPct = totalRevenue > 0 ? (grossProfit / totalRevenue) * 100 : 0
+  const lineItemsMap: Record<string, EstimateLineItem[]> = {}
+  for (const i of (lineItems || [])) {
+    const logId = i.labor_log_id as string
+    ;(lineItemsMap[logId] ||= []).push(i as unknown as EstimateLineItem)
+  }
+
+  // rateCardData omitted ([]): section assignment doesn't affect grand totals.
+  const totals = computeEstimateTotals(
+    (laborLogs || []) as unknown as LaborLog[],
+    allEntriesMap,
+    scheduleEntriesMap,
+    lineItemsMap,
+    []
+  )
+  const totalRevenue = totals.grossRevenue
+  const totalCost = totals.totalCost
+  const grossProfit = totals.grossProfit
+  const grossMarginPct = totals.gpPercent
 
   // 7. Nest entries under labor logs
   const logsWithEntries = (laborLogs || []).map((ll: Record<string, unknown>) => ({
@@ -649,9 +638,9 @@ export async function submitForApproval(
 function computeSegmentRevenue(snapshot: EstimateSnapshot, laborLogId: string): number {
   let revenue = 0
 
-  // Schedule-based labor revenue
+  // Schedule-based labor revenue (unplanned excluded)
   const segScheduleEntries = (snapshot.schedule_entries || []).filter(
-    (se) => se.labor_log_id === laborLogId
+    (se) => se.labor_log_id === laborLogId && !se.is_unplanned
   )
   if (segScheduleEntries.length > 0) {
     // Sum day_rate * hours for each day entry
@@ -666,12 +655,13 @@ function computeSegmentRevenue(snapshot: EstimateSnapshot, laborLogId: string): 
       }
     }
   } else {
-    // Manual labor entries
+    // Manual labor entries (unplanned excluded)
     const segLog = (snapshot.labor_logs || []).find(
       (ll) => ll.id === laborLogId
     )
     if (segLog) {
       for (const entry of (segLog.entries || [])) {
+        if (entry.is_unplanned) continue
         const qty = Number(entry.quantity) || 0
         const days = Number(entry.days) || 0
         const rate = Number(entry.unit_rate) || 0
@@ -680,16 +670,27 @@ function computeSegmentRevenue(snapshot: EstimateSnapshot, laborLogId: string): 
     }
   }
 
-  // Non-labor line items for this segment
+  // Non-labor line items for this segment (unplanned excluded; fee-basis deferred)
   const segLineItems = (snapshot.line_items || []).filter(
     (li) => li.labor_log_id === laborLogId
   )
+  const feePcts: number[] = []
   for (const item of segLineItems) {
+    if (item.is_unplanned) continue
+    if (item.fee_basis === 'total_estimate') {
+      feePcts.push(Number(item.markup_pct) || 0)
+      continue
+    }
     const qty = Number(item.quantity) || 0
     const unitCost = Number(item.unit_cost) || 0
     const markupPct = Number(item.markup_pct) || 0
     revenue += qty * unitCost * (1 + markupPct / 100)
   }
+
+  // Per-segment agency fee on this segment's non-fee revenue (Option A — per-segment,
+  // not estimate-wide; the estimate-wide fee ripple is a deferred follow-up).
+  const base = revenue
+  for (const p of feePcts) revenue += base * (p / 100)
 
   return revenue
 }

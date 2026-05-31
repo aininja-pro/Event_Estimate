@@ -55,6 +55,7 @@ import { SegmentTransitionBar } from '@/components/segments/SegmentTransitionBar
 import {
   getLatestClientApprovalToken,
   sendClientApproval,
+  getClientApprovalEmailEnabled,
   type ClientApprovalToken,
 } from '@/lib/client-approval-service'
 import { getScheduleEntries, getScheduleDayTypes, computeScheduleRollup } from '@/lib/schedule-service'
@@ -3055,7 +3056,14 @@ function SummaryTab({
                 return (
                   <React.Fragment key={block.name}>
                     <TableRow className="bg-slate-100 dark:bg-slate-800/50 hover:bg-slate-100 dark:hover:bg-slate-800/50 border-b border-border/40">
-                      <TableCell colSpan={6} className="font-semibold text-[11px] py-1.5 text-foreground uppercase tracking-wide">{block.name}</TableCell>
+                      <TableCell colSpan={6} className="font-semibold text-[11px] py-1.5 text-foreground uppercase tracking-wide">
+                        <div className="flex items-center justify-between gap-2">
+                          <span>{block.name}</span>
+                          <span className="text-[10px] font-normal normal-case tracking-normal text-muted-foreground/60 tabular-nums">
+                            {grandRevenue > 0 ? `${((block.total.revenue / grandRevenue) * 100).toFixed(1)}% of bid` : '—'}
+                          </span>
+                        </div>
+                      </TableCell>
                     </TableRow>
                     {block.details.map((row, idx) => {
                       if (row.isSegmentHeader) {
@@ -3524,6 +3532,13 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
   const [gpThreshold, setGpThreshold] = useState(20)
   const [primaryApprover, setPrimaryApprover] = useState<{ id: string; full_name: string } | null>(null)
   const [clientTokens, setClientTokens] = useState<Record<string, ClientApprovalToken | null>>({})
+  // Client-facing approval email gate (backend source of truth via /api/health).
+  // Default enabled; flipped to false for beta. UI-only — backend enforces.
+  const [clientEmailEnabled, setClientEmailEnabled] = useState(true)
+
+  useEffect(() => {
+    getClientApprovalEmailEnabled().then(setClientEmailEnabled).catch(() => {})
+  }, [])
 
   useEffect(() => {
     return () => {
@@ -4455,6 +4470,7 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
                   estimateId,
                   segmentId: activeLocationId,
                   latestToken: clientTokens[activeLocationId] ?? null,
+                  clientEmailEnabled,
                   onSend: (params) =>
                     handleSendToClient(segmentApprovals[activeLocationId]?.id ?? null, params),
                 }

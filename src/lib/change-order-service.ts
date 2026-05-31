@@ -191,6 +191,11 @@ export async function computeDelta(
   baselineTotal += sumLineItemRevenue(baselineLineItems)
   revisedTotal += sumLineItemRevenue(currentLineItems.map((i) => i as unknown as Record<string, unknown>))
 
+  // Per-segment agency fee on the now-complete non-fee base (labor + non-fee line items).
+  const currentLineItemsRec = currentLineItems.map((i) => i as unknown as Record<string, unknown>)
+  baselineTotal += sumFeeRevenue(baselineLineItems, baselineTotal)
+  revisedTotal += sumFeeRevenue(currentLineItemsRec, revisedTotal)
+
   const netDelta = Math.round((revisedTotal - baselineTotal) * 100) / 100
 
   return {
@@ -456,13 +461,26 @@ function findLineItemMatch(
 // ---- Revenue helpers ----
 
 function sumLaborRevenue(entries: Record<string, unknown>[]): number {
-  return entries.reduce((sum, e) => sum + num(e.quantity) * num(e.days) * num(e.unit_rate), 0)
+  return entries.reduce((sum, e) =>
+    e.is_unplanned ? sum : sum + num(e.quantity) * num(e.days) * num(e.unit_rate), 0)
 }
 
 function sumLineItemRevenue(items: Record<string, unknown>[]): number {
   return items.reduce((sum, i) => {
+    // Unplanned items (recap overruns) and fee-basis lines are excluded here;
+    // the agency fee is added separately on the segment's non-fee base.
+    if (i.is_unplanned || i.fee_basis === 'total_estimate') return sum
     return sum + num(i.quantity) * num(i.unit_cost) * (1 + num(i.markup_pct) / 100)
   }, 0)
+}
+
+/** Per-segment agency fee: % of this segment's non-fee revenue (Option A — per-segment,
+ *  not estimate-wide; the estimate-wide fee ripple is a deferred follow-up). */
+function sumFeeRevenue(items: Record<string, unknown>[], base: number): number {
+  return items.reduce((sum, i) =>
+    (!i.is_unplanned && i.fee_basis === 'total_estimate')
+      ? sum + base * (num(i.markup_pct) / 100)
+      : sum, 0)
 }
 
 function computeScheduleRollupFromSnapshot(

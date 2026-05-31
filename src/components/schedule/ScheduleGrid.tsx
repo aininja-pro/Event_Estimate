@@ -596,7 +596,7 @@ export function ScheduleGrid({
   const [showAddDate, setShowAddDate] = useState(false)
   const [newDate, setNewDate] = useState('')
   const [showFillConfirm, setShowFillConfirm] = useState<string | null>(null)
-  const debounceTimers = useRef<Map<string, NodeJS.Timeout>>(new Map())
+  const debounceTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map())
 
   // ── Sort state ──
   const [sortField, setSortField] = useState<'name' | 'role' | null>('role')

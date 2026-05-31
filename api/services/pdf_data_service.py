@@ -180,6 +180,7 @@ def get_estimate_pdf_data(estimate_id: str, segment_id: str | None = None) -> di
     segments = []
     grand_revenue = 0.0
     grand_cost = 0.0
+    segment_fee_jobs = []  # (segment_obj, [pending fee lines]) — resolved in the fee pass
 
     for ll in labor_logs:
         log_id = ll["id"]
@@ -242,20 +243,38 @@ def get_estimate_pdf_data(estimate_id: str, segment_id: str | None = None) -> di
         # -- Line item sections --
         log_line_items = li_by_log.get(log_id, [])
         items_by_section: dict[str, list[dict]] = defaultdict(list)
+        fee_items_pending: list[dict] = []  # fee_basis='total_estimate' lines, deferred
         for li in log_line_items:
             section_key = li.get("section") or "misc"
             qty = float(li.get("quantity") or 0)
             unit_cost = float(li.get("unit_cost") or 0)
             markup_pct = float(li.get("markup_pct") or 0)
 
+            # Fee-basis lines (agency fee) earn revenue as a percentage of
+            # estimate-wide non-fee revenue, which isn't known until every
+            # segment has been summed. Defer to the fee pass after the loop;
+            # mirrors the on-screen engine in src/lib/estimate-totals.ts.
+            if li.get("fee_basis") == "total_estimate":
+                fee_items_pending.append({
+                    "markup_pct": markup_pct,
+                    "item": {
+                        "name": li.get("item_name") or "Unnamed Item",
+                        "quantity": qty,
+                        "unit_cost": unit_cost,
+                        "unit_rate": 0,
+                        "markup_pct": markup_pct,
+                        "revenue": 0.0,
+                        "cost": 0.0,
+                        "gp": 0.0,
+                        "gp_pct": 0.0,
+                        "is_auto_generated": li.get("is_auto_generated", False),
+                        "fee_basis": li.get("fee_basis"),
+                    },
+                })
+                continue
+
             cost = qty * unit_cost
             revenue = cost * (1 + markup_pct / 100)
-
-            # Agency fee special handling: fee_basis='total_estimate' means
-            # the revenue is computed as a percentage of the total estimate,
-            # but we compute it inline here as revenue = markup_pct% of segment total.
-            # We'll recalculate this after we know the segment total.
-
             gp = revenue - cost
             items_by_section[section_key].append({
                 "name": li.get("item_name") or "Unnamed Item",
@@ -301,7 +320,7 @@ def get_estimate_pdf_data(estimate_id: str, segment_id: str | None = None) -> di
             if key in sections:
                 ordered_sections.append({"key": key, **sections[key]})
 
-        segments.append({
+        segment_obj = {
             "name": ll.get("location_name") or "Primary",
             "status": ll.get("status"),
             "sections": ordered_sections,
@@ -311,10 +330,49 @@ def get_estimate_pdf_data(estimate_id: str, segment_id: str | None = None) -> di
                 "gp": _round2(seg_gp),
                 "gp_pct": _round2(seg_gp_pct),
             },
-        })
+        }
+        segments.append(segment_obj)
+        if fee_items_pending:
+            segment_fee_jobs.append((segment_obj, fee_items_pending))
 
         grand_revenue += seg_revenue
         grand_cost += seg_cost
+
+    # -- Fee pass --
+    # Agency-fee lines (fee_basis='total_estimate') earn a percentage of
+    # estimate-wide non-fee revenue. grand_revenue now holds exactly that
+    # (deferred fee lines contributed 0 above). The fee lives on the primary
+    # segment but its base spans the whole estimate — matching the screen.
+    non_fee_revenue = grand_revenue
+    for segment_obj, pending_fees in segment_fee_jobs:
+        fee_items = []
+        for pending in pending_fees:
+            fee_rev = non_fee_revenue * (pending["markup_pct"] / 100)
+            item = pending["item"]
+            qty = item["quantity"]
+            item["revenue"] = _round2(fee_rev)
+            item["unit_rate"] = _round2(fee_rev / qty) if qty > 0 else 0
+            item["gp"] = _round2(fee_rev)          # fee has no cost → all profit
+            item["gp_pct"] = 100.0 if fee_rev else 0.0
+            fee_items.append(item)
+            grand_revenue += item["revenue"]  # add the rounded fee so grand == sum of displayed subtotals
+
+        sec_rev = sum(i["revenue"] for i in fee_items)
+        segment_obj["sections"].append({
+            "key": "fees",
+            "label": SECTION_LABELS["fees"],
+            "line_items": fee_items,
+            "subtotal_revenue": _round2(sec_rev),
+            "subtotal_cost": 0.0,
+            "subtotal_gp": _round2(sec_rev),
+            "subtotal_gp_pct": 100.0 if sec_rev else 0.0,
+        })
+        segment_obj["totals"]["revenue"] = _round2(segment_obj["totals"]["revenue"] + sec_rev)
+        segment_obj["totals"]["gp"]      = _round2(segment_obj["totals"]["gp"] + sec_rev)
+        segment_obj["totals"]["gp_pct"]  = _round2(
+            (segment_obj["totals"]["gp"] / segment_obj["totals"]["revenue"] * 100)
+            if segment_obj["totals"]["revenue"] > 0 else 0
+        )
 
     grand_gp = grand_revenue - grand_cost
     grand_gp_pct = (grand_gp / grand_revenue * 100) if grand_revenue > 0 else 0

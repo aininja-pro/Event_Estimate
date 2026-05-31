@@ -101,6 +101,10 @@ interface ApprovalBannerProps {
     estimateId: string
     segmentId: string
     latestToken: ClientApprovalToken | null
+    /** Whether client-facing approval email is enabled (backend gate via /api/health).
+     *  When false, the Send-to-Client control is hidden and a note points the user
+     *  to the manual Approve path. Defaults to enabled when undefined. */
+    clientEmailEnabled?: boolean
     onSend: (params: { recipientEmail: string; note: string }) => Promise<{ ok: boolean; error?: string }>
   }
 }
@@ -123,7 +127,10 @@ export function ApprovalBanner({ approval, userRole, onApprove, onReject, change
   const canApprove = canUserApprove(approval, userRole)
   const isClient = gate === 'client'
   const IconComponent = isClient ? Globe : AlertCircle
-  const showSendToClient = isClient && canApprove && !!clientEmailContext
+  const clientEmailEnabled = clientEmailContext?.clientEmailEnabled !== false
+  const showSendToClient = isClient && canApprove && !!clientEmailContext && clientEmailEnabled
+  // Client gate reachable, but email is gated off for beta — show the manual path.
+  const showClientEmailDisabledNote = isClient && canApprove && !!clientEmailContext && !clientEmailEnabled
   const pendingToken =
     clientEmailContext?.latestToken && clientEmailContext.latestToken.status === 'pending'
       ? clientEmailContext.latestToken
@@ -209,6 +216,17 @@ export function ApprovalBanner({ approval, userRole, onApprove, onReject, change
           </div>
         )}
       </div>
+
+      {/* Client-email disabled for beta — point the user to the manual approve path */}
+      {showClientEmailDisabledNote && (
+        <div className="flex items-start gap-2 px-3 py-1.5 bg-amber-50/70 border border-amber-200/60 rounded text-[11px] text-amber-800">
+          <Mail className="h-3 w-3 shrink-0 mt-0.5 text-amber-600" />
+          <span>
+            Client approval email is disabled for beta (pending Resend sender-domain verification).
+            Use <span className="font-medium">{config.approveLabel}</span> above to record approval manually, or share a direct approval link for testing.
+          </span>
+        </div>
+      )}
 
       {/* Client-email indicator (shown when a pending token is outstanding) */}
       {pendingToken && (

@@ -26,6 +26,8 @@ dist-ssr
 # Environment variables (API keys)
 .env
 .env.local
+api/.env
+api/.env.local
 
 # Historical estimate XLSX files (2GB+ source files)
 historical_estimates/

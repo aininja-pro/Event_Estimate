@@ -17,7 +17,26 @@ export interface SendClientApprovalResult {
   sentTo?: string
   pdfFilename?: string
   resendId?: string | null
+  emailSent?: boolean
+  emailDisabled?: boolean
+  approvalUrl?: string
+  message?: string
   error?: string
+}
+
+/** Whether client-facing approval email is enabled in the backend.
+ *  Source of truth is the backend env var, surfaced via /api/health. Used only
+ *  for UI presentation — the backend enforces the gate regardless. Defaults to
+ *  enabled on error so the control isn't hidden during a transient outage. */
+export async function getClientApprovalEmailEnabled(): Promise<boolean> {
+  try {
+    const res = await fetch(`${API_URL}/api/health`)
+    if (!res.ok) return true
+    const body = (await res.json()) as { client_approval_email_enabled?: boolean }
+    return body.client_approval_email_enabled !== false
+  } catch {
+    return true
+  }
 }
 
 /** Trigger the backend to generate the client PDF + send the approval email. */
@@ -47,6 +66,10 @@ export async function sendClientApproval(
     sent_to?: string
     pdf_filename?: string
     resend_id?: string | null
+    email_sent?: boolean
+    client_email_disabled?: boolean
+    approval_url?: string
+    message?: string
     error?: string
   }
 
@@ -60,6 +83,10 @@ export async function sendClientApproval(
     sentTo: body.sent_to,
     pdfFilename: body.pdf_filename,
     resendId: body.resend_id ?? null,
+    emailSent: body.email_sent,
+    emailDisabled: body.client_email_disabled,
+    approvalUrl: body.approval_url,
+    message: body.message,
   }
 }
 

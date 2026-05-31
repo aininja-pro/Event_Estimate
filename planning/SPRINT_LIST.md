@@ -1,79 +1,75 @@
-# Proposed Sprint List (DriveShop Phase 2)
+# Sprint List — DriveShop Event Estimate Engine (Phase 2)
 
-Reconstructed from the session log in your existing CLAUDE.md. 14 sprints total.
+This list reflects the real sprint folders on disk. Historical sprints (001–016) are shipped. Sprint 017 is active. Sprint 018 is next.
 
-For historical sprints (001–013), create each folder as a stub — just the name and summary below. You don't need to reverse-engineer full `requirements.md` + `blueprint.md` for shipped work. Keep those files minimal (or even empty) for historical sprints; the real value starts with sprint 014 where the Architect/Executor pattern kicks in for future work.
-
----
-
-## Sprint Folder Naming Convention
+## Folder naming convention
 
 `sprints/###-kebab-case-name/`
 
-Each folder contains:
-- `requirements.md` — for historical sprints, one-line summary. For new sprints, full Architect output.
-- `blueprint.md` — for historical sprints, one-line summary. For new sprints, full Architect output.
+Each folder contains `requirements.md` and `blueprint.md`. Historical sprints keep one-line summaries; sprints from 014 onward carry full Architect output.
 
 ---
 
-## Historical Sprints (stubs only)
+## Historical Sprints (shipped)
 
 ### Sprint 001 — Foundation
-**Wk 1-2** · Rate Card Management Engine, Supabase schema, 8 client rate cards seeded.
+Rate Card Management Engine, Supabase schema, initial client rate cards seeded.
 
 ### Sprint 002 — Core Build: Estimate Builder
-**Wk 3-5** · Estimate Builder UI, labor planning, calculations, multi-segment support.
+Estimate Builder UI, labor planning, calculations, multi-segment support.
 
 ### Sprint 003 — Rate Card Refinements + Builder UX
-**Wk 5-6** · Fee Types tab, fee-type-linked Add Rate, client contacts, bulk import, multi-select modals, custom items, steppers, combo dropdowns, split notes, NR summary, archive/delete.
+Fee Types tab, fee-type-linked Add Rate, client contacts, bulk import, multi-select modals, custom items, steppers, combo dropdowns, split notes, NR summary, archive/delete.
 
 ### Sprint 004 — Schedule Tab
-**Wk 6** · Calendar staffing grid, Labor Log rollup, sortable columns, per-segment dates.
+Calendar staffing grid, Labor Log rollup, sortable columns, per-segment dates.
 
 ### Sprint 005 — Workflow Engine
-**Wk 6-7** · Status machine, versioning, approvals, history panel, rollback, status bar, lockdown, segment-level workflow, SegmentTransitionBar, SegmentStatusBadge, estimates list overhaul.
+Status machine, versioning, approvals, history panel, rollback, status bar, lockdown, segment-level workflow, transition bar, status badges, estimates list overhaul.
 
 ### Sprint 006 — Auth + Notifications
-**Wk 8** · Supabase Auth, profiles, login, route guards, admin users, notification bell + Realtime, dispatch on all transitions, role-permission enforcement via `permissions.ts`, RLS.
+Supabase Auth, profiles, login, route guards, admin users, notification bell + Realtime, dispatch on transitions, role-permission enforcement, RLS.
 
 ### Sprint 007 — Three-Gate Approval Chain + Financial Controls
-**Wk 9** · Bug fixes (Add Segment, ordering), three-gate approval chain, configurable threshold, pipeline as default status. Agency fee auto-populate, Fees & Markups tab, resource type tracking, locked rate cards, GP threshold, rollback bug fix.
+Three-gate approval chain, configurable threshold, pipeline as default status, agency fee auto-populate, Fees & Markups tab, resource type tracking, locked rate cards, GP threshold, rollback fix.
 
 ### Sprint 008 — AI Intelligence (Modes 1-3)
-**Wk 9-11** · AI Phase 1: FastAPI backend, Claude API integration, nudge rules engine, live Intelligence panel. Historical pipeline: 988 events migrated to Supabase, event type classification, pre-computed patterns, historically-enriched nudges. Nudge auto-refresh fix: Supabase-direct fetch, cache bypass, pre-computed staffing mismatches. AI Chat Assistant (Mode 2) + Scoping Bridge (Mode 3): conversational chat, AI Scoping page restyled, Create Estimate from scope with schedule auto-generation.
+FastAPI backend, Claude API integration, nudge rules engine, live Intelligence panel; historical pipeline (988 events migrated, event-type classification, pre-computed patterns); nudge auto-refresh fix; AI Chat Assistant + Scoping Bridge with Create-Estimate-from-scope.
 
 ### Sprint 009 — Recap Entry + Change Orders + PDF Generation
-**Wk 11-12** · Recap Entry: actuals columns, variance display, name validation gate, receipt upload. Change Orders: lightweight edit + formal CO with auto-delta, CO tracking, per-segment CO numbering. PDF Generation: WeasyPrint integration, 4 PDF types, Export dropdown, Jinja2 templates.
+Recap actuals + variance + receipt upload; lightweight + formal change orders with auto-delta and per-segment CO numbering; WeasyPrint integration, 4 PDF types, Export dropdown, Jinja2 templates.
 
 ### Sprint 010 — Pipeline Dashboard + Duplication + History Search
-**Wk 12** · Pipeline Dashboard: summary cards, status breakdown chart, client breakdown table, monthly volume chart, recent activity feed. Estimate Duplication: deep-copy from Estimates list. Historical Event Search: "From History" tab with search/filter/template flow. Bug fix: replaced `window.location.reload()` with React key-based remount on CO rejection.
+Pipeline dashboard (summary cards, status/client breakdowns, monthly volume, activity feed); estimate deep-copy duplication; From-History search/filter/template flow; CO-rejection remount fix.
 
 ### Sprint 011 — Schedule Recap Actuals + Financial Summary Cards
-**Wk 12-13** · Planned vs actual on schedule grid with smart-visibility tints (green under / red over), per-person and per-day plan-vs-actual totals, unplanned-day actuals, pre-fill on `active→recap` transition. Labor log + Summary variance derive from schedule actuals. GR/NR/Cost/GP/GP% cards above the tabs.
+Planned-vs-actual schedule grid with smart-visibility tints, per-person/per-day totals, unplanned-day actuals, pre-fill on active→recap; labor log + Summary variance from schedule actuals; GR/NR/Cost/GP/GP% cards above the tabs.
 
 ### Sprint 012 — Unplanned Additions in Recap
-**Wk 13** · `is_unplanned` flag on `estimate_line_items` / `schedule_day_types` / `schedule_entries` / `labor_entries`. "+ Add Unplanned Item / Day / Staff / Role" buttons (rose dashed) in recap open mode-aware pickers reusing planned modals. Rose left-border + UNPLANNED badge + dashes on planned side everywhere. Approved-budget rollups stay locked — unplanned additions land as pure overruns in Planned vs Actual.
+`is_unplanned` flag across four tables; Add Unplanned Item/Day/Staff/Role buttons (rose dashed) reusing planned pickers; UNPLANNED badges; approved-budget rollups stay locked so unplanned lands as pure overrun.
 
-### Sprint 013 — Client-Specific Approval Routing + Segment Recovery + Final Polish + Admin Settings
-**Wk 13** · `primary_approver_id` on clients (FK to profiles), targeted notification on `in_review`, latent bug fix (fallback was `'cfo'`, now `'account_manager'`). Segment-recovery + pipeline-behavior fixes (PRs #10, #11, #12). Final Polish Sprint: client approval email via Resend with one-click link, toast notifications via sonner, Invoice-with-Receipts PDF export, read-only data feed API. Admin Settings UI for Financial Thresholds: `/admin/settings` with GP threshold + approval threshold controls, audit caption, sonner toasts.
+### Sprint 013 — Client-Specific Approval Routing
+`primary_approver_id` on clients (FK to profiles), targeted notification on in_review, fallback fix (`'cfo'` → `'account_manager'`), segment-recovery + pipeline-behavior fixes.
 
-**Note:** You may want to split Sprint 013 into smaller sprints since it covers 4 distinct work streams. I've grouped them since they all shipped in Week 13, but if you prefer finer granularity, split into:
-- 013-client-approval-routing
-- 014-segment-recovery-fixes
-- 015-final-polish (email + toasts + invoice receipts + data feed)
-- 016-admin-settings-ui
+### Sprint 014 — Final Polish
+Client approval email via Resend with one-click link, toast notifications (sonner), Invoice-with-Receipts PDF export, read-only data feed API.
 
-Then sprint 017 becomes QA + Intacct.
+### Sprint 015 — Admin Settings UI for Financial Thresholds
+`/admin/settings` with GP threshold + approval threshold controls, audit caption, toasts.
+
+### Sprint 016 — Rate Card Bulk Import
+20-tab cost rate card import via `scripts/import_rate_cards.py`; 14 new OEM clients, upserts onto 6 existing brands, 46 auto-created fee_types (NULL gl_code), No-Client fallback seed, typo/dedup/normalization fixes with safety assertion.
 
 ---
 
 ## Active Sprint
 
-### Sprint 014 — QA + Sage Intacct Integration
-**Wk 14+** · Sage Intacct API integration. Final QA pass on the full Phase 2 build. See `sprints/014-qa-intacct/` — requirements.md and blueprint.md to be produced by Architect before build starts.
+### Sprint 017 — Deploy Readiness
+Stabilization pass for first production deploy to Render + beta release. Agency-fee PDF correctness, snapshot/change-order baseline correctness, WeasyPrint native libs on Render, render.yaml env vars, hybrid email mode (client email gated, internal routing intact), env hygiene, Summary-tab section percentages, and investigate-then-fix on the office-cost recalc. See `sprints/017-deploy-readiness/requirements.md` and `blueprint.md`.
 
 ---
 
-## Recommendation on Split Decision
+## Next Up
 
-Honest take: **keep Sprint 013 as one bundle for the historical record.** Splitting it retroactively is busywork without clear benefit — the session log already tells the granular story if you ever need it. Start the clean Architect/Executor discipline with Sprint 014 going forward. Don't retcon history; set the standard from here.
+### Sprint 018 — Sage Intacct CSV Export + Final QA
+CSV export for upload into Intacct (CSV-based, not an API integration). Blocked on corporate cost rate data from finance to finalize the export format. Final QA pass folds in once beta feedback is collected.
