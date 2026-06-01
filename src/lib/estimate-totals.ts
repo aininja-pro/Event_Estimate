@@ -4,6 +4,18 @@ import type { RateCardItemsBySection } from '../types/rate-card'
 import { computeScheduleRollup } from './schedule-service'
 import { ESTIMATE_SECTION_LABELS } from './section-labels'
 
+/**
+ * Office labor cost = day rate × the office's payout share (a fraction, e.g. 0.75).
+ * The regional office RECEIVES this share of revenue, so that share is DriveShop's cost.
+ *
+ * Single source of truth for the office cost formula: the add-time paths
+ * (ScheduleGrid, EstimateBuilderPage) and the recompute-on-change path all call this,
+ * so the corrected formula can never be copied-and-drift again.
+ */
+export function officeCostRate(rate: number, payoutPct: number): number {
+  return rate * payoutPct
+}
+
 export const SUMMARY_SECTIONS = [
   { name: 'Planning & Administration Labor', type: 'labor', lineItemKey: null, passThrough: false },
   { name: 'Onsite Event Labor',              type: 'labor', lineItemKey: null, passThrough: false },

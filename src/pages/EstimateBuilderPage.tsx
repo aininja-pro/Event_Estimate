@@ -58,7 +58,8 @@ import {
   getClientApprovalEmailEnabled,
   type ClientApprovalToken,
 } from '@/lib/client-approval-service'
-import { getScheduleEntries, getScheduleDayTypes, computeScheduleRollup } from '@/lib/schedule-service'
+import { getScheduleEntries, getScheduleDayTypes, computeScheduleRollup, updateScheduleEntry } from '@/lib/schedule-service'
+import { officeCostRate } from '@/lib/estimate-totals'
 import {
   getPendingSegmentApproval,
   submitForApproval,
@@ -1073,7 +1074,7 @@ function AddRoleModal({
         role_name: role.name,
         unit_rate: role.unit_rate ?? 0,
         cost_rate: isOffice && role.unit_rate
-          ? role.unit_rate * (1 - estimate.clients.office_payout_pct)
+          ? officeCostRate(role.unit_rate, estimate.clients.office_payout_pct)
           : null,
         gl_code: role.gl_code,
         rate_card_item_id: role.id,
@@ -1084,7 +1085,7 @@ function AddRoleModal({
         role_name: role.role_name,
         unit_rate: role.unit_rate,
         cost_rate: isOffice && role.unit_rate
-          ? role.unit_rate * (1 - estimate.clients.office_payout_pct)
+          ? officeCostRate(role.unit_rate, estimate.clients.office_payout_pct)
           : null,
         gl_code: null as string | null,
         rate_card_item_id: null as string | null,
@@ -1619,7 +1620,6 @@ function LaborLogTab({
                       key={entry.id}
                       entry={entry}
                       isOffice={estimate.cost_structure === 'office'}
-                      officePayout={estimate.clients.office_payout_pct}
                       onUpdate={onUpdateEntry}
                       onDelete={onDeleteEntry}
                       readOnly={readOnly}
@@ -1767,7 +1767,6 @@ function StepperInput({
 function LaborEntryRow({
   entry,
   isOffice,
-  officePayout,
   onUpdate,
   onDelete,
   readOnly,
@@ -1776,7 +1775,6 @@ function LaborEntryRow({
 }: {
   entry: LaborEntry
   isOffice: boolean
-  officePayout: number
   onUpdate: (id: string, updates: Partial<LaborEntry>) => void
   onDelete: (id: string) => void
   readOnly?: boolean
@@ -1789,7 +1787,10 @@ function LaborEntryRow({
   const [costRate, setCostRate] = useState((entry.cost_rate ?? '').toString())
 
   const effectiveRate = parseFloat(rate) || 0
-  const effectiveCost = isOffice ? effectiveRate * (1 - officePayout) : (parseFloat(costRate) || 0)
+  // Office cost is a single stored value (written at add-time / recompute-on-change),
+  // read here like every other consumer — never recomputed locally, so this row can
+  // never drift from the Summary P&L, PDF, snapshots, CO baselines, or the Intacct AP feed.
+  const effectiveCost = isOffice ? (entry.cost_rate ?? 0) : (parseFloat(costRate) || 0)
   const qtyNum = parseInt(qty) || 0
   const daysNum = parseInt(days) || 0
   const lineTotal = qtyNum * daysNum * effectiveRate
@@ -3849,6 +3850,47 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
 
   // ── Handlers ──
 
+  // Re-derive and PERSIST office labor cost_rate on every row of every segment after a
+  // Corporate↔Office structure flip. Office cost = rate × payout (officeCostRate); Corporate
+  // resets to the add-time default (labor null, schedule 0). Persisting through the same
+  // service layer the add paths use keeps a single stored value that all consumers read.
+  async function recomputeLaborCostsForStructure(nextEstimate: EstimateWithClient, logs: LaborLog[]) {
+    const isOffice = nextEstimate.cost_structure === 'office'
+    const payout = nextEstimate.clients.office_payout_pct
+    for (const log of logs) {
+      // Persist the new cost_rate but keep the existing in-state objects (merge the one
+      // field) — the update RPCs return a bare row without nested relations (schedule
+      // entries' day_entries especially), and replacing the rich object with the bare
+      // echo would drop day_entries and collapse the schedule-driven rollup to 0 days.
+      const entries = laborEntriesMap[log.id] ?? []
+      const nextEntries: LaborEntry[] = []
+      for (const e of entries) {
+        const effRate = (e.override_rate ?? e.unit_rate) ?? 0
+        const nextCost = isOffice ? officeCostRate(effRate, payout) : null
+        if (nextCost !== e.cost_rate) {
+          await updateLaborEntry(e.id, { cost_rate: nextCost })
+          nextEntries.push({ ...e, cost_rate: nextCost })
+        } else {
+          nextEntries.push(e)
+        }
+      }
+      setLaborEntriesMap((prev) => ({ ...prev, [log.id]: nextEntries }))
+
+      const sched = scheduleEntriesMap[log.id] ?? []
+      const nextSched: ScheduleEntry[] = []
+      for (const s of sched) {
+        const nextCost = isOffice ? officeCostRate(s.day_rate, payout) : 0
+        if (nextCost !== s.cost_rate) {
+          await updateScheduleEntry(s.id, { cost_rate: nextCost })
+          nextSched.push({ ...s, cost_rate: nextCost })
+        } else {
+          nextSched.push(s)
+        }
+      }
+      setScheduleEntriesMap((prev) => ({ ...prev, [log.id]: nextSched }))
+    }
+  }
+
   async function handleUpdateEstimate(updates: EstimateUpdate) {
     if (!estimate) return
     try {
@@ -3887,6 +3929,15 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
         )
         nextLogs = updatedLogs
         setLaborLogs(updatedLogs)
+      }
+
+      // Issue 1 (recompute-on-change): office cost is derived from rate × payout.
+      // When the structure flips, re-derive and PERSIST cost_rate on every existing
+      // row so stored values can't go stale — rows added while Corporate (cost 0/null)
+      // become correct, and toggling back to Corporate clears office-derived costs to
+      // the add-time default so no stale office cost is left behind.
+      if (updates.cost_structure !== undefined && updates.cost_structure !== estimate.cost_structure) {
+        await recomputeLaborCostsForStructure(nextEstimate, nextLogs)
       }
 
       const newLocation = typeof updates.location === 'string' ? updates.location.trim() : ''
@@ -4054,9 +4105,19 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
   }
 
   async function handleUpdateEntry(id: string, updates: Partial<LaborEntry>) {
-    if (!activeLocationId) return
+    if (!activeLocationId || !estimate) return
+    // Office cost follows the rate: re-derive and persist cost_rate in the same write
+    // when an office row's rate changes, so the stored value (read by every consumer)
+    // never goes stale. Single source of truth: officeCostRate().
+    let nextUpdates = updates
+    if (estimate.cost_structure === 'office' && ('override_rate' in updates || 'unit_rate' in updates)) {
+      const entry = (laborEntriesMap[activeLocationId] ?? []).find((e) => e.id === id)
+      const merged = { ...entry, ...updates }
+      const effRate = (merged.override_rate ?? merged.unit_rate) ?? 0
+      nextUpdates = { ...updates, cost_rate: officeCostRate(effRate, estimate.clients.office_payout_pct) }
+    }
     try {
-      const updated = await updateLaborEntry(id, updates)
+      const updated = await updateLaborEntry(id, nextUpdates)
       setLaborEntriesMap((prev) => ({
         ...prev,
         [activeLocationId]: (prev[activeLocationId] ?? []).map((e) => e.id === id ? updated : e),

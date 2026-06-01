@@ -93,7 +93,7 @@ Services are organized by domain. Read the service file for specifics.
 
 ### Estimates & Labor
 - `estimate-service.ts` — Estimate/labor/line item CRUD, `createPrimarySegmentForEstimate()` (single source of truth for initial segment)
-- `estimate-totals.ts` — Shared GR / NR / Cost / GP / GP% computation (used by SummaryTab AND FinancialSummaryCards)
+- `estimate-totals.ts` — Shared GR / NR / Cost / GP / GP% computation (used by SummaryTab AND FinancialSummaryCards). Also exports `officeCostRate()` — the single source of truth for office labor cost (`rate × office_payout_pct`), called by all add-time paths and the recompute-on-toggle in `EstimateBuilderPage`; it exists to collapse what were five drifted copies of the formula (Sprint 018 W8 fix).
 - `rate-card-service.ts` — Clients, rate cards, fee types, `getClientApproverForEstimate()`
 
 ### Schedule & Recap

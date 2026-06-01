@@ -47,6 +47,7 @@ import {
   generateDateRange,
   computeScheduleRollup,
 } from '@/lib/schedule-service'
+import { officeCostRate } from '@/lib/estimate-totals'
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
@@ -146,7 +147,7 @@ function AddStaffModal({
         role_name: role.name,
         day_rate: role.unit_rate ?? 0,
         cost_rate: isOffice && role.unit_rate
-          ? role.unit_rate * (1 - estimate.clients.office_payout_pct)
+          ? officeCostRate(role.unit_rate, estimate.clients.office_payout_pct)
           : 0,
         gl_code: role.gl_code ?? null,
         rate_card_item_id: role.id,
@@ -156,7 +157,7 @@ function AddStaffModal({
       .map((role) => ({
         role_name: role.role_name,
         day_rate: role.day_rate,
-        cost_rate: isOffice ? role.day_rate * (1 - estimate.clients.office_payout_pct) : 0,
+        cost_rate: isOffice ? officeCostRate(role.day_rate, estimate.clients.office_payout_pct) : 0,
         gl_code: null as string | null,
         rate_card_item_id: null as string | null,
       }))

@@ -6,11 +6,12 @@
 
 ## Active Sprint
 
-Sprint 017 — Deploy Readiness — **code complete; pending operator deploy + beta release.**
+Sprint 018 — Office Cost Correction + Intacct Export — **two-phase.**
 
-All eight work items are resolved (W1–W7 shipped; W8 investigated, fix deferred pending Tatiana). What remains is operator/ops action, not code:
+- **Phase 1 — Office Cost Correction: code complete (shipped after this).** The Sprint 017 W8 finding (office labor cost/GP inverted) is now fixed: formula corrected to `cost = day_rate × office_payout_pct` across all five sites, collapsed to a single `officeCostRate()` helper, with recompute-and-persist on the Corporate↔Office toggle and office-row rate change (all segments). Confirmed by Dave Morck (VP Ops) 2026-06-01, scoped to fee/non-pass-through. CFO sign-off (Tatiana) pending — revisit only if she dissents. `tsc` clean; no new eslint findings. **Live toggle click-through to be run by operator before close** (blocked from automation by invite-only auth). See DECISIONS §W8 and `planning/sprints/018-intacct-export/`.
+- **Phase 2 — Intacct Export: BLOCKED — do not start.** The exporter is built; it waits on real Intacct mapping data (item IDs 0/967, GL accounts, customer/vendor/dept/location IDs), corporate-scope decision, and `dueDate` wiring. Phase 1 makes the AP amounts correct; Phase 2 still cannot run until mapping data lands. See `planning/sprints/018-intacct-export/NOTES.md`.
 
-**Operator deploy checklist (not yet done):**
+**Carryover — Sprint 017 operator deploy (still pending ops, not code):**
 - In the Render dashboard, set the secret values declared in `render.yaml`: `RESEND_API_KEY`, `DATA_FEED_API_KEY` (confirm `ANTHROPIC_API_KEY`, `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`).
 - Set `FRONTEND_URL` and `APPROVAL_BASE_URL` to the **production** URLs (not localhost) so approval links resolve.
 - Leave `CLIENT_APPROVAL_EMAIL_ENABLED=false` for beta (hybrid email mode — internal routing stays live).
@@ -29,7 +30,7 @@ All eight work items are resolved (W1–W7 shipped; W8 investigated, fix deferre
 - **W5 — Hybrid email mode:** client-facing approval email gated off for beta (backend-enforced via `CLIENT_APPROVAL_EMAIL_ENABLED`, frontend reads `/api/health`); internal routing, transitions, audit trail, and the confirm endpoint all intact; UI hides the Send button and shows the manual-approve path. Backend smoke-tested (`email_sent: false`, token still created, no Resend call).
 - **W6 — Env hygiene:** removed the frontend Anthropic key + dead `src/lib/ai.ts`; gitignored `api/.env`; fixed a corrupted root `.env` line; (incidental) fixed a latent Node-types leak in `ScheduleGrid.tsx`.
 - **W7 — Summary-tab section %:** each section header shows its revenue as % of total bid (read-only, derived from canonical totals; reconciles to the cent).
-- **W8 — Office-cost recalc:** **investigation only — code unchanged.** Found the office labor cost/GP formula is **inverted** (three-signal agreement: historical data 3,200-to-0, DOMAIN wording, Dave's symptom; provenance proven clean). Fix deferred pending Tatiana's confirmation. See Deferred + DECISIONS.
+- **W8 — Office-cost formula correction (fixed in Sprint 018 Phase 1):** the inverted office labor cost/GP formula is corrected — `cost = day_rate × office_payout_pct` across all **five** sites (four add-time write paths + the `LaborEntryRow` read-time recompute, which now reads the stored value), collapsed to one `officeCostRate()` helper, with recompute-and-persist on the Corporate↔Office toggle and office-row rate change (all segments). Confirmed by Dave Morck (VP Ops) 2026-06-01, scoped to fee/non-pass-through; CFO sign-off (Tatiana) pending. `tsc` clean; 0 new eslint findings. No historical backfill (scope boundary). Live toggle click-through to be run by operator before close. See DECISIONS §W8.
 
 ## Recently Shipped
 
@@ -43,12 +44,19 @@ All eight work items are resolved (W1–W7 shipped; W8 investigated, fix deferre
 ## Next Up
 
 **Sprint 018 — Sage Intacct CSV Export + Final QA**
-CSV export from the Event Estimate Engine for upload into Intacct (not an API integration). Blocked on corporate cost rate data from finance to finalize the export format. Final QA pass folds in here once beta feedback is collected.
+CSV export for upload into Intacct (CSV-based, not an API integration). **The exporter is already COMPLETE** — the AR/Invoice + AP/Bill CSV pipeline (`accounting-review-service.ts` → `accounting-export-line-service.ts` → `accounting-csv-service.ts`) matches Tatiana's two templates field-for-field. So 018 is **not** a from-scratch build; it is:
+1. **Populate the Intacct mapping data with real IDs** (the actual work) — `rate_card_items` AR item IDs + AP GL accounts (currently **0/967**, AR `itemId` has no fallback), fee_types equivalents, `clients.intacct_customer_id` (1/23) + dept/location defaults (0/23), per-estimate project/office-profile/revenue-segment. Today's few populated values are placeholder test data, not real Intacct IDs.
+2. **Fix W8** (office cost-direction) — AP bill amounts are inverted until it's fixed.
+3. **Confirm default scalar values** (`transactionType`, `exchRateType`, `referenceNo`/`billNo`/`dueDate` conventions; `dueDate` is unwired today).
+4. **Decide corporate-event scope** (export is office-only by design).
+5. Final QA pass folds in once beta feedback is collected.
+
+Full readiness snapshot: `planning/sprints/018-intacct-export/NOTES.md`. (0 of 5 office estimates would produce a valid export today — only Test 10/Dallas clears the workflow gate, and it still fails at the line level on missing item/GL mappings.)
 
 ## Deferred
 
 **Sprint 017 findings (need a decision before fixing — see DECISIONS.md for full data):**
-- **W8 — Office-event cost/GP formula is INVERTED.** Office labor cost should be `day_rate × office_payout_pct` (office's share), not `day_rate × (1 − payout)`. Fix **Issue ① (recompute on toggle)** + **Issue ③ (formula direction)** as a pair, under full gate, **once Tatiana confirms direction.** Guardrail: office-event cost/GP figures are unreliable until fixed (corporate unaffected).
+- **W8 — Office-event cost/GP formula INVERTED — RESOLVED in Sprint 018 Phase 1** (moved to Just Shipped). Office labor cost is now `day_rate × office_payout_pct`; formula corrected across all five sites (single `officeCostRate()` helper) + recompute-and-persist on toggle/rate-change across all segments. Confirmed by Dave Morck (VP Ops); CFO sign-off pending.
 - **PDF labor rollup diverges from canonical** on recap+unplanned estimates (PDF over-counts labor; +$1,995/+40% on Mazda Ride & Drive). Fix = point PDF at the canonical rollup. Guardrail: no client PDFs for recap-stage estimates with unplanned items.
 - **CO deltas don't reflect the agency-fee ripple** (per-segment by design) — pending Tatiana.
 - **Approval threshold is fee-blind** (per-segment by design) — governance call for Tatiana.
