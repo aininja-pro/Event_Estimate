@@ -1,13 +1,14 @@
 # Architect Briefing — DriveShop Event Estimate Engine
 
-_Refreshed at Sprint 019 close, 2026-07-02._
+_Refreshed at Sprint 019 close + first production deploy, 2026-07-02._
 
 ## Where things stand
 
-The app used to run on made-up test items and made-up prices. We just threw those out and loaded DriveShop's real 160-item catalog in their place — every item now carries its own accounting IDs (the "Item ID" Intacct needs), which was the one thing blocking the accounting export. That export can now identify every item; it just can't run a full real-world test yet because we deliberately left prices empty. **Real prices are the next thing DriveShop owes us** (Dave/Tatiana), and there's a short list of loose ends to settle at the July 2 Dave meeting. Nothing is broken; historical data was never touched.
+Two big things just happened. First, we threw out the app's made-up test items/prices and loaded DriveShop's real 160-item catalog — every item now carries the accounting IDs Intacct needs, which was the one thing blocking the export. Second, **the app is now actually deployed and running on Render for the first time** — a static frontend plus, crucially, the Python backend that was never set up before (that missing backend was why earlier deploys looked broken). It's live and the owner confirmed it's up. Two honest caveats: rate cards show **no prices** on purpose (real pricing is the next thing DriveShop owes us — Dave/Tatiana), and production currently deploys off a feature-named branch rather than `main`. A short list of loose ends is queued for the July 2 Dave meeting. Nothing is broken; historical data was never touched.
 
 ## Current status
 
+- **Production deploy — LIVE (2026-07-02).** Render Blueprint `driveshop-event-estimate` from `render.yaml` on branch `sprint-018-office-cost-correction`; static `event-history` + Python `driveshop-api`. Backend env vars set + names verified. Owner confirmed running. See DECISIONS §"Render deployment". Open: rotate the plaintext-era keys; optional `main` consolidation; a quick `/api/health` + one API-backed action as final confirmation.
 - **Sprint 019 — SHIPPED and applied to the live DB (2026-07-01).** Full-replace load succeeded, verified against the database.
 - Verified post-load: `fee_types` = 160, with `intacct_ar_item_id` / `intacct_ap_gl_account_no` / `gl_code` all **160/160** (the 0/967 AR wall is gone). `rate_card_items` = **0** (test prices cleared). `office_accounting_profiles` = 15 real + 1 leftover test row. `revenue_segments` = 10 real + 1 leftover test row. `clients.intacct_customer_id` = 7/23. `historical_events` = 1,674, `historical_patterns` = 98 (unchanged). 6 test estimates preserved, their rate-card soft-links nulled.
 - `tsc -b --force` clean. `eslint` shows only pre-existing findings (FeedbackPage, ScheduleGrid, EstimateBuilderPage, ui/*, schedule-service) — **zero** introduced by this sprint (it changed no TypeScript).
@@ -38,6 +39,8 @@ The app used to run on made-up test items and made-up prices. We just threw thos
 - **The app has items but no prices.** Any estimate built now has no rates until real pricing lands — this is expected, but it means no full export test yet.
 - **Two leftover placeholder rows** (`Test Office`, `Test Revenue`) remain in the reference tables (idempotent upsert didn't remove them); still referenced by test estimates `Test 10` / `Mazda Test Drive`. Harmless; optional cleanup would require nulling those estimate FKs first (RESTRICT).
 - **16 clients have no Intacct customer ID** (no clean name match) — export can't set a customer for them until mapped.
+- **Production deploys off `sprint-018-office-cost-correction`, not `main`.** Anyone assuming `main` = production is wrong; `main` is ~2 sprints behind. Consolidate when convenient.
+- **Plaintext-era keys not yet confirmed rotated** — Supabase/Anthropic/Resend keys sat in local plaintext; rotate and set fresh values on `driveshop-api`.
 - eslint has pre-existing errors unrelated to this work (candidate for a future cleanup sprint).
 
 ## Open questions for the Architect / Dave (2026-07-02 meeting)
@@ -53,8 +56,11 @@ The app used to run on made-up test items and made-up prices. We just threw thos
 
 - Post-load DB verification: passed (counts + integrity above; 0 duplicate `intacct_ar_item_id`; GL trailing-zero fix confirmed on `I0012` → `5000.10`).
 - `tsc` clean; no new eslint findings.
+- Deploy: services created + built on Render; backend env-var names verified; owner confirmed "up and running." **Not yet independently exercised** — a `GET /api/health` and one API-backed action (AI scoping / PDF) would confirm end-to-end + CORS.
 - Full end-to-end Intacct export test **not run** — needs a priced estimate (waits on real pricing). Noted, not forced (per blueprint).
 
 ## Recommended next Architect action
 
-Run the 2026-07-02 Dave meeting against the six open questions above, prioritizing **real per-client pricing** (unblocks the first genuine end-to-end Intacct export test) and the **16 client→customer mappings**. Once pricing arrives, scope a short Sprint 018 Phase 2 finish: load prices, wire `dueDate`, confirm default scalars (`transactionType`, `exchRateType`), decide corporate-event export scope, and run the first real AR+AP export end-to-end.
+1. **Confirm the deploy end-to-end** — hit `/api/health`, run one API-backed action, verify no CORS block; then **rotate** the plaintext-era Supabase/Anthropic/Resend keys on `driveshop-api`. Decide whether to consolidate the production branch onto `main`.
+2. **Run the 2026-07-02 Dave meeting** against the six open questions above, prioritizing **real per-client pricing** (unblocks the first genuine end-to-end Intacct export test) and the **16 client→customer mappings**.
+3. Once pricing arrives, scope a short **Sprint 018 Phase 2 finish**: load prices, wire `dueDate`, confirm default scalars (`transactionType`, `exchRateType`), decide corporate-event export scope, and run the first real AR+AP export end-to-end.

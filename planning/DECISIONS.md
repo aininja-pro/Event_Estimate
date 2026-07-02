@@ -105,6 +105,15 @@ If you're about to change something in this codebase and the change would violat
 - **Public approval endpoint** — `GET /api/approval/confirm/{token}` is public (no login required). Replicates client-gate branch of `reviewApproval()` in Python: marks token approved, updates `approval_requests`, transitions `labor_logs` to `active`, logs `segment_activities`, fans notifications to `sent_by` + creator + all `account_manager` + all `production_manager` profiles (deduplicated). Returns branded HTML page.
 - **Env load order** — `api/main.py` MUST call `load_dotenv(override=True)` **before** importing any route module. `services/email_service.py` reads `os.getenv("RESEND_API_KEY")` at module-load time.
 
+## Render Deployment
+
+- **Two services, one repo (Blueprint).** Production runs on Render via `render.yaml` (Blueprint `driveshop-event-estimate`): static frontend **`event-history`** (`npm install && npm run build` → `dist`, SPA rewrite) + Python backend **`driveshop-api`** (`cd api && pip install -r requirements.txt`; `uvicorn main:app`). First deployed 2026-07-02.
+- **Deploy branch is `sprint-018-office-cost-correction`, NOT `main`.** The Blueprint tracks that branch and auto-syncs on every push to it — so it is effectively the production branch. `main` is ~2 sprints behind (Sprint 016). To deploy a change you must push it to the tracked branch. Consolidating onto `main` (merge + repoint Blueprint) is optional future housekeeping.
+- **`Aptfile` at repo root is mandatory for the backend** — installs WeasyPrint's native libs (Pango/Cairo/gdk-pixbuf). Backend service root must be the repo root so it's detected; the build then `cd api`. Without it, `from weasyprint import HTML` crashes at runtime.
+- **URL env vars must be full `https://…` origins and cannot use `fromService`.** Render's `fromService` only exposes `host`/`port`/`hostport` (private-network hostname, no scheme), but the app consumes `VITE_API_URL` / `FRONTEND_URL` / `APPROVAL_BASE_URL` as full public URLs (e.g. `${API_URL}/api/...`; CORS origins need the scheme). So these are set by hand to `https://<service>.onrender.com`. `FRONTEND_URL` is CORS-critical (backend defaults it to `http://localhost:5173`, which blocks the deployed frontend if unset); `APPROVAL_BASE_URL` similarly defaults to localhost and breaks approval links.
+- **Backend secrets are `sync: false`** (never committed) — set in the Render dashboard on `driveshop-api`: `ANTHROPIC_API_KEY`, `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`, `RESEND_API_KEY`, `DATA_FEED_API_KEY`. `RESEND_FROM_EMAIL` + `CLIENT_APPROVAL_EMAIL_ENABLED` carry committed non-secret values. Frontend `VITE_*` vars are baked at **build** time, so changing them requires a redeploy (Clear cache & redeploy).
+- **Vite env vars are build-time.** The static site embeds `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` / `VITE_API_URL` at build; a value change has no effect until the frontend rebuilds.
+
 ## Data Feed
 
 - **Endpoint** — `GET /api/data/estimates`. Read-only. `X-API-Key` header auth. Single shared secret from `DATA_FEED_API_KEY` env var. Rotate by editing `api/.env` and restarting (no UI).

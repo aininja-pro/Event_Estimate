@@ -17,14 +17,20 @@ Sprint 018 — Office Cost Correction + Intacct Export — **two-phase.**
 - **Phase 1 — Office Cost Correction: shipped (Sprint 018 Phase 1).** The Sprint 017 W8 finding (office labor cost/GP inverted) is fixed: formula corrected to `cost = day_rate × office_payout_pct` across all five sites, collapsed to a single `officeCostRate()` helper, with recompute-and-persist on the Corporate↔Office toggle and office-row rate change (all segments). Confirmed by Dave Morck (VP Ops) 2026-06-01, scoped to fee/non-pass-through. CFO sign-off (Tatiana) pending — revisit only if she dissents. See DECISIONS §W8.
 - **Phase 2 — Intacct Export: UNBLOCKED at the item-ID level (Sprint 019).** The exporter is built and the AR item-ID wall is cleared (every item carries its `intacct_ar_item_id`); Phase 1 makes AP amounts correct. **A full end-to-end export test still needs a priced estimate** — deferred until real per-client pricing arrives. Remaining before a production export: real pricing, the 16 client→customer mappings, `dueDate` wiring, default scalars (`transactionType`, `exchRateType`), and the corporate-scope decision. See `planning/sprints/018-intacct-export/NOTES.md`.
 
-**Carryover — Sprint 017 operator deploy (still pending ops, not code):**
-- In the Render dashboard, set the secret values declared in `render.yaml`: `RESEND_API_KEY`, `DATA_FEED_API_KEY` (confirm `ANTHROPIC_API_KEY`, `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`).
-- Set `FRONTEND_URL` and `APPROVAL_BASE_URL` to the **production** URLs (not localhost) so approval links resolve.
-- Leave `CLIENT_APPROVAL_EMAIL_ENABLED=false` for beta (hybrid email mode — internal routing stays live).
-- **Rotate** the Supabase, Anthropic, and Resend keys (they sat in local plaintext).
-- Push to `main` → Render builds the backend with the new `Aptfile` (WeasyPrint native libs).
-- Smoke-test on the live instance: generate a PDF; exercise the approval flow in disabled-email mode; refresh mid-estimate (no data loss).
-- **Guardrail:** do NOT generate client-facing PDFs for recap-stage estimates that have unplanned schedule items (see Deferred / DECISIONS).
+## Production Deployment — LIVE (2026-07-02)
+
+The app is deployed on Render for the first time, resolving the long-pending Sprint 017 operator-deploy carryover.
+
+- **How:** Render **Blueprint** `driveshop-event-estimate`, deploying from `render.yaml` on branch **`sprint-018-office-cost-correction`** (NOT `main` — `main` is ~2 sprints behind). Two services: static frontend **`event-history`** + Python backend **`driveshop-api`**. The Blueprint auto-syncs on every push to that branch → **that branch is now the production branch.** See DECISIONS §"Render deployment".
+- **Backend env vars set** on `driveshop-api` (operator-verified names, 2026-07-02): `ANTHROPIC_API_KEY`, `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`, `RESEND_API_KEY`, `DATA_FEED_API_KEY`, `FRONTEND_URL` (= static site origin, for CORS), `APPROVAL_BASE_URL` (= backend origin), `RESEND_FROM_EMAIL=onboarding@resend.dev`, `CLIENT_APPROVAL_EMAIL_ENABLED=false`. `EXTRA_CORS_ORIGINS` intentionally unset (optional). Frontend `event-history` has `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_API_URL` (= backend origin, baked at build).
+- **Aptfile** ships on the branch → WeasyPrint native libs install for backend PDF rendering.
+- **Operator confirmed "up and running"** 2026-07-02. Recommended quick confirmations if not yet done: hit `GET /api/health`; exercise one API-backed action (AI scoping or a PDF); confirm the deployed frontend isn't CORS-blocked (guards `FRONTEND_URL` correctness).
+- **Live-app consequence of Sprint 019:** rate cards are **empty** (test prices cleared; real pricing is a future delivery). New estimates will have unpriced line items until pricing lands — expected, not a bug.
+
+**Still open (ops / housekeeping):**
+- **Rotate** the Supabase, Anthropic, and Resend keys (they sat in local plaintext) — set the fresh values on `driveshop-api`. Confirm whether done.
+- **`main` consolidation (optional):** merge `sprint-018-office-cost-correction` → `main` and repoint the Blueprint to `main` for a conventionally-named production branch. Triggers a redeploy.
+- **Guardrail (unchanged):** do NOT generate client-facing PDFs for recap-stage estimates that have unplanned schedule items (see Deferred / DECISIONS).
 
 ## Just Shipped
 
