@@ -59,7 +59,7 @@ import {
   type ClientApprovalToken,
 } from '@/lib/client-approval-service'
 import { getScheduleEntries, getScheduleDayTypes, computeScheduleRollup, updateScheduleEntry } from '@/lib/schedule-service'
-import { officeCostRate } from '@/lib/estimate-totals'
+import { isUnpricedRate, listUnpricedLineLabels, officeCostRate } from '@/lib/estimate-totals'
 import {
   getPendingSegmentApproval,
   submitForApproval,
@@ -911,21 +911,37 @@ function AddUnplannedLaborEntryModal({
           )}
           {filtered.map((role) => {
             const selected = selectedId === role.id
+            const passThrough = role.is_pass_through === true
+            const noRate = isUnpricedRate(role.unit_rate, passThrough)
             return (
               <button
                 key={role.id}
                 onClick={() => pickRole(role.id)}
-                className={`w-full text-left px-3 py-1.5 rounded-sm transition-colors flex items-start gap-2.5 ${selected ? 'bg-rose-50/70' : 'hover:bg-muted/40'}`}
+                className={`w-full text-left px-3 py-1.5 rounded-sm transition-colors flex items-start gap-2.5 ${selected ? 'bg-rose-50/70' : 'hover:bg-muted/40'} ${noRate ? 'opacity-60' : ''}`}
               >
                 <div className={`mt-1 flex-shrink-0 w-3.5 h-3.5 rounded-full border ${selected ? 'border-rose-500 bg-rose-500' : 'border-border/50'} flex items-center justify-center`}>
                   {selected && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between gap-2">
                     <span className="text-[13px] font-medium text-foreground/90">{role.name}</span>
-                    <span className="text-[13px] text-muted-foreground/60 tabular-nums">${role.unit_rate?.toLocaleString() ?? '0'}/day</span>
+                    <span className="text-[13px] text-muted-foreground/60 tabular-nums shrink-0">
+                      {passThrough
+                        ? null
+                        : noRate
+                          ? null
+                          : `$${role.unit_rate?.toLocaleString() ?? '0'}/day`}
+                    </span>
                   </div>
-                  <p className="text-[11px] text-muted-foreground/70">{role.sectionName}{role.gl_code ? ` · GL ${role.gl_code}` : ''}</p>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <p className="text-[11px] text-muted-foreground/70">{role.sectionName}{role.gl_code ? ` · GL ${role.gl_code}` : ''}</p>
+                    {passThrough && (
+                      <span className="text-[10px] uppercase tracking-widest text-muted-foreground/60">billed at markup</span>
+                    )}
+                    {noRate && (
+                      <span className="text-[10px] uppercase tracking-widest text-amber-600">no rate on file</span>
+                    )}
+                  </div>
                 </div>
               </button>
             )
@@ -1113,24 +1129,35 @@ function AddRoleModal({
           )}
           {filtered.map((role) => {
             const selected = selectedIds.has(role.id)
+            const passThrough = role.is_pass_through === true
+            const noRate = isUnpricedRate(role.unit_rate, passThrough)
             return (
               <button
                 key={role.id}
                 onClick={() => toggleRole(role.id)}
-                className={`w-full text-left px-3 py-1.5 rounded-sm transition-colors flex items-start gap-2.5 ${selected ? 'bg-muted/60' : 'hover:bg-muted/40'}`}
+                className={`w-full text-left px-3 py-1.5 rounded-sm transition-colors flex items-start gap-2.5 ${selected ? 'bg-muted/60' : 'hover:bg-muted/40'} ${noRate ? 'opacity-60' : ''}`}
               >
                 <div className={`mt-0.5 flex-shrink-0 w-4 h-4 rounded border ${selected ? 'bg-green-800/15 border-green-800/40' : 'border-border/50'} flex items-center justify-center`}>
                   {selected && <Check className="h-3 w-3 text-green-800/70" />}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between gap-2">
                     <span className="text-[13px] font-medium text-foreground/90">{role.name}</span>
-                    <span className="text-[13px] text-muted-foreground/60 tabular-nums">
-                      {role.unit_rate ? `$${role.unit_rate.toLocaleString()}` : 'Pass-through'}
-                      {role.unit_label ? ` ${role.unit_label}` : ''}
+                    <span className="text-[13px] text-muted-foreground/60 tabular-nums shrink-0">
+                      {passThrough || noRate
+                        ? null
+                        : `$${role.unit_rate?.toLocaleString()}${role.unit_label ? ` ${role.unit_label}` : ''}`}
                     </span>
                   </div>
-                  <p className="text-[11px] text-muted-foreground/70">{role.sectionName}{role.gl_code ? ` · GL ${role.gl_code}` : ''}</p>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <p className="text-[11px] text-muted-foreground/70">{role.sectionName}{role.gl_code ? ` · GL ${role.gl_code}` : ''}</p>
+                    {passThrough && (
+                      <span className="text-[10px] uppercase tracking-widest text-muted-foreground/60">billed at markup</span>
+                    )}
+                    {noRate && (
+                      <span className="text-[10px] uppercase tracking-widest text-amber-600">no rate on file</span>
+                    )}
+                  </div>
                 </div>
               </button>
             )
@@ -2413,24 +2440,35 @@ function AddLineItemModal({
           )}
           {filtered.map((item) => {
             const selected = selectedIds.has(item.id)
+            const passThrough = item.is_pass_through === true
+            const noRate = isUnpricedRate(item.unit_rate, passThrough)
             return (
               <button
                 key={item.id}
                 onClick={() => toggleItem(item.id)}
-                className={`w-full text-left px-3 py-1.5 rounded-sm transition-colors flex items-start gap-2.5 ${selected ? 'bg-muted/60' : 'hover:bg-muted/40'}`}
+                className={`w-full text-left px-3 py-1.5 rounded-sm transition-colors flex items-start gap-2.5 ${selected ? 'bg-muted/60' : 'hover:bg-muted/40'} ${noRate ? 'opacity-60' : ''}`}
               >
                 <div className={`mt-0.5 flex-shrink-0 w-4 h-4 rounded border ${selected ? 'bg-green-800/15 border-green-800/40' : 'border-border/50'} flex items-center justify-center`}>
                   {selected && <Check className="h-3 w-3 text-green-800/70" />}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between gap-2">
                     <span className="text-[13px] font-medium text-foreground/90">{item.name}</span>
-                    <span className="text-[13px] text-muted-foreground/60 tabular-nums">
-                      {item.unit_rate ? `$${item.unit_rate.toLocaleString()}` : 'Pass-through'}
-                      {item.unit_label ? ` ${item.unit_label}` : ''}
+                    <span className="text-[13px] text-muted-foreground/60 tabular-nums shrink-0">
+                      {passThrough || noRate
+                        ? null
+                        : `$${item.unit_rate?.toLocaleString()}${item.unit_label ? ` ${item.unit_label}` : ''}`}
                     </span>
                   </div>
-                  <p className="text-[11px] text-muted-foreground/70">{item.sectionName}{item.gl_code ? ` · GL ${item.gl_code}` : ''}</p>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <p className="text-[11px] text-muted-foreground/70">{item.sectionName}{item.gl_code ? ` · GL ${item.gl_code}` : ''}</p>
+                    {passThrough && (
+                      <span className="text-[10px] uppercase tracking-widest text-muted-foreground/60">billed at markup</span>
+                    )}
+                    {noRate && (
+                      <span className="text-[10px] uppercase tracking-widest text-amber-600">no rate on file</span>
+                    )}
+                  </div>
                 </div>
               </button>
             )
@@ -3133,6 +3171,38 @@ function SummaryTab({
               </p>
             </div>
           ) : null
+        })()}
+        {(() => {
+          // Same B3 rules as the estimate→in_review gate (PLAN-007): three tables,
+          // override_rate ?? unit_rate / day_rate / unit_cost, with unplanned,
+          // pass-through, and fee_basis='total_estimate' exemptions.
+          const isPassThroughById: Record<string, boolean> = {}
+          for (const section of rateCardData) {
+            for (const item of section.items) {
+              isPassThroughById[item.id] = item.is_pass_through === true
+            }
+          }
+          const unpriced: string[] = []
+          for (const log of laborLogs) {
+            unpriced.push(
+              ...listUnpricedLineLabels({
+                laborEntries: allEntriesMap[log.id] ?? [],
+                scheduleEntries: scheduleEntriesMap[log.id] ?? [],
+                lineItems: lineItemsMap[log.id] ?? [],
+                isPassThroughById,
+              }),
+            )
+          }
+          if (unpriced.length === 0) return null
+          const sample = unpriced.slice(0, 3).join(', ')
+          const more = unpriced.length > 3 ? ` (+${unpriced.length - 3} more)` : ''
+          return (
+            <div className="mt-3 px-4 py-2.5 rounded-md border border-amber-300/60 bg-amber-50/50">
+              <p className="text-[12px] text-amber-800 font-medium">
+                {unpriced.length} line{unpriced.length === 1 ? '' : 's'} {unpriced.length === 1 ? 'has' : 'have'} no rate on file ({sample}{more}). Price or remove {unpriced.length === 1 ? 'it' : 'them'} before submitting for review.
+              </p>
+            </div>
+          )
         })()}
 
         {/* Variance Summary for recap segments */}

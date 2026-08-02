@@ -1,6 +1,6 @@
 # Sprint List — DriveShop Event Estimate Engine (Phase 2)
 
-This list reflects the real sprint folders on disk. Historical sprints (001–016) are shipped. Sprint 017 is active. Sprint 018 is next.
+This list reflects the real sprint folders on disk. Sprints 001–019 are shipped. Sprint 020 is active. The forward road lives in `planning/ROADMAP.md`.
 
 ## Folder naming convention
 
@@ -60,16 +60,24 @@ Client approval email via Resend with one-click link, toast notifications (sonne
 ### Sprint 016 — Rate Card Bulk Import
 20-tab cost rate card import via `scripts/import_rate_cards.py`; 14 new OEM clients, upserts onto 6 existing brands, 46 auto-created fee_types (NULL gl_code), No-Client fallback seed, typo/dedup/normalization fixes with safety assertion.
 
+### Sprint 017 — Deploy Readiness
+Stabilization pass for first production deploy to Render + beta release. Agency-fee PDF correctness, snapshot/change-order baseline correctness, WeasyPrint native libs on Render, render.yaml env vars, hybrid email mode, env hygiene, Summary-tab section percentages, and investigate-then-fix on the office-cost recalc (W8 investigated, fixed in 018 Phase 1).
+
+### Sprint 018 — Office Cost Correction + Intacct Export (two-phase)
+**Phase 1 shipped:** office labor cost/GP inversion corrected to `day_rate × office_payout_pct` across all five sites, single `officeCostRate()` helper, recompute-and-persist on structure toggle and rate change. **Phase 2 outstanding:** the AR/AP CSV exporter is built and matches Tatiana's templates field-for-field; it still needs a priced estimate, the client→customer mappings, `dueDate` wiring, default scalars, and the corporate-scope decision. See `sprints/018-intacct-export/NOTES.md`.
+
+### Sprint 019 — Intacct Data: Start Fresh from DriveShop's Catalog
+Replaced the app's placeholder items and test prices with DriveShop's real 160-item catalog as the item foundation. Every item carries its own Item ID + Cost/Revenue GL, clearing the 0/967 AR-item-ID wall at the source. Reconciliation-by-GL abandoned (proven impossible). Reference tables loaded (15 offices, 10 segments, 7 customer IDs). Rate cards left deliberately empty pending real pricing. Pack: `architect-packs/architect-pack-019-intacct-data-load.md`.
+
 ---
 
 ## Active Sprint
 
-### Sprint 017 — Deploy Readiness
-Stabilization pass for first production deploy to Render + beta release. Agency-fee PDF correctness, snapshot/change-order baseline correctness, WeasyPrint native libs on Render, render.yaml env vars, hybrid email mode (client email gated, internal routing intact), env hygiene, Summary-tab section percentages, and investigate-then-fix on the office-cost recalc. See `sprints/017-deploy-readiness/requirements.md` and `blueprint.md`.
+### Sprint 020 — Rate Card Pricing Load + No-Price Guard
+Loads DriveShop's delivered per-client pricing (20 client tabs, 639 prices, delivered by Dave Morck 2026-07-24) onto the Sprint 019 catalog, joined on Item ID — 1,399 `rate_card_items` = 499 priced rows + 900 pass-through rows, 158 carrying an overtime rate. Overtime loads as an attribute of the parent item; the 29 standalone `.01` overtime items stay accounting-only. Adds a no-price guard so an item without a rate is visibly flagged and cannot reach approval as a silent $0. Pack: `architect-packs/architect-pack-020-rate-card-pricing.md`.
 
 ---
 
 ## Next Up
 
-### Sprint 018 — Sage Intacct CSV Export + Final QA
-CSV export for upload into Intacct (CSV-based, not an API integration). Blocked on corporate cost rate data from finance to finalize the export format. Final QA pass folds in once beta feedback is collected.
+See `planning/ROADMAP.md`. In order: **021** Production Hardening (key rotation, `main` consolidation) · **022** Client Settings + Intacct Customer Mapping · **023** Catalog Amendments from Dave's review · **024** First Real Intacct Export End-to-End · **025** Corporate Event Cost & Gross Profit.

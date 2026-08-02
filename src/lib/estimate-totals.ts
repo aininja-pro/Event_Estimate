@@ -16,6 +16,78 @@ export function officeCostRate(rate: number, payoutPct: number): number {
   return rate * payoutPct
 }
 
+/**
+ * A line is unpriced when it carries no usable rate AND is not a pass-through
+ * (pass-throughs legitimately have no rate; they bill at the client's markup
+ * on actual cost).
+ *
+ * Single source of truth for the unpriced check — pickers, Summary banner, and
+ * the estimate→in_review gate all call this (Sprint 020).
+ */
+export function isUnpricedRate(rate: number | null | undefined, isPassThrough: boolean): boolean {
+  if (isPassThrough) return false
+  return rate == null || Number(rate) === 0
+}
+
+/** Resolve pass-through via rate_card_item_id; null FK ⇒ not pass-through. */
+export function isPassThroughLookup(
+  rateCardItemId: string | null | undefined,
+  isPassThroughById: Record<string, boolean>,
+): boolean {
+  if (!rateCardItemId) return false
+  return isPassThroughById[rateCardItemId] === true
+}
+
+/**
+ * Labels of non-exempt unpriced lines on a segment — same rules as the
+ * estimate→in_review gate (B3): labor uses override_rate ?? unit_rate,
+ * schedule uses day_rate, line items use unit_cost; unplanned, pass-through,
+ * and fee_basis='total_estimate' are exempt.
+ */
+export function listUnpricedLineLabels(args: {
+  laborEntries: Array<{
+    role_name: string
+    unit_rate: number | null | undefined
+    override_rate?: number | null
+    is_unplanned?: boolean
+    rate_card_item_id?: string | null
+  }>
+  scheduleEntries: Array<{
+    role_name: string
+    day_rate: number | null | undefined
+    is_unplanned?: boolean
+    rate_card_item_id?: string | null
+  }>
+  lineItems: Array<{
+    item_name: string
+    unit_cost: number | null | undefined
+    fee_basis?: string | null
+    is_unplanned?: boolean
+    rate_card_item_id?: string | null
+  }>
+  isPassThroughById: Record<string, boolean>
+}): string[] {
+  const labels: string[] = []
+  for (const e of args.laborEntries) {
+    if (e.is_unplanned) continue
+    const passThrough = isPassThroughLookup(e.rate_card_item_id, args.isPassThroughById)
+    const rate = e.override_rate ?? e.unit_rate
+    if (isUnpricedRate(rate, passThrough)) labels.push(e.role_name)
+  }
+  for (const s of args.scheduleEntries) {
+    if (s.is_unplanned) continue
+    const passThrough = isPassThroughLookup(s.rate_card_item_id, args.isPassThroughById)
+    if (isUnpricedRate(s.day_rate, passThrough)) labels.push(s.role_name)
+  }
+  for (const i of args.lineItems) {
+    if (i.is_unplanned) continue
+    if (i.fee_basis === 'total_estimate') continue
+    const passThrough = isPassThroughLookup(i.rate_card_item_id, args.isPassThroughById)
+    if (isUnpricedRate(i.unit_cost, passThrough)) labels.push(i.item_name)
+  }
+  return labels
+}
+
 export const SUMMARY_SECTIONS = [
   { name: 'Planning & Administration Labor', type: 'labor', lineItemKey: null, passThrough: false },
   { name: 'Onsite Event Labor',              type: 'labor', lineItemKey: null, passThrough: false },

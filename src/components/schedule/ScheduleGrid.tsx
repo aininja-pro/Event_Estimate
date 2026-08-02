@@ -47,7 +47,7 @@ import {
   generateDateRange,
   computeScheduleRollup,
 } from '@/lib/schedule-service'
-import { officeCostRate } from '@/lib/estimate-totals'
+import { isUnpricedRate, officeCostRate } from '@/lib/estimate-totals'
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
@@ -189,19 +189,29 @@ function AddStaffModal({
         </div>
         <div className="flex-1 overflow-y-auto min-h-[200px] max-h-[350px] -mx-1 px-1">
           {filtered.length === 0 && <p className="text-xs text-muted-foreground/50 text-center py-4">No roles found</p>}
-          {filtered.map((role) => (
-            <button
-              key={role.id}
-              onClick={() => toggleRole(role.id)}
-              className={`w-full flex items-center gap-2 px-2 py-1 text-left rounded transition-colors ${selectedIds.has(role.id) ? 'bg-emerald-50 dark:bg-emerald-900/20' : 'hover:bg-muted/50'}`}
-            >
-              <span className={`h-3.5 w-3.5 rounded-sm border flex items-center justify-center shrink-0 ${selectedIds.has(role.id) ? 'bg-emerald-600 border-emerald-600' : 'border-border/60'}`}>
-                {selectedIds.has(role.id) && <Check className="h-2.5 w-2.5 text-white" />}
-              </span>
-              <span className="text-[13px] font-medium flex-1 truncate">{role.name}</span>
-              <span className="text-[11px] text-muted-foreground/50 tabular-nums">${role.unit_rate?.toLocaleString() ?? '0'}/day</span>
-            </button>
-          ))}
+          {filtered.map((role) => {
+            const passThrough = role.is_pass_through === true
+            const noRate = isUnpricedRate(role.unit_rate, passThrough)
+            return (
+              <button
+                key={role.id}
+                onClick={() => toggleRole(role.id)}
+                className={`w-full flex items-center gap-2 px-2 py-1 text-left rounded transition-colors ${selectedIds.has(role.id) ? 'bg-emerald-50 dark:bg-emerald-900/20' : 'hover:bg-muted/50'} ${noRate ? 'opacity-60' : ''}`}
+              >
+                <span className={`h-3.5 w-3.5 rounded-sm border flex items-center justify-center shrink-0 ${selectedIds.has(role.id) ? 'bg-emerald-600 border-emerald-600' : 'border-border/60'}`}>
+                  {selectedIds.has(role.id) && <Check className="h-2.5 w-2.5 text-white" />}
+                </span>
+                <span className="text-[13px] font-medium flex-1 truncate">{role.name}</span>
+                {passThrough ? (
+                  <span className="text-[10px] uppercase tracking-widest text-muted-foreground/60 shrink-0">billed at markup</span>
+                ) : noRate ? (
+                  <span className="text-[10px] uppercase tracking-widest text-amber-600 shrink-0">no rate on file</span>
+                ) : (
+                  <span className="text-[11px] text-muted-foreground/50 tabular-nums">${role.unit_rate?.toLocaleString() ?? '0'}/day</span>
+                )}
+              </button>
+            )
+          })}
           {customRoles.map((role) => (
             <button
               key={role.id}

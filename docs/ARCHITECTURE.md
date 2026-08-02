@@ -75,6 +75,8 @@ scripts/                Python pipeline + SQL migrations
   migration_*.sql       Schema migrations (applied in order)
   supabase_schema.sql   Base schema
   seed_rate_cards.py    Excel rate card → SQL
+  import_intacct_catalog.py   Sprint 019 — load DriveShop 160-item catalog + Intacct coding (dry-run → --confirm → operator applies .sql; never opens DB)
+  import_rate_card_prices.py  Sprint 020 — load per-client prices onto catalog Item IDs (dry-run → --confirm → operator applies .sql; never opens DB)
   compute_historical_patterns.py   Historical event pattern aggregation
 
 docs/                   Architecture + phase kickoffs
@@ -93,7 +95,7 @@ Services are organized by domain. Read the service file for specifics.
 
 ### Estimates & Labor
 - `estimate-service.ts` — Estimate/labor/line item CRUD, `createPrimarySegmentForEstimate()` (single source of truth for initial segment)
-- `estimate-totals.ts` — Shared GR / NR / Cost / GP / GP% computation (used by SummaryTab AND FinancialSummaryCards). Also exports `officeCostRate()` — the single source of truth for office labor cost (`rate × office_payout_pct`), called by all add-time paths and the recompute-on-toggle in `EstimateBuilderPage`; it exists to collapse what were five drifted copies of the formula (Sprint 018 W8 fix).
+- `estimate-totals.ts` — Shared GR / NR / Cost / GP / GP% computation (used by SummaryTab AND FinancialSummaryCards). Also exports `officeCostRate()` — the single source of truth for office labor cost (`rate × office_payout_pct`), called by all add-time paths and the recompute-on-toggle in `EstimateBuilderPage`; it exists to collapse what were five drifted copies of the formula (Sprint 018 W8 fix). Also exports `isUnpricedRate()` / `listUnpricedLineLabels()` — Sprint 020 no-price guard predicate shared by pickers, Summary banner, and the `estimate → in_review` gate.
 - `rate-card-service.ts` — Clients, rate cards, fee types, `getClientApproverForEstimate()`
 
 ### Schedule & Recap

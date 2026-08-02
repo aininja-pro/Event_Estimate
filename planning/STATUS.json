@@ -1,6 +1,10 @@
 {
   "schemaVersion": 1,
   "phase": "sprint-closed",
-  "sprint": "019-intacct-data-load",
-  "updated": "2026-07-02T01:37:57Z"
+  "sprint": "020-rate-card-pricing",
+  "updated": "2026-08-02T19:10:00Z",
+  "flightClass": "critical",
+  "planReviews": "2/3 pass",
+  "inspection": "1/3 ask — residual E2E PDF; closed on operator eyeball + commit request",
+  "operatorDecisions": "2026-08-02 Ray: apply as recommended; eyeball ok"
 }

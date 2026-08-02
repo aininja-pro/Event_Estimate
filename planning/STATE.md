@@ -1,89 +1,98 @@
 # Current State
 
 **Project:** DriveShop Event Estimate Engine
-**Phase:** 2 — Stabilization / First Production Deploy
+**Phase:** 2 — Beta Launch (priced estimates)
 **Mode:** Directed
 
 ## Active Sprint
 
-Sprint 019 — Intacct Data: Start Fresh from DriveShop's Catalog — **SHIPPED (applied 2026-07-01).**
+Sprint 020 — Rate Card Pricing Load + No-Price Guard — **SHIPPED (2026-08-02).**
 
-- **What shipped:** the app's placeholder items + per-client prices (test data, per Ray 2026-07-01) were replaced with DriveShop's real **160-item catalog** as the item foundation. Every item now carries its own `intacct_ar_item_id` (`I0xxx`), Cost GL, and Revenue GL — so the **0/967 AR-item-ID wall is cleared at the source** (fee_types AR/AP/revenue-GL = 160/160/160). Reconciliation-by-GL was abandoned (Builder Step 1 proved GL is coarser than item IDs — see DECISIONS §"Intacct item foundation"). Reference tables loaded: 15 office profiles, 10 revenue segments, 7 clients matched to Intacct customer IDs. Mechanism: full replace in one atomic FK-safe transaction (`scripts/import_intacct_catalog.py` → `.sql`, operator-applied). `tsc` clean; no new eslint findings; historical data (1,674 events / 98 patterns) untouched.
-- **Prices are intentionally empty** — the catalog has items + accounting codes but no prices. Real per-client pricing is a **separate future DriveShop delivery** (Dave/Tatiana). Rate cards (`rate_card_items`) are empty until it lands.
-- **For the 2026-07-02 Dave meeting:** real pricing; 16 client→customer exceptions (JLR="Jaguar Land Rover", VW/Volkswagen, composites); 9 non-standard office-payout items; estimate-facing "In event estimate?" flag; overtime `.01` items; `4000.99`. Optional tiny cleanup: two pre-existing placeholder reference rows (`Test Office`, `Test Revenue`) survive (idempotent upsert didn't remove them) — still referenced by test estimates; harmless.
+DriveShop delivered real per-client pricing on 2026-07-24 (Dave Morck, by email). This sprint loaded it and closed the silent-$0 hole that would otherwise let an unpriced item reach a client PDF. Operator applied SQL + eyeball OK. Load: **1,397** `rate_card_items` (497 priced + 900 pass-through; −2 vs original 1,399 headline = skipped duplicate `I0217` High Markets rows). Stage B: `isUnpricedRate()` + three-table `estimate → in_review` gate + picker markers + Summary banner.
 
-Sprint 018 — Office Cost Correction + Intacct Export — **two-phase.**
+- **Source (staged 2026-07-27):** `data/imports/DriveShop_Rate_Card_Template_for_Dave - Updated.xlsx` — 20 client tabs, each carrying all 160 catalog items, prices filled where that client uses the item. SHA-256 `f4a6ff18fdc6c241d62b9bb0b4fb9a5a0de9a9145a16fbf816a19ebb5222b6f7`; every figure below was derived from that exact file. `data/` is gitignored (`.gitignore:46`), so the workbook is **not in version control** — it lives only on the operator's machine, same as the Sprint 019 imports. Back it up outside the repo; git cannot restore it.
+- **The join is clean.** Architect verification 2026-07-27: all 160 Item IDs in the template match the catalog loaded in Sprint 019 **exactly** (0 unknown, 0 renamed, 0 duplicate names); all 20 tab names match existing `clients.name` rows exactly; the template's 6 sections are the app's 6 `rate_card_sections`. No fuzzy matching is required or permitted — Item ID is the key.
+- **What loads:** **1,399** `rate_card_items` across 20 clients = **499** priced non-overtime rows + **900** pass-through rows (45 per client, `unit_rate` NULL, billed at client markup). **158** of the priced rows carry an overtime rate.
+- **What does not load:** **1,223** blank rows (client does not use that item) and **140** priced standalone overtime items (money preserved via the parent row's Overtime Rate column — see the overtime decision below).
+- **The guard:** an item with no rate on file must say so in the picker, and an estimate must not advance `estimate → in_review` while any non-pass-through line carries a zero/null rate. Four `unit_rate ?? 0` coercion sites are the hazard.
 
-- **Phase 1 — Office Cost Correction: shipped (Sprint 018 Phase 1).** The Sprint 017 W8 finding (office labor cost/GP inverted) is fixed: formula corrected to `cost = day_rate × office_payout_pct` across all five sites, collapsed to a single `officeCostRate()` helper, with recompute-and-persist on the Corporate↔Office toggle and office-row rate change (all segments). Confirmed by Dave Morck (VP Ops) 2026-06-01, scoped to fee/non-pass-through. CFO sign-off (Tatiana) pending — revisit only if she dissents. See DECISIONS §W8.
-- **Phase 2 — Intacct Export: UNBLOCKED at the item-ID level (Sprint 019).** The exporter is built and the AR item-ID wall is cleared (every item carries its `intacct_ar_item_id`); Phase 1 makes AP amounts correct. **A full end-to-end export test still needs a priced estimate** — deferred until real per-client pricing arrives. Remaining before a production export: real pricing, the 16 client→customer mappings, `dueDate` wiring, default scalars (`transactionType`, `exchRateType`), and the corporate-scope decision. See `planning/sprints/018-intacct-export/NOTES.md`.
+**Decisions taken with Ray, 2026-07-27** (Builder appends these to `DECISIONS.md` at close):
+1. **Scope is prices only.** Corporate cost and the Intacct client settings are separate sprints (021+). Do not widen.
+2. **Overtime is an attribute of the parent item.** Load the parent row's Overtime Rate column; do **not** create rate-card rows for the 29 standalone `.01` overtime items. They stay in `fee_types` for accounting and the Intacct export. This finally answers open question #3.
+3. **No price ⇒ show it, flag it.** Unpriced items stay visible and clearly marked, and block approval. Do not hide them; do not silently zero them.
 
-## Production Deployment — LIVE (2026-07-02)
+## Production Deployment — LIVE (since 2026-07-02)
 
-The app is deployed on Render for the first time, resolving the long-pending Sprint 017 operator-deploy carryover.
+Render Blueprint `driveshop-event-estimate` from `render.yaml`, deploying from branch **`sprint-018-office-cost-correction`** (NOT `main` — `main` is ~3 sprints behind). Static frontend `event-history` + Python backend `driveshop-api`. Owner confirmed running 2026-07-02. Full detail in DECISIONS §"Render deployment".
 
-- **How:** Render **Blueprint** `driveshop-event-estimate`, deploying from `render.yaml` on branch **`sprint-018-office-cost-correction`** (NOT `main` — `main` is ~2 sprints behind). Two services: static frontend **`event-history`** + Python backend **`driveshop-api`**. The Blueprint auto-syncs on every push to that branch → **that branch is now the production branch.** See DECISIONS §"Render deployment".
-- **Backend env vars set** on `driveshop-api` (operator-verified names, 2026-07-02): `ANTHROPIC_API_KEY`, `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`, `RESEND_API_KEY`, `DATA_FEED_API_KEY`, `FRONTEND_URL` (= static site origin, for CORS), `APPROVAL_BASE_URL` (= backend origin), `RESEND_FROM_EMAIL=onboarding@resend.dev`, `CLIENT_APPROVAL_EMAIL_ENABLED=false`. `EXTRA_CORS_ORIGINS` intentionally unset (optional). Frontend `event-history` has `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_API_URL` (= backend origin, baked at build).
-- **Aptfile** ships on the branch → WeasyPrint native libs install for backend PDF rendering.
-- **Operator confirmed "up and running"** 2026-07-02. Recommended quick confirmations if not yet done: hit `GET /api/health`; exercise one API-backed action (AI scoping or a PDF); confirm the deployed frontend isn't CORS-blocked (guards `FRONTEND_URL` correctness).
-- **Live-app consequence of Sprint 019:** rate cards are **empty** (test prices cleared; real pricing is a future delivery). New estimates will have unpriced line items until pricing lands — expected, not a bug.
+**Two operational items are still open and are now Sprint 021:**
+- **Rotate** the Supabase, Anthropic, and Resend keys (they sat in local plaintext) and set fresh values on `driveshop-api`. Unconfirmed as of 2026-07-27 — treat as still exposed.
+- **Consolidate production onto `main`** (merge the deploy branch, repoint the Blueprint). Anyone assuming `main` is production is currently wrong.
 
-**Still open (ops / housekeeping):**
-- **Rotate** the Supabase, Anthropic, and Resend keys (they sat in local plaintext) — set the fresh values on `driveshop-api`. Confirm whether done.
-- **`main` consolidation (optional):** merge `sprint-018-office-cost-correction` → `main` and repoint the Blueprint to `main` for a conventionally-named production branch. Triggers a redeploy.
-- **Guardrail (unchanged):** do NOT generate client-facing PDFs for recap-stage estimates that have unplanned schedule items (see Deferred / DECISIONS).
+**Guardrail (unchanged):** do NOT generate client-facing PDFs for recap-stage estimates that have unplanned schedule items (see Deferred / DECISIONS).
 
 ## Just Shipped
 
-**Sprint 017 — Deploy Readiness** (W1–W7 shipped, W8 investigated)
-- **W1 — Agency fee on PDFs:** fee-basis lines now compute against estimate-wide non-fee revenue in `pdf_data_service.py`; PDF grand total matches the on-screen total and is internally consistent to the cent. Verified across all 5 estimates; non-fee output byte-identical.
-- **W2 — Snapshot / CO / threshold correctness:** version snapshots delegate to the canonical engine (`estimate-totals.ts`); change-order baselines (Option A, per-segment) and `computeSegmentRevenue` now include fee-basis revenue and exclude unplanned. Verified against the real TS engine (Δ = agency fee, cost unchanged).
-- **W3 — WeasyPrint on Render:** added root `Aptfile` (Pango/Cairo/gdk-pixbuf) so PDFs render in production.
-- **W4 — render.yaml env vars:** declared the 5 missing backend vars (Resend key, data-feed key, approval base URL, frontend URL, extra CORS) + the `CLIENT_APPROVAL_EMAIL_ENABLED` gate; secrets `sync: false`.
-- **W5 — Hybrid email mode:** client-facing approval email gated off for beta (backend-enforced via `CLIENT_APPROVAL_EMAIL_ENABLED`, frontend reads `/api/health`); internal routing, transitions, audit trail, and the confirm endpoint all intact; UI hides the Send button and shows the manual-approve path. Backend smoke-tested (`email_sent: false`, token still created, no Resend call).
-- **W6 — Env hygiene:** removed the frontend Anthropic key + dead `src/lib/ai.ts`; gitignored `api/.env`; fixed a corrupted root `.env` line; (incidental) fixed a latent Node-types leak in `ScheduleGrid.tsx`.
-- **W7 — Summary-tab section %:** each section header shows its revenue as % of total bid (read-only, derived from canonical totals; reconciles to the cent).
-- **W8 — Office-cost formula correction (fixed in Sprint 018 Phase 1):** the inverted office labor cost/GP formula is corrected — `cost = day_rate × office_payout_pct` across all **five** sites (four add-time write paths + the `LaborEntryRow` read-time recompute, which now reads the stored value), collapsed to one `officeCostRate()` helper, with recompute-and-persist on the Corporate↔Office toggle and office-row rate change (all segments). Confirmed by Dave Morck (VP Ops) 2026-06-01, scoped to fee/non-pass-through; CFO sign-off (Tatiana) pending. `tsc` clean; 0 new eslint findings. No historical backfill (scope boundary). Live toggle click-through to be run by operator before close. See DECISIONS §W8.
+**Sprint 019 — Intacct Data: Start Fresh from DriveShop's Catalog** (applied to the live DB 2026-07-01)
+- Replaced the app's placeholder items and test prices with DriveShop's real **160-item catalog**. Every item carries its own `intacct_ar_item_id` (`I0xxx`), Cost GL and Revenue GL, so the 0/967 AR-item-ID wall was cleared **at the source**. `fee_types` = 160 with AR/AP/revenue-GL 160/160/160.
+- Reconciliation-by-GL was abandoned (proven impossible — GL is coarser than Item IDs). Do not revive it.
+- `rate_card_items` deliberately left **empty** pending real pricing. **Sprint 020 fills them.**
+- Reference tables loaded: 15 office profiles, 10 revenue segments, 7 of 23 clients matched to Intacct customer IDs.
+- Historical data (1,674 events / 98 patterns) untouched. `tsc` clean; no new eslint findings.
+
+**Sprint 018 Phase 1 — Office Cost Correction (W8)** — office labor cost corrected to `day_rate × office_payout_pct` across all five sites, collapsed to a single `officeCostRate()` helper in `estimate-totals.ts`, with recompute-and-persist on the Corporate↔Office toggle and office-row rate change. Confirmed by Dave Morck (VP Ops) 2026-06-01. CFO sign-off (Tatiana) still pending — revisit only if she dissents.
 
 ## Recently Shipped
 
-- **Sprint 016** — Rate Card Bulk Import (20-tab cost rate card; 14 new OEM clients, 46 fee_types, No-Client fallback)
+- **Sprint 017** — Deploy Readiness (W1–W7 shipped, W8 investigated)
+- **Sprint 016** — Rate Card Bulk Import (20-tab cost rate card; 14 new OEM clients, 46 fee_types)
 - **Sprint 015** — Admin Settings UI for Financial Thresholds
 - **Sprint 014** — Final Polish (client approval email, toasts, invoice-with-receipts PDF, data feed API)
 - **Sprint 013** — Client-Specific Approval Routing
 - **Sprint 012** — Unplanned Additions in Recap
-- **Sprint 011** — Schedule Recap Actuals + Financial Summary Cards
 
 ## Next Up
 
-**Sprint 018 — Sage Intacct CSV Export + Final QA**
-CSV export for upload into Intacct (CSV-based, not an API integration). **The exporter is already COMPLETE** — the AR/Invoice + AP/Bill CSV pipeline (`accounting-review-service.ts` → `accounting-export-line-service.ts` → `accounting-csv-service.ts`) matches Tatiana's two templates field-for-field. So 018 is **not** a from-scratch build; it is:
-1. **Populate the Intacct mapping data with real IDs** (the actual work) — `rate_card_items` AR item IDs + AP GL accounts (currently **0/967**, AR `itemId` has no fallback), fee_types equivalents, `clients.intacct_customer_id` (1/23) + dept/location defaults (0/23), per-estimate project/office-profile/revenue-segment. Today's few populated values are placeholder test data, not real Intacct IDs.
-2. **Fix W8** (office cost-direction) — AP bill amounts are inverted until it's fixed.
-3. **Confirm default scalar values** (`transactionType`, `exchRateType`, `referenceNo`/`billNo`/`dueDate` conventions; `dueDate` is unwired today).
-4. **Decide corporate-event scope** (export is office-only by design).
-5. Final QA pass folds in once beta feedback is collected.
+See `planning/ROADMAP.md` for the full road (about 6 sprints).
 
-Full readiness snapshot: `planning/sprints/018-intacct-export/NOTES.md`. (0 of 5 office estimates would produce a valid export today — only Test 10/Dallas clears the workflow gate, and it still fails at the line level on missing item/GL mappings.)
+- **Sprint 021 — Production Hardening.** Rotate the plaintext-era keys; consolidate the deploy branch onto `main`; confirm `/api/health` and one API-backed action end-to-end.
+- **Sprint 022 — Client Settings + Intacct Customer Mapping.** Dave returned the "Client Settings" tab entirely blank. Confirm pass-through markup %, agency fee %, office payout % against what the app already holds, and map the remaining 16 clients to Intacct customer IDs. Needs Tatiana.
+- **Sprint 023 — Catalog Amendments.** Dave's own follow-ups (see Open Questions).
+- **Sprint 024 — First Real Intacct Export End-to-End.** Finishes Sprint 018 Phase 2.
+- **Sprint 025 — Corporate Event Cost & Gross Profit.**
+
+## Open Questions — routed to DriveShop (not blocking Sprint 020)
+
+Raised by the 2026-07-27 review of Dave's pricing file. All four go to Dave/Tatiana; none block the load.
+
+1. **Chauffeur market split shares one Item ID.** On the Maserati and Volvo tabs Dave split "Professional Chauffeur Hours" into *Standard Market* and *High Markets* at different prices, but both rows carry `I0217`. Accounting must issue a second Item ID (the pre-Sprint-019 rate card had exactly this split as LA/SF/NY vs all other markets).
+2. **Four items flagged "Duplicate???"** by Dave on every tab, all left unpriced: `I0204` Vehicle Labor Days, `I0205` Vehicle Labor O/T Hours, `I0202` Vehicle Manager Days, `I0203` Vehicle Manager O/T Hours. They exist in the accounting catalog, so they need a decision, not deletion.
+3. **Two new flat-rate items requested** in Dave's email: "EV Charging - Flat Rate" and "Per Diem". Both already exist as **pass-through** items (`I00601` EV Charging, `I0090` Per Diem). What he is asking for is a fixed-price variant of each — new catalog items needing their own Item ID and GL from accounting, not a rename.
+4. **`I00601` is a malformed Item ID** — five digits where all 159 others are four. It arrived that way in Dave's own catalog file and is already loaded into `fee_types`. Confirm with accounting whether it should be `I0060` or something else.
+
+Carried from the 2026-07-02 list, still open: the 16 client→Intacct-customer mappings (Sprint 022); the blank "In event estimate?" column; `4000.99`; per-item vs per-client office payout.
 
 ## Deferred
 
-**Sprint 017 findings (need a decision before fixing — see DECISIONS.md for full data):**
-- **W8 — Office-event cost/GP formula INVERTED — RESOLVED in Sprint 018 Phase 1** (moved to Just Shipped). Office labor cost is now `day_rate × office_payout_pct`; formula corrected across all five sites (single `officeCostRate()` helper) + recompute-and-persist on toggle/rate-change across all segments. Confirmed by Dave Morck (VP Ops); CFO sign-off pending.
-- **PDF labor rollup diverges from canonical** on recap+unplanned estimates (PDF over-counts labor; +$1,995/+40% on Mazda Ride & Drive). Fix = point PDF at the canonical rollup. Guardrail: no client PDFs for recap-stage estimates with unplanned items.
+**Findings needing a decision before fixing (full data in DECISIONS.md):**
+- **Corporate-event cost is not recorded at all.** The add paths set `cost_rate: null` for corporate-structure estimates, so corporate estimates show ~100% gross profit. Pre-existing — not caused by Sprint 019 or 020 — but it becomes highly visible the moment the beta runs corporate events. Sprint 025. Note: the Sprint 016 rate card carried per-item `corporate_cost` values that Sprint 019 deleted; they are recoverable from `scripts/import_rate_cards.sql` in git.
+- **PDF labor rollup diverges from canonical** on recap+unplanned estimates (PDF over-counts labor; +$1,995/+40% on Mazda Ride & Drive). Fix = point the PDF at the canonical rollup. Guardrail above stands until then.
 - **CO deltas don't reflect the agency-fee ripple** (per-segment by design) — pending Tatiana.
 - **Approval threshold is fee-blind** (per-segment by design) — governance call for Tatiana.
 - **Totals computed in 5 independent places** — consolidate onto one engine (future sprint).
 - **Data hygiene:** historical pipeline field `cost_rate` actually holds the source's **Margin %** — rename to `margin_pct` so it isn't mis-read again.
+- **Two leftover placeholder reference rows** (`Test Office`, `Test Revenue`) survive from Sprint 019, still referenced by test estimates. Harmless; cleanup needs those FKs nulled first (RESTRICT).
+- **eslint has pre-existing errors** unrelated to recent work (FeedbackPage, ScheduleGrid, EstimateBuilderPage, ui/*, schedule-service) — candidate for a cleanup sprint.
 
 **Pre-existing / longer-term:**
-- `driveshop.com` Resend sender domain verification (flip `CLIENT_APPROVAL_EMAIL_ENABLED=true` once verified to re-enable client email)
-- Drop now-unused `@anthropic-ai/sdk` from the frontend `package.json` (no importers after W6)
+- `driveshop.com` Resend sender domain verification (flip `CLIENT_APPROVAL_EMAIL_ENABLED=true` once verified)
+- Drop now-unused `@anthropic-ai/sdk` from the frontend `package.json`
 - Internal / External / Vendor line type driving cost source (needs business-rule decisions)
-- Locked rates on the corporate / no-client rate card; Internal/External/Vendor cost-mix on Summary (depends on type-driven logic)
+- Locked rates on the corporate / no-client rate card; Internal/External/Vendor cost-mix on Summary
 - New rate card sections — Creator Services, Media, Talent (blocked on field defs + GL codes)
-- Rate card data cleanup; Corporate event recap workflow
-- Recap-variance overtime-multiplier reconciliation; data-feed totals performance (O(n))
-- Location-aware historical patterns; per-estimate approver override (OOO); confirmation emails to client + AM on client approval
+- Corporate event recap workflow; recap-variance overtime-multiplier reconciliation
+- Data-feed totals performance (O(n)); location-aware historical patterns
+- Per-estimate approver override (OOO); confirmation emails to client + AM on client approval
 - Live broadcast of system settings to open tabs; default landing page setting
 - Editing `is_unplanned` post-creation; unplanned items on client-facing PDFs
 - SMS notifications; multiple receipt attachments per line item

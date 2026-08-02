@@ -42,6 +42,16 @@ If you're about to change something in this codebase and the change would violat
 - **Locked rates** — `rate_card_items.is_rate_locked` disables `unit_rate` editing in the rate card management dialog.
 - **Resource type** — Tracked on `schedule_entries` and `labor_entries` (`internal | external | vendor`). Default `'external'`.
 
+## Rate Card Pricing (Sprint 020)
+
+- **Item ID is the sole join key** — Dave's pricing workbook joins to `fee_types` only via `intacct_ar_item_id`. Never match on name or GL code (Sprint 019 proved GL is coarser than Item ID).
+- **Overtime is a parent attribute** — Load the parent row's Overtime Rate column into `has_overtime_rate` / `overtime_rate`. Do **not** create rate-card rows for the 29 standalone `.01` overtime items; they stay in `fee_types` for accounting/Intacct only.
+- **Blank = client does not use the item** — Skip blank non-pass-through rates. Do not invent prices.
+- **Pass-through = NULL rate by design** — Cost Type Pass Through creates `unit_rate = NULL`, `is_pass_through = true`; billed at client markup on actual cost.
+- **Unpriced-line guard** — `isUnpricedRate()` in `estimate-totals.ts` is the sole predicate. Blocks `estimate → in_review` when any non-exempt row in `labor_entries` (effective rate `override_rate ?? unit_rate`), `schedule_entries` (`day_rate`), or `estimate_line_items` (`unit_cost`) is zero/null. Exemptions: unplanned, pass-through (via `rate_card_item_id → rate_card_items.is_pass_through`; null FK ⇒ not pass-through), and `fee_basis = 'total_estimate'`. Pickers mark "no rate on file" / "billed at markup"; Summary banner uses the same rules.
+- **Accepted residual** — A pass-through line item with no actual cost typed yet sits at `unit_cost = 0` and is exempt (must never trip the guard).
+- **Operator decisions 2026-08-02** — Trust parent OT column for Lucid/MB `I0041` (80); leave `I0124` OT blank; `I0217` High Markets unloadable until Sprint 023; Duplicate??? items unused; Creative OT==rate accepted. Load creates **1,397** rows (not 1,399) because of the two skipped `I0217` duplicates.
+
 ## Schedule & Recap
 
 - **Schedule-driven segments** — Empty `labor_entries`. Labor log UI derives data from `schedule_entries`. Staffing mismatch check skips these segments.

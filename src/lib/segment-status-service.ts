@@ -10,6 +10,7 @@ import {
 import { hasPermission, type Permission } from './permissions'
 import { getClientApproverForEstimate } from './rate-card-service'
 import { getActualCostTotal } from './accounting-amounts'
+import { isPassThroughLookup, isUnpricedRate } from './estimate-totals'
 import type {
   SegmentStatus,
   SegmentActivity,
@@ -160,6 +161,77 @@ export async function transitionSegmentStatus(
   }
   if (fromStatus === 'recap' && toStatus === 'invoiced' && isOfficeEvent) {
     return { success: false, error: 'Office Event recaps must be approved by accounting before invoicing.' }
+  }
+
+  // Block estimate → in_review when any non-exempt line has no usable rate
+  // (Sprint 020). Same error shape/tone as the person_name gate below — not
+  // the same query. Effective rates: labor = override_rate ?? unit_rate,
+  // schedule = day_rate, line items = unit_cost. Exemptions: unplanned,
+  // pass-through (via rate_card_item_id), fee_basis = 'total_estimate'.
+  if (fromStatus === 'estimate' && toStatus === 'in_review') {
+    const [{ data: laborRows, error: leErr }, { data: schedRows, error: seErr }, { data: lineRows, error: liErr }] =
+      await Promise.all([
+        db
+          .from('labor_entries')
+          .select('id, role_name, unit_rate, override_rate, is_unplanned, rate_card_item_id')
+          .eq('labor_log_id', laborLogId),
+        db
+          .from('schedule_entries')
+          .select('id, role_name, day_rate, is_unplanned, rate_card_item_id')
+          .eq('labor_log_id', laborLogId),
+        db
+          .from('estimate_line_items')
+          .select('id, item_name, unit_cost, fee_basis, is_unplanned, rate_card_item_id')
+          .eq('labor_log_id', laborLogId),
+      ])
+    if (leErr) return { success: false, error: leErr.message }
+    if (seErr) return { success: false, error: seErr.message }
+    if (liErr) return { success: false, error: liErr.message }
+
+    const rcIds = new Set<string>()
+    for (const r of laborRows || []) if (r.rate_card_item_id) rcIds.add(r.rate_card_item_id as string)
+    for (const r of schedRows || []) if (r.rate_card_item_id) rcIds.add(r.rate_card_item_id as string)
+    for (const r of lineRows || []) if (r.rate_card_item_id) rcIds.add(r.rate_card_item_id as string)
+
+    const isPassThroughById: Record<string, boolean> = {}
+    if (rcIds.size > 0) {
+      const { data: rcItems, error: rcErr } = await db
+        .from('rate_card_items')
+        .select('id, is_pass_through')
+        .in('id', [...rcIds])
+      if (rcErr) return { success: false, error: rcErr.message }
+      for (const item of rcItems || []) {
+        isPassThroughById[item.id as string] = item.is_pass_through === true
+      }
+    }
+
+    const unpricedNames: string[] = []
+    for (const e of laborRows || []) {
+      if (e.is_unplanned) continue
+      const passThrough = isPassThroughLookup(e.rate_card_item_id as string | null, isPassThroughById)
+      const rate = (e.override_rate ?? e.unit_rate) as number | null
+      if (isUnpricedRate(rate, passThrough)) unpricedNames.push(String(e.role_name))
+    }
+    for (const s of schedRows || []) {
+      if (s.is_unplanned) continue
+      const passThrough = isPassThroughLookup(s.rate_card_item_id as string | null, isPassThroughById)
+      if (isUnpricedRate(s.day_rate as number | null, passThrough)) unpricedNames.push(String(s.role_name))
+    }
+    for (const i of lineRows || []) {
+      if (i.is_unplanned) continue
+      if (i.fee_basis === 'total_estimate') continue
+      const passThrough = isPassThroughLookup(i.rate_card_item_id as string | null, isPassThroughById)
+      if (isUnpricedRate(i.unit_cost as number | null, passThrough)) unpricedNames.push(String(i.item_name))
+    }
+
+    if (unpricedNames.length > 0) {
+      const sample = unpricedNames.slice(0, 3).join(', ')
+      const more = unpricedNames.length > 3 ? ` (+${unpricedNames.length - 3} more)` : ''
+      return {
+        success: false,
+        error: `Cannot submit for review — ${unpricedNames.length} line${unpricedNames.length === 1 ? '' : 's'} ${unpricedNames.length === 1 ? 'has' : 'have'} no rate on file (${sample}${more}). Price or remove ${unpricedNames.length === 1 ? 'it' : 'them'} first.`,
+      }
+    }
   }
 
   // Block recap → invoiced if staff names are missing
