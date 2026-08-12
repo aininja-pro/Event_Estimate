@@ -6,32 +6,35 @@
 
 ## Active Sprint
 
-Sprint 020 — Rate Card Pricing Load + No-Price Guard — **SHIPPED (2026-08-02).**
+Sprint 022 — Client Accounting Identity + VW Merge — **SHIPPED (applied 2026-08-10).**
 
-DriveShop delivered real per-client pricing on 2026-07-24 (Dave Morck, by email). This sprint loaded it and closed the silent-$0 hole that would otherwise let an unpriced item reach a client PDF. Operator applied SQL + eyeball OK. Load: **1,397** `rate_card_items` (497 priced + 900 pass-through; −2 vs original 1,399 headline = skipped duplicate `I0217` High Markets rows). Stage B: `isUnpricedRate()` + three-table `estimate → in_review` gate + picker markers + Summary banner.
+Every client record now carries the Intacct customer ID Tatiana confirmed, and the duplicate VW/Volkswagen pair is one record.
 
-- **Source (staged 2026-07-27):** `data/imports/DriveShop_Rate_Card_Template_for_Dave - Updated.xlsx` — 20 client tabs, each carrying all 160 catalog items, prices filled where that client uses the item. SHA-256 `f4a6ff18fdc6c241d62b9bb0b4fb9a5a0de9a9145a16fbf816a19ebb5222b6f7`; every figure below was derived from that exact file. `data/` is gitignored (`.gitignore:46`), so the workbook is **not in version control** — it lives only on the operator's machine, same as the Sprint 019 imports. Back it up outside the repo; git cannot restore it.
-- **The join is clean.** Architect verification 2026-07-27: all 160 Item IDs in the template match the catalog loaded in Sprint 019 **exactly** (0 unknown, 0 renamed, 0 duplicate names); all 20 tab names match existing `clients.name` rows exactly; the template's 6 sections are the app's 6 `rate_card_sections`. No fuzzy matching is required or permitted — Item ID is the key.
-- **What loads:** **1,399** `rate_card_items` across 20 clients = **499** priced non-overtime rows + **900** pass-through rows (45 per client, `unit_rate` NULL, billed at client markup). **158** of the priced rows carry an overtime rate.
-- **What does not load:** **1,223** blank rows (client does not use that item) and **140** priced standalone overtime items (money preserved via the parent row's Overtime Rate column — see the overtime decision below).
-- **The guard:** an item with no rate on file must say so in the picker, and an estimate must not advance `estimate → in_review` while any non-pass-through line carries a zero/null rate. Four `unit_rate ?? 0` coercion sites are the hazard.
-
-**Decisions taken with Ray, 2026-07-27** (Builder appends these to `DECISIONS.md` at close):
-1. **Scope is prices only.** Corporate cost and the Intacct client settings are separate sprints (021+). Do not widen.
-2. **Overtime is an attribute of the parent item.** Load the parent row's Overtime Rate column; do **not** create rate-card rows for the 29 standalone `.01` overtime items. They stay in `fee_types` for accounting and the Intacct export. This finally answers open question #3.
-3. **No price ⇒ show it, flag it.** Unpriced items stay visible and clearly marked, and block approval. Do not hide them; do not silently zero them.
+- **21 of 22 clients carry a customer ID.** `No Client` is the only one without, deliberately: it is our internal fallback, not a DriveShop account.
+- **VW merge done, data intact.** `Volkswagen` held the 70 priced rate-card rows; the empty `VW` record held the non-standard **0.8000** office payout. The payout was carried across before the delete, then `Volkswagen` was renamed to `VW` with code `VW` and customer `C0208`. Verified after the load: one `VW`, 70 rate rows, payout 0.8000. Total rate-card rows across all clients unchanged at **1,397** — nothing was lost.
+- **Two customer IDs are shared by two clients each, by design:** `C0004` (Acura + Honda) and `C0099` (Volvo + Volvo MS). Any uniqueness check must permit this.
+- **A live-catalog check found `rate_card_items.client_id` is `ON DELETE CASCADE`**, so deleting a client silently destroys its rate card. The load guarded the delete explicitly rather than trusting the database to refuse it. Future client merges must do the same.
+- **Still blocking a real export, and not fixable by us:** AR payment terms (only Mazda has one) and department (no fallback anywhere). Both are Tatiana's, QUESTIONS #14 and #15.
 
 ## Production Deployment — LIVE (since 2026-07-02)
 
 Render Blueprint `driveshop-event-estimate` from `render.yaml`, deploying from branch **`main`** since 2026-08-10 (Sprint 021). Static frontend `event-history` + Python backend `driveshop-api`; the Branch setting was changed on both services. Push to `main` to deploy. Before 2026-08-10 the tracked branch was `sprint-018-office-cost-correction`; older notes describe that period. Full detail in DECISIONS §"Render deployment".
 
-**Two operational items are still open and are now Sprint 021:**
-- **Rotate** the Supabase, Anthropic, and Resend keys (they sat in local plaintext) and set fresh values on `driveshop-api`. Unconfirmed as of 2026-07-27 — treat as still exposed.
-- **Consolidate production onto `main`** (merge the deploy branch, repoint the Blueprint). Anyone assuming `main` is production is currently wrong.
+**Both former operational items are closed (Sprint 021, 2026-08-10):** the branch was consolidated onto `main`, which is what finally put Sprint 020's price guard into production. Key rotation was **dropped by decision** after investigation showed no `.env` was ever committed and no real credential appears in any tracked file; the exposure was local-machine only. See RISKS for the full reasoning.
+
+**Still unverified by command:** no deploy has ever been confirmed with a health check or an exercised API call, including the one that shipped the price guard. Carried since Sprint 017; logged as an accepted risk.
 
 **Guardrail (unchanged):** do NOT generate client-facing PDFs for recap-stage estimates that have unplanned schedule items (see Deferred / DECISIONS).
 
 ## Just Shipped
+
+**Sprint 021 — Production Branch Consolidation** (2026-08-10, operator-executed, no build)
+- Both Render services repointed from `sprint-018-office-cost-correction` to `main`. A fast-forward: `main` was one commit ahead, the deploy branch held nothing `main` lacked. This put Sprint 020's price guard live for the first time; between 2026-08-02 and 2026-08-10 production had real prices and no guard.
+
+**Sprint 020 — Rate Card Pricing Load + No-Price Guard** (2026-08-02)
+- Loaded DriveShop's delivered per-client pricing: **1,397** `rate_card_items` across 20 clients (497 priced + 900 pass-through, 158 carrying an overtime rate). Estimators can build priced estimates again for the first time since the Sprint 019 catalog wipe.
+- Added the unpriced-line guard: `isUnpricedRate()` plus a three-table `estimate → in_review` block, picker markers and a Summary banner.
+- **One criterion closed as `attention`, not proven:** Summary-to-PDF cent reconciliation on a freshly built priced estimate. Still outstanding.
 
 **Sprint 019 — Intacct Data: Start Fresh from DriveShop's Catalog** (applied to the live DB 2026-07-01)
 - Replaced the app's placeholder items and test prices with DriveShop's real **160-item catalog**. Every item carries its own `intacct_ar_item_id` (`I0xxx`), Cost GL and Revenue GL, so the 0/967 AR-item-ID wall was cleared **at the source**. `fee_types` = 160 with AR/AP/revenue-GL 160/160/160.
@@ -53,24 +56,26 @@ Render Blueprint `driveshop-event-estimate` from `render.yaml`, deploying from b
 
 ## Next Up
 
-See `planning/ROADMAP.md` for the full road (about 6 sprints).
+See `planning/ROADMAP.md` for the full road. Sprints 020, 021 and 022 are done; three remain.
 
-- **Sprint 021 — Production Hardening.** Rotate the plaintext-era keys; consolidate the deploy branch onto `main`; confirm `/api/health` and one API-backed action end-to-end.
-- **Sprint 022 — Client Settings + Intacct Customer Mapping.** Dave returned the "Client Settings" tab entirely blank. Confirm pass-through markup %, agency fee %, office payout % against what the app already holds, and map the remaining 16 clients to Intacct customer IDs. Needs Tatiana.
-- **Sprint 023 — Catalog Amendments.** Dave's own follow-ups (see Open Questions).
-- **Sprint 024 — First Real Intacct Export End-to-End.** Finishes Sprint 018 Phase 2.
-- **Sprint 025 — Corporate Event Cost & Gross Profit.**
+- **Sprint 023 — Catalog Amendments.** Dave's follow-ups: the chauffeur market split needing its own Item ID, the four "Duplicate???" items, flat-rate EV Charging and Per Diem, and the `I00601` typo. All blocked on accounting issuing IDs.
+- **Sprint 024 — First Real Intacct Export End-to-End.** Finishes Sprint 018 Phase 2. **Blocked on Tatiana** for AR payment terms and department (QUESTIONS #14, #15), and on the per-estimate fields a user must fill in: project ID, revenue segment, event city and state.
+- **Sprint 025 — Corporate Event Cost & Gross Profit.** Corporate estimates record no cost, so they show ~100% GP.
 
-## Open Questions — routed to DriveShop (not blocking Sprint 020)
+## Open Questions — routed to DriveShop
 
-Raised by the 2026-07-27 review of Dave's pricing file. All four go to Dave/Tatiana; none block the load.
+Full list with provenance in `planning/QUESTIONS.md`. Tatiana's customer mapping is **fully answered and loaded**; what follows is what remains.
+
+**For Tatiana (blocks Sprint 024):** AR payment terms per client, and default department. Both were blank on the Client Settings tab; neither has a usable fallback in the exporter.
+
+**For Dave:**
 
 1. **Chauffeur market split shares one Item ID.** On the Maserati and Volvo tabs Dave split "Professional Chauffeur Hours" into *Standard Market* and *High Markets* at different prices, but both rows carry `I0217`. Accounting must issue a second Item ID (the pre-Sprint-019 rate card had exactly this split as LA/SF/NY vs all other markets).
 2. **Four items flagged "Duplicate???"** by Dave on every tab, all left unpriced: `I0204` Vehicle Labor Days, `I0205` Vehicle Labor O/T Hours, `I0202` Vehicle Manager Days, `I0203` Vehicle Manager O/T Hours. They exist in the accounting catalog, so they need a decision, not deletion.
 3. **Two new flat-rate items requested** in Dave's email: "EV Charging - Flat Rate" and "Per Diem". Both already exist as **pass-through** items (`I00601` EV Charging, `I0090` Per Diem). What he is asking for is a fixed-price variant of each — new catalog items needing their own Item ID and GL from accounting, not a rename.
 4. **`I00601` is a malformed Item ID** — five digits where all 159 others are four. It arrived that way in Dave's own catalog file and is already loaded into `fee_types`. Confirm with accounting whether it should be `I0060` or something else.
 
-Carried from the 2026-07-02 list, still open: the 16 client→Intacct-customer mappings (Sprint 022); the blank "In event estimate?" column; `4000.99`; per-item vs per-client office payout.
+Also open for Dave: the blank "In event estimate?" column; `4000.99`; per-item vs per-client office payout; and **Volvo MS prices** — Tatiana confirmed it runs its own rate table but Dave sent no Volvo MS tab, so it can invoice and cannot produce an estimate.
 
 ## Deferred
 

@@ -11,8 +11,9 @@ Numbered so the diff read can cite them. Every box needs evidence, not assertion
 ## Stage B — the merge
 
 4. [ ] After the load there is **exactly one** client named `VW` and **no** client named `Volkswagen`.
-5. [ ] That surviving `VW` record has **71** `rate_card_items`. (If it has 0, the wrong record survived. Stop.)
-6. [ ] That record's `office_payout_pct` matches the non-standard value the Stage A audit showed, expected **0.80**. If the audit showed 80% on the old `VW` record, it was carried across, not lost.
+5. [ ] That surviving `VW` record has **70** `rate_card_items`. (If it has 0, the wrong record survived. Stop.)
+   *Corrected from 71 by the Stage A audit, 2026-08-10. The planning figure came from counting lines mentioning "Volkswagen" in the generated SQL, one of which was the `DELETE` statement scoping to that client rather than an inserted row. The database reports 70.*
+6. [ ] That record's `office_payout_pct` is **0.8000**. Stage A confirmed the 80% sits on the **old, empty `VW`** record while `Volkswagen` carries the standard 0.7500, so this value must be **carried across before the delete**. If the merged record reads 0.7500, the carry step was skipped and every future VW estimate is silently mispriced. This is the single most important check in the sprint.
 7. [ ] No estimate changed which client it belongs to. If the audit found estimates on the old `VW` record, the Builder stopped and reported instead of proceeding.
 8. [ ] The `clients` row count dropped by exactly **one**.
 

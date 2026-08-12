@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "phase": "awaiting-approval",
+  "phase": "sprint-closed",
   "sprint": "022-client-accounting-identity",
   "updated": "2026-08-10T00:00:00Z",
-  "note": "Sprint 022 planned and written directly to planning/sprints/ (ordinary layout, no Pack). Awaiting Builder session; Stage A audit is read-only and must run before Stage B is generated."
+  "note": "Customer IDs loaded and VW merge applied, both verified by post-load audit. No application code. Export still blocked on AR payment terms + department (Tatiana, QUESTIONS 14/15)."
 }
