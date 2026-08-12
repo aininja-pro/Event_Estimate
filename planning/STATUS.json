@@ -1,10 +1,7 @@
 {
   "schemaVersion": 1,
-  "phase": "sprint-closed",
-  "sprint": "020-rate-card-pricing",
-  "updated": "2026-08-02T19:10:00Z",
-  "flightClass": "critical",
-  "planReviews": "2/3 pass",
-  "inspection": "1/3 ask — residual E2E PDF; closed on operator eyeball + commit request",
-  "operatorDecisions": "2026-08-02 Ray: apply as recommended; eyeball ok"
+  "phase": "awaiting-approval",
+  "sprint": "022-client-accounting-identity",
+  "updated": "2026-08-10T00:00:00Z",
+  "note": "Sprint 022 planned and written directly to planning/sprints/ (ordinary layout, no Pack). Awaiting Builder session; Stage A audit is read-only and must run before Stage B is generated."
 }

@@ -23,7 +23,7 @@ DriveShop delivered real per-client pricing on 2026-07-24 (Dave Morck, by email)
 
 ## Production Deployment — LIVE (since 2026-07-02)
 
-Render Blueprint `driveshop-event-estimate` from `render.yaml`, deploying from branch **`sprint-018-office-cost-correction`** (NOT `main` — `main` is ~3 sprints behind). Static frontend `event-history` + Python backend `driveshop-api`. Owner confirmed running 2026-07-02. Full detail in DECISIONS §"Render deployment".
+Render Blueprint `driveshop-event-estimate` from `render.yaml`, deploying from branch **`main`** since 2026-08-10 (Sprint 021). Static frontend `event-history` + Python backend `driveshop-api`; the Branch setting was changed on both services. Push to `main` to deploy. Before 2026-08-10 the tracked branch was `sprint-018-office-cost-correction`; older notes describe that period. Full detail in DECISIONS §"Render deployment".
 
 **Two operational items are still open and are now Sprint 021:**
 - **Rotate** the Supabase, Anthropic, and Resend keys (they sat in local plaintext) and set fresh values on `driveshop-api`. Unconfirmed as of 2026-07-27 — treat as still exposed.

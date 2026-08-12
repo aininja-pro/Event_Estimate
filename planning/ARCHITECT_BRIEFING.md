@@ -59,5 +59,6 @@ Commands above were run in the Fly session. Fresh Architect inspection 1/3 retur
 
 ## Current status (ops)
 
-- Production still deploys from `sprint-018-office-cost-correction` until Sprint 021 consolidates to `main`.
+- **Production deploys from `main` as of 2026-08-10 (Sprint 021).** Both Render services were repointed by the operator; the switch was a fast-forward (`main` was one commit ahead, the deploy branch had nothing `main` lacked). This is what put Sprint 020's price guard into production. Superseded the earlier line here that said production runs off `sprint-018-office-cost-correction`; that was true only until 2026-08-10.
+- **Not verified by command.** The redeploy was confirmed by the operator's Render dashboard, not by a health check or a live test of the guard. The suggested check (add a custom line with a 0 rate, try to submit for review, expect a block) has not been recorded as run.
 - 16 clients still lack Intacct customer IDs (Sprint 022). Catalog follow-ups from Dave → Sprint 023.

@@ -34,6 +34,8 @@ Web application replacing DriveShop's spreadsheet-based event estimation workflo
 
 | Task | Read first |
 |------|------------|
+| **Where the project is going (the whole road)** | `@planning/ROADMAP.md` |
+| Where the last sprint left off | `@planning/ARCHITECT_BRIEFING.md` |
 | Current sprint + what's in-flight | `@planning/STATE.md` |
 | Feature-specific rules (business + technical) | `@planning/DECISIONS.md` |
 | Business domain (rate cards, cost types, stakeholders) | `@planning/DOMAIN.md` |
