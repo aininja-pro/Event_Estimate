@@ -87,7 +87,10 @@ type ExportContext = {
       default_currency: string | null
       default_exchange_rate_type: string | null
     } | null
-    revenue_segments: { id: string; name: string } | null
+    // `code` is the Intacct Department ID. Per Tatiana (2026-08-10) the
+    // department IS the revenue segment, and it belongs to the event rather
+    // than the client. See the departmentId fallback below.
+    revenue_segments: { id: string; name: string; code: string | null } | null
     office_accounting_profiles: {
       id: string
       office_name: string
@@ -270,7 +273,12 @@ export function resolveAccountingDimensions(ctx: ExportContext): CommonDimension
     customerId: ctx.estimate.accounting_customer_id || client?.intacct_customer_id || null,
     arPaymentTerms: ctx.estimate.accounting_payment_terms || client?.default_payment_terms || null,
     apPaymentTerms: ctx.estimate.accounting_payment_terms || office?.default_payment_terms || client?.default_payment_terms || null,
-    departmentId: ctx.estimate.accounting_department_id || client?.default_department_id || office?.default_department_id || null,
+    // The revenue segment's code is the Intacct Department ID (Tatiana,
+    // 2026-08-10: "the Department refers to the Revenue Segment ... associated
+    // with the event, not the client"). It sits LAST on purpose: an explicit
+    // department on the estimate, client or office profile must still win.
+    // Do not reorder — putting the segment earlier silently overrides overrides.
+    departmentId: ctx.estimate.accounting_department_id || client?.default_department_id || office?.default_department_id || ctx.estimate.revenue_segments?.code || null,
     locationId: ctx.estimate.accounting_location_id || client?.default_location_id || office?.default_location_id || null,
     projectId: ctx.estimate.intacct_project_id || null,
     vendorId: office?.intacct_vendor_id || null,
@@ -425,7 +433,7 @@ async function getContext(laborLogId: string): Promise<ExportContext> {
         default_currency,
         default_exchange_rate_type
       ),
-      revenue_segments(id, name),
+      revenue_segments(id, name, code),
       office_accounting_profiles(
         id,
         office_name,

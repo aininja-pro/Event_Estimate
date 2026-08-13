@@ -1,19 +1,21 @@
 # Architect Briefing — DriveShop Event Estimate Engine
 
-_Refreshed at Sprint 022 close, 2026-08-10._
+_Refreshed at Sprint 023 build, 2026-08-10._
 
 ## Where things stand
 
-Three sprints landed in quick succession and the app is now genuinely usable. Dave's real prices are loaded and live, the safety net that stops an unpriced item becoming a silent $0 is finally deployed to production, and every client record now carries the Intacct customer ID that an invoice needs.
+Four sprints landed in quick succession and the app is genuinely usable. Dave's prices are loaded and live, the guard that stops an unpriced item becoming a silent $0 is deployed, and every client carries its Intacct customer ID, payment term, and now a working department.
 
-What is left before DriveShop can actually invoice out of this app is no longer ours. Two fields on every client, AR payment terms and department, are still empty, and only Tatiana can supply them. Dave still owes answers on a handful of catalog items. Neither is a build problem.
+**Sprint 023 is built but not finished.** The code is done and verified; two operator steps remain: apply the payment-terms SQL, and confirm the department precedence on a real estimate. Until those happen the sprint is not closed.
+
+After that, nothing at the client level blocks an invoice. What remains is per-estimate data a user types in, and Dave's catalog answers.
 
 ## Executive summary
 
 - **Business outcome:** 22 client records, 21 carrying a confirmed Intacct customer ID; 1,397 priced rate-card rows live; unpriced lines visibly flagged and blocked from approval in production.
-- **Current focus:** Sprint 023 (Dave's catalog amendments) and Sprint 024 (first real export), both gated on DriveShop, not on engineering.
+- **Current focus:** finish Sprint 023 (two operator steps), then Sprint 024 (Dave's catalog amendments, gated on him) and Sprint 025 (first real export).
 - **What is proven:** Customer IDs loaded and verified by re-running the audit; VW merge completed with all 70 rate rows and the non-standard 0.8000 payout intact; total rate-card rows unchanged at 1,397; `tsc` clean; eslint 21 problems, identical to baseline; no application code touched this sprint.
-- **What is not live / not proven:** No deploy has ever been verified by command. Sprint 020's Summary-to-PDF cent reconciliation is still unproven. No estimate can export yet: AR payment terms and department are missing on every client, and the per-estimate fields (project ID, revenue segment, event city and state) are user-entered and untested end to end.
+- **What is not live / not proven:** No deploy has ever been verified by command. Sprint 020's Summary-to-PDF cent reconciliation is still unproven. No estimate has exported yet: Sprint 023's payment-terms SQL is generated but not applied, department precedence is unverified, and the per-estimate fields (project ID, revenue segment, event city and state) are user-entered and untested end to end.
 
 ## Readiness signals
 
@@ -59,6 +61,50 @@ The Stage A audit (`scripts/audit_client_accounting.sql`) is read-only and was r
 
 ## Recommended next Architect action
 
-**Do:** Send Tatiana the two remaining field requests (AR payment terms, department) and Dave his catalog list including Volvo MS prices. Then plan Sprint 023, which can proceed on whatever Dave returns. Do not start Sprint 024 until both are answered; a real export needs them.
-**Owner:** Ray, for both client conversations.
-**Decision:** Whether to spend a short sprint on the deploy verification script before Sprint 024. It has been declined once and the gap is now five sprints old, and Sprint 024 is the first sprint whose success genuinely depends on production behaving as expected.
+*Superseded — Tatiana answered both fields on 2026-08-10 and Sprint 023 was planned and built the same day. See the Sprint 023 build record below for the live next action.*
+
+---
+
+# Sprint 023 — build record (2026-08-10)
+
+**Status: built, NOT closed.** Two operator steps outstanding. The roadmap row stays `planned` until they are done.
+
+## What was built
+
+**Stage A — payment terms.** `scripts/import_client_payment_terms.py` generates `scripts/import_client_payment_terms.sql`: 21 guarded updates plus an in-transaction guard that aborts unless exactly 21 clients carry a term afterwards. Net 30 (10 clients), Net 45 (6), Net 60 (5). `No Client` deliberately null. The script imports no database client and opens no connection.
+
+**Stage B — department fallback.** Three touches in `src/lib/accounting-export-line-service.ts` and nothing else:
+- the join now selects `revenue_segments(id, name, code)`
+- the type carries `code: string | null`
+- `departmentId` resolves `estimate → client → office → revenue_segments.code → null`
+
+The revenue segment is **last** on purpose, so an explicit department still wins. Both the type and the resolution carry comments saying so, because a reordering would still produce a plausible department and would not announce itself.
+
+## Evidence
+
+- `python scripts/import_client_payment_terms.py --confirm` — wrote 51 lines, one transaction, `clients` only, 21 updates.
+- `npx tsc -b --force` → exit 0.
+- `npx eslint .` → **21 problems (17 errors, 4 warnings)**, identical to the baseline recorded before the change.
+- `git diff --stat src/` → one file, 11 insertions, 3 deletions.
+
+## Outstanding — this is what "not closed" means
+
+1. **The payment-terms SQL has not been applied.** Generated and reviewed, not run.
+2. **Department precedence is unverified on real data.** Acceptance 13 requires proving it in *both* directions: segment fills an empty department, **and** an explicit department overrides the segment. Only the second proves the ordering. Neither has been run.
+
+## Plan corrections
+
+- **None on the plan itself.** The three touches were exactly where the blueprint said, and the fallback chain at `:273` was the sole resolution point as claimed.
+- Line numbers shifted by roughly 8 after the type comment was added; the blueprint's `:273` is now `:281`. Cosmetic.
+
+## Decisions taken this sprint
+
+- **Office payout stays per client.** Per-item payout will not be built. Rationale in DECISIONS: it rewrites office margin calculation across the app, and that formula was found inverted and fixed only in Sprint 018. Revisit only on evidence from Dave that the variance is material.
+- **Estimate-facing items: propose the 83.** Only 83 of 160 catalog items appear on any rate card; 77 have never been priced. Ask Dave to confirm those rather than fill in 160 blank rows.
+- **The four "Duplicate???" items: recommend retiring them.** He left all four unpriced on all 20 tabs, and equivalents already exist in the catalog.
+
+## Recommended next Architect action
+
+**Do:** Apply the payment-terms SQL and run the two-direction precedence check, then close 023. Send Dave the catalog list including Volvo MS prices and the 83-item proposal.
+**Owner:** Ray.
+**Decision:** Still open from Sprint 021 — whether to build the deploy verification script before Sprint 025. Sprint 025 is the first sprint whose success depends on production behaving as expected, and no deploy has ever been confirmed by command.

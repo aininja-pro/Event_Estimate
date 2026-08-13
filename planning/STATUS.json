@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "phase": "awaiting-approval",
+  "phase": "building",
   "sprint": "023-export-unblock",
   "updated": "2026-08-10T00:00:00Z",
-  "note": "Planned, not built. Stage A = load 21 payment terms. Stage B = department falls back to the estimate's revenue segment code (3 touches, 1 file). Not blocked on DriveShop."
+  "note": "Code complete and verified (tsc clean, eslint 21 = baseline, 1 src file). NOT closed: payment-terms SQL not yet applied, and department precedence not yet proven in both directions on a real estimate."
 }
