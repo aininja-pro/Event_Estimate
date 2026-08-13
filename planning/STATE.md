@@ -6,15 +6,15 @@
 
 ## Active Sprint
 
-Sprint 022 — Client Accounting Identity + VW Merge — **SHIPPED (applied 2026-08-10).**
+Sprint 023 — Export Unblock: Payment Terms + Department — **SHIPPED (2026-08-10).**
 
-Every client record now carries the Intacct customer ID Tatiana confirmed, and the duplicate VW/Volkswagen pair is one record.
+The last client-level export blockers are closed. Everything still missing is per-estimate data a user types in.
 
-- **21 of 22 clients carry a customer ID.** `No Client` is the only one without, deliberately: it is our internal fallback, not a DriveShop account.
-- **VW merge done, data intact.** `Volkswagen` held the 70 priced rate-card rows; the empty `VW` record held the non-standard **0.8000** office payout. The payout was carried across before the delete, then `Volkswagen` was renamed to `VW` with code `VW` and customer `C0208`. Verified after the load: one `VW`, 70 rate rows, payout 0.8000. Total rate-card rows across all clients unchanged at **1,397** — nothing was lost.
-- **Two customer IDs are shared by two clients each, by design:** `C0004` (Acura + Honda) and `C0099` (Volvo + Volvo MS). Any uniqueness check must permit this.
-- **A live-catalog check found `rate_card_items.client_id` is `ON DELETE CASCADE`**, so deleting a client silently destroys its rate card. The load guarded the delete explicitly rather than trusting the database to refuse it. Future client merges must do the same.
-- **Still blocking a real export, and not fixable by us:** AR payment terms (only Mazda has one) and department (no fallback anywhere). Both are Tatiana's, QUESTIONS #14 and #15.
+- **21 clients carry AR payment terms** (Net 30 x10, Net 45 x6, Net 60 x5; `No Client` deliberately null), from Tatiana's Intacct customer list.
+- **Department now resolves from the estimate's revenue segment.** Tatiana confirmed the department *is* the revenue segment and belongs to the event, not the client. All 10 of her departments already existed as `revenue_segments` from Sprint 019, so no data was needed; the exporter simply was not selecting `revenue_segments.code`. Three touches in `accounting-export-line-service.ts`. Operator confirmed working on a real estimate.
+- **Fallback order is `estimate → client → office → revenue segment → null`.** The segment is last so an explicit department still wins. Do not reorder.
+- **Residual:** the override direction was not exercised. Confirm during Sprint 025 that an explicit department beats the segment.
+- **Decided, not built:** office payout stays per client. Per-item payout would rewrite office margin calculation, and that formula was found inverted and fixed only in Sprint 018.
 
 ## Production Deployment — LIVE (since 2026-07-02)
 

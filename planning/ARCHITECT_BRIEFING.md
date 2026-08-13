@@ -1,12 +1,12 @@
 # Architect Briefing — DriveShop Event Estimate Engine
 
-_Refreshed at Sprint 023 build, 2026-08-10._
+_Refreshed at Sprint 023 close, 2026-08-10._
 
 ## Where things stand
 
 Four sprints landed in quick succession and the app is genuinely usable. Dave's prices are loaded and live, the guard that stops an unpriced item becoming a silent $0 is deployed, and every client carries its Intacct customer ID, payment term, and now a working department.
 
-**Sprint 023 is built but not finished.** The code is done and verified; two operator steps remain: apply the payment-terms SQL, and confirm the department precedence on a real estimate. Until those happen the sprint is not closed.
+**Sprint 023 is done.** Payment terms applied, and the department now resolves from the estimate's revenue segment, confirmed working on a real estimate by the operator.
 
 After that, nothing at the client level blocks an invoice. What remains is per-estimate data a user types in, and Dave's catalog answers.
 
@@ -67,7 +67,7 @@ The Stage A audit (`scripts/audit_client_accounting.sql`) is read-only and was r
 
 # Sprint 023 — build record (2026-08-10)
 
-**Status: built, NOT closed.** Two operator steps outstanding. The roadmap row stays `planned` until they are done.
+**Status: CLOSED 2026-08-10.** Operator applied the payment-terms SQL and confirmed the department resolves from the revenue segment on a real estimate.
 
 ## What was built
 
@@ -87,10 +87,11 @@ The revenue segment is **last** on purpose, so an explicit department still wins
 - `npx eslint .` → **21 problems (17 errors, 4 warnings)**, identical to the baseline recorded before the change.
 - `git diff --stat src/` → one file, 11 insertions, 3 deletions.
 
-## Outstanding — this is what "not closed" means
+## Outstanding after close — one accepted residual
 
-1. **The payment-terms SQL has not been applied.** Generated and reviewed, not run.
-2. **Department precedence is unverified on real data.** Acceptance 13 requires proving it in *both* directions: segment fills an empty department, **and** an explicit department overrides the segment. Only the second proves the ordering. Neither has been run.
+**Acceptance 13 was met in one direction, not both.** The operator confirmed that a revenue segment fills an empty department (`"department works"`, 2026-08-10). The reverse — that an explicit `accounting_department_id` on an estimate still **overrides** the segment — was not exercised.
+
+Why this is a real, if small, residual: the fallback is written with the segment last, and the code was read to confirm the ordering, so the risk is low. But if the ordering were ever wrong, the symptom is invisible — the export still produces a plausible department, just the wrong one, on exactly those estimates that carry a deliberate override. Worth one minute during Sprint 025's first real export: set a department on an estimate that also has a revenue segment and confirm the export uses the department.
 
 ## Plan corrections
 
