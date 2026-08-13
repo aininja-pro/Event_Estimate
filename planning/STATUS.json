@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "phase": "sprint-closed",
-  "sprint": "023-export-unblock",
+  "phase": "awaiting-approval",
+  "sprint": "024-catalog-amendments",
   "updated": "2026-08-10T00:00:00Z",
-  "note": "Payment terms applied; department resolves from revenue segment, confirmed by operator. Residual: precedence override direction not exercised (see briefing). Client-level export blockers are now closed."
+  "note": "Built, awaiting operator apply of scripts/import_catalog_amendments.sql. Decided without Dave per Ray 2026-08-10. Item-ID-dependent items deliberately not guessed."
 }
