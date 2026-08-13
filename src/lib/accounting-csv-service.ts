@@ -131,6 +131,34 @@ function dateOnly(value: string | null | undefined): string {
   return value.slice(0, 10)
 }
 
+/**
+ * Derive an AP bill due date from its payment terms.
+ *
+ * Only the AP template carries an explicit `dueDate` column; the AR invoice
+ * template sends `paymentTerms` and lets Intacct derive the date itself, which
+ * is why there is no AR equivalent of this.
+ *
+ * Terms arrive as free text from Intacct's own customer/vendor records
+ * ("Net 30", "Net 45", "Net 60"), so the day count is parsed rather than looked
+ * up. Anything unparseable returns '' — a blank due date is a visible gap an
+ * accountant can fill, where a guessed date silently posts a wrong one.
+ *
+ * Arithmetic is UTC-only: the input is a plain `YYYY-MM-DD` with no timezone,
+ * and local-time date maths would shift the result by a day either side of
+ * midnight depending on where the exporter runs.
+ */
+export function dueDateFromTerms(isoDate: string, terms: string | null | undefined): string {
+  if (!isoDate || !terms) return ''
+  const match = /(\d+)/.exec(terms)
+  if (!match) return ''
+  const days = Number(match[1])
+  if (!Number.isFinite(days)) return ''
+  const parsed = new Date(`${isoDate.slice(0, 10)}T00:00:00Z`)
+  if (Number.isNaN(parsed.getTime())) return ''
+  parsed.setUTCDate(parsed.getUTCDate() + days)
+  return parsed.toISOString().slice(0, 10)
+}
+
 function todayIso(): string {
   return new Date().toISOString().slice(0, 10)
 }
@@ -227,7 +255,12 @@ export function serializeApBillCsv(lines: AccountingExportLine[], options: ApBil
       referenceNo: includeHeader ? referenceNo : '',
       description: includeHeader ? line.description : '',
       paymentTerms: includeHeader ? line.paymentTerms || '' : '',
-      dueDate: includeHeader ? dateOnly(options.dueDate || line.dueDate) : '',
+      // An explicit due date always wins. Otherwise derive it from the payment
+      // terms, which are now populated on every client and office profile.
+      // Previously this column exported blank on every bill.
+      dueDate: includeHeader
+        ? dateOnly(options.dueDate || line.dueDate) || dueDateFromTerms(billDate, line.paymentTerms)
+        : '',
       lineNo: index + 1,
       glAccountNo: line.glAccountNo || '',
       transAmount: formatMoney(line.amount),
