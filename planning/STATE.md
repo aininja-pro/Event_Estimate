@@ -56,26 +56,32 @@ Render Blueprint `driveshop-event-estimate` from `render.yaml`, deploying from b
 
 ## Next Up
 
-See `planning/ROADMAP.md` for the full road. Sprints 020, 021 and 022 are done; three remain.
+See `planning/ROADMAP.md`. Sprints 020-023 are done; three remain.
 
-- **Sprint 023 — Catalog Amendments.** Dave's follow-ups: the chauffeur market split needing its own Item ID, the four "Duplicate???" items, flat-rate EV Charging and Per Diem, and the `I00601` typo. All blocked on accounting issuing IDs.
-- **Sprint 024 — First Real Intacct Export End-to-End.** Finishes Sprint 018 Phase 2. **Blocked on Tatiana** for AR payment terms and department (QUESTIONS #14, #15), and on the per-estimate fields a user must fill in: project ID, revenue segment, event city and state.
-- **Sprint 025 — Corporate Event Cost & Gross Profit.** Corporate estimates record no cost, so they show ~100% GP.
+- **Sprint 024 — Catalog Amendments.** Dave's follow-ups: an Item ID for the chauffeur market split, the four "Duplicate???" items, flat-rate EV Charging and Per Diem, the `I00601` typo, and Volvo MS prices. Blocked on Dave and on accounting issuing IDs.
+- **Sprint 025 — First Real Intacct Export End-to-End.** Finishes Sprint 018 Phase 2: wire `dueDate`, confirm default scalars, decide corporate scope, run a real AR+AP export. **No longer blocked on Tatiana** — every client-level field is now loaded. Blocked only on per-estimate data a user enters: project ID, revenue segment, event city and state.
+- **Sprint 026 — Corporate Event Cost & Gross Profit.** Corporate estimates record no cost, so they show ~100% GP.
 
 ## Open Questions — routed to DriveShop
 
-Full list with provenance in `planning/QUESTIONS.md`. Tatiana's customer mapping is **fully answered and loaded**; what follows is what remains.
+Full list with provenance in `planning/QUESTIONS.md`.
 
-**For Tatiana (blocks Sprint 024):** AR payment terms per client, and default department. Both were blank on the Client Settings tab; neither has a usable fallback in the exporter.
+**Tatiana is fully answered.** Customer IDs, payment terms and department are all resolved and loaded. Nothing is waiting on her.
 
-**For Dave:**
+**Everything below is Dave's.** Recommendations are recorded in DECISIONS and QUESTIONS; most need only his confirmation.
 
 1. **Chauffeur market split shares one Item ID.** On the Maserati and Volvo tabs Dave split "Professional Chauffeur Hours" into *Standard Market* and *High Markets* at different prices, but both rows carry `I0217`. Accounting must issue a second Item ID (the pre-Sprint-019 rate card had exactly this split as LA/SF/NY vs all other markets).
 2. **Four items flagged "Duplicate???"** by Dave on every tab, all left unpriced: `I0204` Vehicle Labor Days, `I0205` Vehicle Labor O/T Hours, `I0202` Vehicle Manager Days, `I0203` Vehicle Manager O/T Hours. They exist in the accounting catalog, so they need a decision, not deletion.
 3. **Two new flat-rate items requested** in Dave's email: "EV Charging - Flat Rate" and "Per Diem". Both already exist as **pass-through** items (`I00601` EV Charging, `I0090` Per Diem). What he is asking for is a fixed-price variant of each — new catalog items needing their own Item ID and GL from accounting, not a rename.
 4. **`I00601` is a malformed Item ID** — five digits where all 159 others are four. It arrived that way in Dave's own catalog file and is already loaded into `fee_types`. Confirm with accounting whether it should be `I0060` or something else.
 
-Also open for Dave: the blank "In event estimate?" column; `4000.99`; per-item vs per-client office payout; and **Volvo MS prices** — Tatiana confirmed it runs its own rate table but Dave sent no Volvo MS tab, so it can invoice and cannot produce an estimate.
+Also open for Dave, with recommendations already formed:
+- **"In event estimate?" column** — propose the **83** items that appear on at least one rate card (77 of the 160 have never been priced by anyone) rather than asking him to fill in 160 blank rows.
+- **Volvo MS prices** — Tatiana confirmed it runs its own rate table, but Dave sent no Volvo MS tab, so it can invoice and cannot produce an estimate. Recommendation: seed it from Volvo's rates (same customer, same 20% trucking markup, same 2.5% third-party markup) and let him adjust.
+- **The four "Duplicate???" items** — recommendation: retire them. Unpriced on all 20 tabs, and equivalents already exist in the catalog.
+- **Right Seat Driver Travel overtime (Lucid, MB)** — recommendation: $80. He priced the standalone item at exactly that and only missed the parent row's column.
+- **`4000.99`** — recommendation: drop. Absent from the 160-item catalog; only ever appeared in pre-Sprint-019 test data.
+- **Per-item vs per-client office payout — DECIDED, not open.** Staying per client; per-item will not be built. See DECISIONS.
 
 ## Deferred
 
