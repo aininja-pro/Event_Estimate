@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "phase": "sprint-closed",
-  "sprint": "022-client-accounting-identity",
+  "phase": "awaiting-approval",
+  "sprint": "023-export-unblock",
   "updated": "2026-08-10T00:00:00Z",
-  "note": "Customer IDs loaded and VW merge applied, both verified by post-load audit. No application code. Export still blocked on AR payment terms + department (Tatiana, QUESTIONS 14/15)."
+  "note": "Planned, not built. Stage A = load 21 payment terms. Stage B = department falls back to the estimate's revenue segment code (3 touches, 1 file). Not blocked on DriveShop."
 }
