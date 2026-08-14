@@ -56,9 +56,10 @@ for ~85% of rows exactly.
 WHAT THIS DOES NOT TOUCH
 
   - office_cost stays NULL. Office cost is DERIVED at estimate time from the
-    client's office_payout_pct (the W8 fix). Writing a copy onto 1,397 rate card
-    rows would create 1,397 places for it to drift out of sync with the client
-    record. One source of truth, deliberately.
+    client's office_payout_pct (the W8 fix). Writing a copy onto every rate card
+    row would create that many places for it to drift out of sync with the
+    client record. One source of truth, deliberately. A guard fails the load if
+    any row has a stored office_cost.
   - No unit_rate, no overtime_rate, no fee_types, no estimate values.
 """
 
@@ -76,9 +77,18 @@ DECIDED = "2026-08-10 Ray: confirmed 50% corporate cost, build it."
 STANDARD_PCT = 50      # non-pass-through
 PASS_THROUGH_PCT = 100  # cost == rate; DriveShop earns only the client markup
 
-EXPECTED_TOTAL_ROWS = 1397
-EXPECTED_PASS_THROUGH = 900
-EXPECTED_STANDARD = 497
+# Updated 2026-08-10 after the guard correctly rejected the first attempt.
+# The original figures (1397 / 900 / 497) were written before Sprint 024 seeded
+# Volvo MS's rate card from Volvo earlier the same day. That added Volvo's 69
+# rows (45 pass-through + 24 standard) to a 21st client, so:
+#     total        1397 + 69 = 1466
+#     pass-through  900 + 45 =  945
+#     standard      497 + 24 =  521
+# The guard doing exactly what it was built for is the reason this was a clean
+# rollback rather than a partial load. Keep the expectations hardcoded.
+EXPECTED_TOTAL_ROWS = 1466
+EXPECTED_PASS_THROUGH = 945
+EXPECTED_STANDARD = 521
 
 
 def generate_sql() -> str:

@@ -40,14 +40,14 @@ BEGIN
   SELECT count(*) INTO std FROM rate_card_items WHERE is_pass_through = false AND corporate_cost = 50;
   SELECT count(*) INTO office_touched FROM rate_card_items WHERE office_cost IS NOT NULL;
 
-  IF total <> 1397 THEN
-    RAISE EXCEPTION 'ABORT: % rows carry a corporate cost (expected %). Rate card row count has changed since planning.', total, 1397;
+  IF total <> 1466 THEN
+    RAISE EXCEPTION 'ABORT: % rows carry a corporate cost (expected %). Rate card row count has changed since planning.', total, 1466;
   END IF;
-  IF pt <> 900 THEN
-    RAISE EXCEPTION 'ABORT: % pass-through rows at 100%% (expected %).', pt, 900;
+  IF pt <> 945 THEN
+    RAISE EXCEPTION 'ABORT: % pass-through rows at 100%% (expected %).', pt, 945;
   END IF;
-  IF std <> 497 THEN
-    RAISE EXCEPTION 'ABORT: % standard rows at 50%% (expected %).', std, 497;
+  IF std <> 521 THEN
+    RAISE EXCEPTION 'ABORT: % standard rows at 50%% (expected %).', std, 521;
   END IF;
   IF office_touched <> 0 THEN
     RAISE EXCEPTION 'ABORT: % rows have a stored office_cost. Office cost must stay derived from the client payout, not stored.', office_touched;
