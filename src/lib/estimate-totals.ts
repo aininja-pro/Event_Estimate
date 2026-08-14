@@ -17,6 +17,34 @@ export function officeCostRate(rate: number, payoutPct: number): number {
 }
 
 /**
+ * Corporate-structure labor cost for a rate-card-backed row.
+ *
+ * Mirrors `officeCostRate` deliberately: one helper, called by every add-time
+ * path and the recompute-on-toggle path, so the formula cannot be copied and
+ * drift. That is the W8 lesson — the office formula lived in five places and
+ * was wrong in all of them for months.
+ *
+ * Reads `rate_card_items.corporate_cost` using the semantics the schema has
+ * documented since `migration_add_cost_columns.sql` but nothing ever
+ * implemented: a percentage of the rate when `corporate_cost_is_percent`, a
+ * flat dollar amount otherwise.
+ *
+ * Returns null when the row carries no corporate cost — a custom role, or an
+ * item nobody costed. Null means "not known", and the UI keeps that cell
+ * editable so a user can type the real figure. It must not collapse to 0,
+ * because 0 reads as 100% margin and is indistinguishable from a real answer.
+ */
+export function corporateCostRate(
+  rate: number,
+  corporateCost: number | null | undefined,
+  isPercent: boolean,
+): number | null {
+  if (corporateCost == null) return null
+  if (!Number.isFinite(rate) || !Number.isFinite(corporateCost)) return null
+  return isPercent ? rate * (corporateCost / 100) : corporateCost
+}
+
+/**
  * A line is unpriced when it carries no usable rate AND is not a pass-through
  * (pass-throughs legitimately have no rate; they bill at the client's markup
  * on actual cost).

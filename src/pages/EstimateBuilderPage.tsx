@@ -59,7 +59,7 @@ import {
   type ClientApprovalToken,
 } from '@/lib/client-approval-service'
 import { getScheduleEntries, getScheduleDayTypes, computeScheduleRollup, updateScheduleEntry } from '@/lib/schedule-service'
-import { isUnpricedRate, listUnpricedLineLabels, officeCostRate } from '@/lib/estimate-totals'
+import { isUnpricedRate, listUnpricedLineLabels, officeCostRate, corporateCostRate } from '@/lib/estimate-totals'
 import {
   getPendingSegmentApproval,
   submitForApproval,
@@ -1089,9 +1089,14 @@ function AddRoleModal({
       .map((role) => ({
         role_name: role.name,
         unit_rate: role.unit_rate ?? 0,
-        cost_rate: isOffice && role.unit_rate
-          ? officeCostRate(role.unit_rate, estimate.clients.office_payout_pct)
-          : null,
+        // Office cost comes from the client's payout %; corporate cost from the
+        // rate card item. Both via the shared helpers so the formulas stay in
+        // one place (see W8 in DECISIONS).
+        cost_rate: !role.unit_rate
+          ? null
+          : isOffice
+            ? officeCostRate(role.unit_rate, estimate.clients.office_payout_pct)
+            : corporateCostRate(role.unit_rate, role.corporate_cost, role.corporate_cost_is_percent),
         gl_code: role.gl_code,
         rate_card_item_id: role.id,
       }))
@@ -3927,6 +3932,17 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
   async function recomputeLaborCostsForStructure(nextEstimate: EstimateWithClient, logs: LaborLog[]) {
     const isOffice = nextEstimate.cost_structure === 'office'
     const payout = nextEstimate.clients.office_payout_pct
+    // Corporate cost lives on the rate card item, so toggling to Corporate has
+    // to look it up by rate_card_item_id. Rows with no rate card item (custom
+    // roles) resolve to null and stay user-editable, exactly as before.
+    const rcById = new Map(
+      rateCardData.flatMap((section) => section.items.map((item) => [item.id, item] as const)),
+    )
+    const corporateCostFor = (rate: number, rateCardItemId: string | null) => {
+      const item = rateCardItemId ? rcById.get(rateCardItemId) : undefined
+      if (!item) return null
+      return corporateCostRate(rate, item.corporate_cost, item.corporate_cost_is_percent)
+    }
     for (const log of logs) {
       // Persist the new cost_rate but keep the existing in-state objects (merge the one
       // field) — the update RPCs return a bare row without nested relations (schedule
@@ -3936,7 +3952,9 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
       const nextEntries: LaborEntry[] = []
       for (const e of entries) {
         const effRate = (e.override_rate ?? e.unit_rate) ?? 0
-        const nextCost = isOffice ? officeCostRate(effRate, payout) : null
+        const nextCost = isOffice
+          ? officeCostRate(effRate, payout)
+          : corporateCostFor(effRate, e.rate_card_item_id)
         if (nextCost !== e.cost_rate) {
           await updateLaborEntry(e.id, { cost_rate: nextCost })
           nextEntries.push({ ...e, cost_rate: nextCost })
@@ -3949,7 +3967,9 @@ function EstimateBuilderContent({ estimateId }: { estimateId: string }) {
       const sched = scheduleEntriesMap[log.id] ?? []
       const nextSched: ScheduleEntry[] = []
       for (const s of sched) {
-        const nextCost = isOffice ? officeCostRate(s.day_rate, payout) : 0
+        const nextCost = isOffice
+          ? officeCostRate(s.day_rate, payout)
+          : corporateCostFor(s.day_rate, s.rate_card_item_id) ?? 0
         if (nextCost !== s.cost_rate) {
           await updateScheduleEntry(s.id, { cost_rate: nextCost })
           nextSched.push({ ...s, cost_rate: nextCost })

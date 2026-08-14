@@ -47,7 +47,7 @@ import {
   generateDateRange,
   computeScheduleRollup,
 } from '@/lib/schedule-service'
-import { isUnpricedRate, officeCostRate } from '@/lib/estimate-totals'
+import { isUnpricedRate, officeCostRate, corporateCostRate } from '@/lib/estimate-totals'
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
@@ -146,9 +146,14 @@ function AddStaffModal({
       .map((role) => ({
         role_name: role.name,
         day_rate: role.unit_rate ?? 0,
-        cost_rate: isOffice && role.unit_rate
-          ? officeCostRate(role.unit_rate, estimate.clients.office_payout_pct)
-          : 0,
+        // Office cost from the client payout %, corporate from the rate card
+        // item. `?? 0` only because schedule_entries.cost_rate is non-null;
+        // an uncosted corporate row still surfaces as 0 and stays editable.
+        cost_rate: !role.unit_rate
+          ? 0
+          : isOffice
+            ? officeCostRate(role.unit_rate, estimate.clients.office_payout_pct)
+            : corporateCostRate(role.unit_rate, role.corporate_cost, role.corporate_cost_is_percent) ?? 0,
         gl_code: role.gl_code ?? null,
         rate_card_item_id: role.id,
       }))
