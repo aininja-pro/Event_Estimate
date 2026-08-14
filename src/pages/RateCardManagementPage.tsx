@@ -709,6 +709,7 @@ interface SectionTableProps {
   items: RateCardItem[]
   search: string
   thirdPartyMarkup: number
+  officePayoutPct: number
   collapsed: boolean
   onToggle: () => void
   onAddRate: (section: RateCardSection) => void
@@ -717,7 +718,7 @@ interface SectionTableProps {
   readOnly?: boolean
 }
 
-function SectionTable({ section, items, search, thirdPartyMarkup, collapsed, onToggle, onAddRate, onEditRate, onToggleLock, readOnly }: SectionTableProps) {
+function SectionTable({ section, items, search, thirdPartyMarkup, officePayoutPct, collapsed, onToggle, onAddRate, onEditRate, onToggleLock, readOnly }: SectionTableProps) {
   const isPassThrough = section.cost_type === 'pass_through'
   const term = search.toLowerCase()
   const filtered = items.filter((item) => item.name.toLowerCase().includes(term))
@@ -796,7 +797,20 @@ function SectionTable({ section, items, search, thirdPartyMarkup, collapsed, onT
                   )}
                   {!isPassThrough && (
                     <TableCell className="text-right py-1 pr-8">
-                      <span className="text-[13px] tabular-nums text-muted-foreground">{fmtCost(item.office_cost, item.office_cost_is_percent)}</span>
+                      {/* Office cost is DERIVED, not stored: estimates compute it as
+                          rate x the client's office_payout_pct (see DECISIONS, W8).
+                          Storing a copy on every rate card row would be a second
+                          source of truth, so the column shows the live figure
+                          instead of a permanently empty one. Only labor rows use
+                          it: flat-fee items bill cost-plus-markup, where office
+                          payout never applies. */}
+                      <span className="text-[13px] tabular-nums text-muted-foreground">
+                        {item.office_cost != null
+                          ? fmtCost(item.office_cost, item.office_cost_is_percent)
+                          : section.cost_type === 'labor' && officePayoutPct > 0
+                            ? fmtCost(officePayoutPct * 100, true)
+                            : '—'}
+                      </span>
                     </TableCell>
                   )}
                   <TableCell className="py-1 pl-6">
@@ -2109,6 +2123,7 @@ export function RateCardManagementPage() {
                   items={items}
                   search={search}
                   thirdPartyMarkup={selectedClient?.third_party_markup ?? 0}
+                  officePayoutPct={selectedClient?.office_payout_pct ?? 0}
                   collapsed={!!collapsedSections[section.id]}
                   onToggle={() => toggleSection(section.id)}
                   onAddRate={handleAddRate}
