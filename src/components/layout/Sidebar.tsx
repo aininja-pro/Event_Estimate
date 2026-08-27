@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { NavLink } from 'react-router-dom'
-import { BarChart3, ClipboardList, Bot, Layers, Database, GitBranch, Map, FileSpreadsheet, DollarSign, MessageSquare, Briefcase, Users, ChevronsLeft, ChevronsRight, LayoutDashboard, Settings, Landmark, BookOpen } from 'lucide-react'
+import { BarChart3, ClipboardList, Bot, Layers, Database, GitBranch, Map, FileSpreadsheet, DollarSign, MessageSquare, Briefcase, Users, ChevronsLeft, ChevronsRight, LayoutDashboard, Settings, Landmark, BookOpen, ListTodo } from 'lucide-react'
 import { Separator } from '@/components/ui/separator'
 import { useAuth } from '@/lib/auth'
 import { hasPermission } from '@/lib/permissions'
@@ -29,6 +29,7 @@ const uiConceptItems = [
 ]
 
 const adminItems = [
+  { to: '/admin/punch-list', label: 'Punch List', icon: ListTodo },
   { to: '/admin/accounting-setup', label: 'Accounting Setup', icon: Landmark },
   { to: '/admin/feedback', label: 'Feedback Management', icon: MessageSquare },
   { to: '/admin/users', label: 'User Management', icon: Users },

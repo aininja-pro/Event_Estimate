@@ -19,6 +19,7 @@ import { AdminFeedbackPage } from '@/pages/AdminFeedbackPage'
 import { LoginPage } from '@/pages/LoginPage'
 import { AdminUsersPage } from '@/pages/AdminUsersPage'
 import { AdminSettingsPage } from '@/pages/AdminSettingsPage'
+import PunchListPage from '@/pages/PunchListPage'
 import { AccountingSetupPage } from '@/pages/AccountingSetupPage'
 import { hasPermission } from '@/lib/permissions'
 
@@ -105,6 +106,7 @@ function App() {
               <Route element={<RequireAdmin />}>
                 <Route path="/admin/users" element={<AdminUsersPage />} />
                 <Route path="/admin/settings" element={<AdminSettingsPage />} />
+                <Route path="/admin/punch-list" element={<PunchListPage />} />
               </Route>
             </Route>
 
