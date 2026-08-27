@@ -152,13 +152,13 @@ async def generate_scope(params: dict, client_id: str) -> dict:
     # Call Claude
     client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY", ""))
     response = client.messages.create(
-        model="claude-sonnet-4-20250514",
-        max_tokens=4096,
+        model="claude-opus-5",
+        max_tokens=12000,
         system=system_prompt,
         messages=[{"role": "user", "content": user_message}],
     )
 
-    response_text = response.content[0].text.strip()
+    response_text = next(b.text for b in response.content if b.type == "text").strip()
 
     # Extract JSON from ```json fences
     import re

@@ -211,12 +211,12 @@ async def generate_chat_response(
     try:
         client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY", ""))
         response = client.messages.create(
-            model="claude-sonnet-4-20250514",
-            max_tokens=1500,
+            model="claude-opus-5",
+            max_tokens=6000,
             system=system_prompt,
             messages=messages,
         )
-        response_text = response.content[0].text.strip()
+        response_text = next(b.text for b in response.content if b.type == "text").strip()
     except Exception:
         return {
             "response": "I'm having trouble connecting right now. Please try again.",

@@ -206,8 +206,8 @@ async def generate_nudges(estimate_state: dict) -> list[dict]:
     client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY", ""))
 
     message = client.messages.create(
-        model="claude-sonnet-4-20250514",
-        max_tokens=2000,
+        model="claude-opus-5",
+        max_tokens=8000,
         system=system_prompt,
         messages=[
             {
@@ -221,7 +221,9 @@ async def generate_nudges(estimate_state: dict) -> list[dict]:
     )
 
     # Parse response
-    response_text = message.content[0].text.strip()
+    # Opus 5 responses can lead with a thinking block; content[0] is not
+    # guaranteed to be text. Take the first text block.
+    response_text = next(b.text for b in message.content if b.type == "text").strip()
     nudges = json.loads(response_text)
 
     # Validate each nudge has required fields
