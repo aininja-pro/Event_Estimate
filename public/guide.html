@@ -1,0 +1,476 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="/Favicon2.webp">
+<title>Event Estimate Engine Guide</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@500;600;700&family=Source+Sans+3:ital,wght@0,400;0,600;0,700;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  :root {
+    --paper: #FAFAF8;
+    --ink: #1A1D21;
+    --body: #33383F;
+    --slate: #5B6470;
+    --faint: #8A919B;
+    --line: #E4E2DC;
+    --panel: #F1F0EC;
+    --panel-ink: #33383F;
+    --accent: #B45309;
+    --accent-soft: #FCF4E8;
+    --ok: #15803D;
+    --ok-soft: #EDF7EF;
+    --warn: #B45309;
+    --warn-soft: #FCF4E8;
+    --bad: #BE123C;
+    --bad-soft: #FBEEF1;
+    --pill-ink: #454B54;
+    --pill-bg: #EDECE8;
+    --code-bg: #EFEEE9;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper: #16181C;
+      --ink: #F2F1EE;
+      --body: #C9CCD1;
+      --slate: #9AA1AB;
+      --faint: #767D87;
+      --line: #2C2F35;
+      --panel: #1D2025;
+      --panel-ink: #C9CCD1;
+      --accent: #E8A04C;
+      --accent-soft: #2A2118;
+      --ok: #4ADE80;
+      --ok-soft: #142A1C;
+      --warn: #E8A04C;
+      --warn-soft: #2A2118;
+      --bad: #FB7185;
+      --bad-soft: #2C161C;
+      --pill-ink: #C9CCD1;
+      --pill-bg: #24272D;
+      --code-bg: #22252B;
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper: #16181C;
+    --ink: #F2F1EE;
+    --body: #C9CCD1;
+    --slate: #9AA1AB;
+    --faint: #767D87;
+    --line: #2C2F35;
+    --panel: #1D2025;
+    --panel-ink: #C9CCD1;
+    --accent: #E8A04C;
+    --accent-soft: #2A2118;
+    --ok: #4ADE80;
+    --ok-soft: #142A1C;
+    --warn: #E8A04C;
+    --warn-soft: #2A2118;
+    --bad: #FB7185;
+    --bad-soft: #2C161C;
+    --pill-ink: #C9CCD1;
+    --pill-bg: #24272D;
+    --code-bg: #22252B;
+  }
+
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--body);
+    font-family: "Source Sans 3", "Segoe UI", system-ui, sans-serif;
+    font-size: 16px;
+    line-height: 1.65;
+  }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover, a:focus-visible { text-decoration: underline; }
+  a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 2px; }
+
+  .wrap { display: flex; max-width: 1180px; margin: 0 auto; }
+
+  /* ── TOC rail ─────────────────────────── */
+  nav.rail {
+    width: 232px; flex: none;
+    position: sticky; top: 0; align-self: flex-start;
+    height: 100vh; overflow-y: auto;
+    padding: 44px 20px 44px 28px;
+    border-right: 1px solid var(--line);
+  }
+  nav.rail .brand {
+    font-family: "Barlow Semi Condensed", "Arial Narrow", sans-serif;
+    font-weight: 700; font-size: 15px; letter-spacing: .04em;
+    text-transform: uppercase; color: var(--ink); margin: 0 0 2px;
+  }
+  nav.rail .brand-sub {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 11px; color: var(--faint); margin: 0 0 26px;
+  }
+  nav.rail ol { list-style: none; margin: 0; padding: 0; }
+  nav.rail li { margin: 0; }
+  nav.rail a {
+    display: flex; gap: 9px; align-items: baseline;
+    padding: 5px 0; color: var(--slate); font-size: 13.5px; line-height: 1.35;
+  }
+  nav.rail a .n {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 11px; color: var(--faint); width: 18px; flex: none;
+  }
+  nav.rail a:hover { color: var(--ink); text-decoration: none; }
+
+  /* ── Main column ──────────────────────── */
+  main { flex: 1; min-width: 0; padding: 44px 48px 90px; }
+  .measure { max-width: 68ch; }
+
+  header.hero { margin-bottom: 8px; }
+  .kicker {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 12px; letter-spacing: .08em; text-transform: uppercase;
+    color: var(--accent); margin: 0 0 10px;
+  }
+  h1 {
+    font-family: "Barlow Semi Condensed", "Arial Narrow", sans-serif;
+    font-weight: 700; font-size: clamp(34px, 5vw, 46px); line-height: 1.05;
+    letter-spacing: -.01em; color: var(--ink); margin: 0 0 14px; text-wrap: balance;
+  }
+  .lede { font-size: 18px; color: var(--slate); max-width: 62ch; margin: 0 0 6px; }
+
+  section { padding-top: 34px; margin-top: 26px; border-top: 1px solid var(--line); }
+  section:first-of-type { border-top: none; margin-top: 18px; }
+  h2 {
+    font-family: "Barlow Semi Condensed", "Arial Narrow", sans-serif;
+    font-weight: 700; font-size: 26px; line-height: 1.15; color: var(--ink);
+    margin: 0 0 14px; display: flex; align-items: baseline; gap: 12px; text-wrap: balance;
+  }
+  h2 .n {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-weight: 400; font-size: 14px; color: var(--accent);
+  }
+  h3 {
+    font-family: "Barlow Semi Condensed", "Arial Narrow", sans-serif;
+    font-weight: 600; font-size: 18.5px; color: var(--ink); margin: 26px 0 8px;
+  }
+  p { margin: 0 0 13px; }
+  ul, ol.steps { margin: 0 0 14px; padding-left: 22px; }
+  li { margin-bottom: 6px; }
+  strong { color: var(--ink); font-weight: 600; }
+  em { color: var(--slate); }
+
+  .btn-label {
+    font-family: "Source Sans 3", sans-serif; font-weight: 600; font-size: .92em;
+    color: var(--ink); background: var(--pill-bg);
+    border: 1px solid var(--line); border-radius: 5px;
+    padding: 1px 7px 2px; white-space: nowrap;
+  }
+  code {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: .88em; background: var(--code-bg);
+    padding: 1px 5px 2px; border-radius: 4px; color: var(--panel-ink);
+  }
+
+  .status {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 11.5px; letter-spacing: .03em;
+    padding: 2px 9px 3px; border-radius: 999px; white-space: nowrap;
+    background: var(--pill-bg); color: var(--pill-ink); border: 1px solid var(--line);
+  }
+  .status.ok   { background: var(--ok-soft);   color: var(--ok);   border-color: transparent; }
+  .status.warn { background: var(--warn-soft); color: var(--warn); border-color: transparent; }
+  .status.bad  { background: var(--bad-soft);  color: var(--bad);  border-color: transparent; }
+
+  /* lifecycle strip */
+  .flow-scroll { overflow-x: auto; margin: 18px 0 6px; padding-bottom: 6px; }
+  .flow { display: flex; align-items: center; gap: 0; width: max-content; }
+  .flow .step { display: flex; flex-direction: column; gap: 5px; align-items: center; }
+  .flow .arrow { color: var(--faint); padding: 0 10px; font-size: 15px; margin-bottom: 20px; }
+  .flow .who {
+    font-size: 11px; color: var(--faint); max-width: 110px; text-align: center; line-height: 1.3;
+  }
+  .flow-note { font-size: 13.5px; color: var(--slate); margin-top: 10px; }
+
+  .callout {
+    border-left: 3px solid var(--accent);
+    background: var(--accent-soft);
+    padding: 12px 16px; border-radius: 0 8px 8px 0;
+    margin: 16px 0; font-size: 15px;
+  }
+  .callout.stop { border-left-color: var(--bad); background: var(--bad-soft); }
+  .callout .t {
+    font-family: "Barlow Semi Condensed", sans-serif; font-weight: 600;
+    font-size: 13px; letter-spacing: .05em; text-transform: uppercase;
+    color: var(--accent); display: block; margin-bottom: 3px;
+  }
+  .callout.stop .t { color: var(--bad); }
+  .callout p:last-child { margin-bottom: 0; }
+
+  .card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; margin: 16px 0; }
+  .card {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+    padding: 14px 16px;
+  }
+  .card h4 {
+    font-family: "Barlow Semi Condensed", sans-serif; font-weight: 600;
+    font-size: 15.5px; color: var(--ink); margin: 0 0 5px;
+  }
+  .card p { font-size: 14px; color: var(--panel-ink); margin: 0; line-height: 1.5; }
+
+  .tbl-scroll { overflow-x: auto; margin: 16px 0; }
+  table { border-collapse: collapse; width: 100%; font-size: 14px; }
+  th {
+    font-family: "Barlow Semi Condensed", sans-serif; font-weight: 600;
+    font-size: 12.5px; letter-spacing: .05em; text-transform: uppercase;
+    color: var(--slate); text-align: left; padding: 8px 12px;
+    border-bottom: 2px solid var(--line); white-space: nowrap;
+  }
+  td { padding: 8px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  td.c { text-align: center; font-variant-numeric: tabular-nums; }
+  .dot { color: var(--ok); font-weight: 700; }
+  .dash { color: var(--faint); }
+
+  footer {
+    margin-top: 40px; padding-top: 18px; border-top: 1px solid var(--line);
+    font-size: 13px; color: var(--faint);
+  }
+
+  @media (max-width: 860px) {
+    nav.rail { display: none; }
+    main { padding: 32px 22px 70px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+<nav class="rail" aria-label="Contents">
+  <p class="brand">DriveShop</p>
+  <p class="brand-sub">Event Estimate Engine</p>
+  <ol>
+    <li><a href="#start"><span class="n">01</span>Signing in</a></li>
+    <li><a href="#lifecycle"><span class="n">02</span>How an estimate moves</a></li>
+    <li><a href="#create"><span class="n">03</span>Create an estimate</a></li>
+    <li><a href="#build"><span class="n">04</span>Build it out</a></li>
+    <li><a href="#prices"><span class="n">05</span>Where prices come from</a></li>
+    <li><a href="#ai"><span class="n">06</span>The AI tools</a></li>
+    <li><a href="#approval"><span class="n">07</span>Approval</a></li>
+    <li><a href="#recap"><span class="n">08</span>Recap &amp; change orders</a></li>
+    <li><a href="#export"><span class="n">09</span>PDFs &amp; Intacct export</a></li>
+    <li><a href="#admin"><span class="n">10</span>Admin</a></li>
+    <li><a href="#roles"><span class="n">11</span>Who can do what</a></li>
+    <li><a href="#beta"><span class="n">12</span>Beta notes</a></li>
+  </ol>
+</nav>
+
+<main>
+<header class="hero measure">
+  <p class="kicker">User Guide</p>
+  <h1>Event Estimate Engine</h1>
+  <p class="lede">One place to build event estimates on your real rate cards, route them for approval, track actuals against plan, and hand accounting a file Intacct will accept. This guide follows an estimate from first click to invoice.</p>
+</header>
+
+<section id="start">
+  <div class="measure">
+  <h2><span class="n">01</span>Signing in</h2>
+  <p>The app runs in your browser — no install. Your admin creates your account and gives you your email and password directly (the app doesn't send invite emails during the beta).</p>
+  <p>What you see depends on your role. Estimators live in <strong>Estimates</strong> and the <strong>Pipeline Dashboard</strong>; accounting works the review queue and exports; admins also get <strong>Rate Cards</strong>, <strong>User Management</strong>, and <strong>System Settings</strong>. The full breakdown is in <a href="#roles">Who can do what</a>.</p>
+  <p>The left sidebar is the map: <strong>Pipeline Dashboard</strong> for the big picture, <strong>Estimates</strong> for the list, <strong>Rate Cards</strong> for pricing, <strong>AI Scoping</strong> to draft an estimate from a description.</p>
+  </div>
+</section>
+
+<section id="lifecycle">
+  <div class="measure">
+  <h2><span class="n">02</span>How an estimate moves</h2>
+  <p>Every estimate walks the same road, and its status tells you exactly where it is. Buttons at the top of the estimate move it forward — you never edit a status directly.</p>
+  </div>
+  <div class="flow-scroll" role="img" aria-label="Lifecycle: Pipeline to Estimate to In Review to Active to Recap, then Accounting Review, Export Ready, and Invoiced">
+    <div class="flow">
+      <div class="step"><span class="status">pipeline</span><span class="who">logged, not started</span></div>
+      <span class="arrow">→</span>
+      <div class="step"><span class="status warn">estimate</span><span class="who">being built</span></div>
+      <span class="arrow">→</span>
+      <div class="step"><span class="status warn">in review</span><span class="who">awaiting approval</span></div>
+      <span class="arrow">→</span>
+      <div class="step"><span class="status ok">active</span><span class="who">event is running</span></div>
+      <span class="arrow">→</span>
+      <div class="step"><span class="status">recap</span><span class="who">actuals entered</span></div>
+      <span class="arrow">→</span>
+      <div class="step"><span class="status">accounting review</span><span class="who">office events only</span></div>
+      <span class="arrow">→</span>
+      <div class="step"><span class="status">export ready</span><span class="who">approved for Intacct</span></div>
+      <span class="arrow">→</span>
+      <div class="step"><span class="status ok">invoiced</span><span class="who">done</span></div>
+    </div>
+  </div>
+  <div class="measure">
+  <p class="flow-note">Corporate-produced events skip the accounting review lane and go straight from recap to invoiced. An estimate can also be marked <span class="status bad">lost</span> or <span class="status bad">cancelled</span> from most stages — both ask for a reason.</p>
+  <p>One more thing worth knowing: status lives on each <strong>location segment</strong>, not the estimate as a whole. A multi-city event can have Dallas in recap while Chicago is still active, and each moves on its own.</p>
+  </div>
+</section>
+
+<section id="create">
+  <div class="measure">
+  <h2><span class="n">03</span>Create an estimate</h2>
+  <ol class="steps">
+    <li>Go to <strong>Estimates</strong> and click <span class="btn-label">New Estimate</span>.</li>
+    <li>Pick the <strong>client</strong> — this decides which rate card prices everything.</li>
+    <li>Name the event, set dates, city and state, and choose the <strong>cost structure</strong>: <em>Corporate</em> (DriveShop produces it) or <em>Office</em> (a regional office produces it and receives a payout share). This changes how cost and margin are calculated, so pick it up front.</li>
+    <li>Click <span class="btn-label">Begin Estimating</span> to move it from pipeline into estimating.</li>
+  </ol>
+  <p>Prefer to start from history? <strong>AI Scoping</strong> can draft the whole thing — see <a href="#ai">the AI tools</a>. And any existing estimate can be duplicated from the list to reuse its structure.</p>
+  </div>
+</section>
+
+<section id="build">
+  <div class="measure">
+  <h2><span class="n">04</span>Build it out</h2>
+  <p>An estimate is four kinds of content, each with its own tab.</p>
+  </div>
+  <div class="card-grid">
+    <div class="card"><h4>Schedule</h4><p>A day-by-day staffing calendar. Add dates, add staff rows from the rate card, and click cells to fill hours. Labor totals can drive off this grid directly.</p></div>
+    <div class="card"><h4>Labor Log</h4><p>The roles view: each row is a role with days, quantity, and day rate from the rate card. Use it when you plan by role rather than by calendar.</p></div>
+    <div class="card"><h4>Line Items</h4><p>Everything that isn't labor, in sections: Travel, Creative, Production, Logistics, Miscellaneous, and Fees &amp; Markups. Pass-through sections bill at cost plus the client's markup.</p></div>
+    <div class="card"><h4>Summary</h4><p>The P&amp;L: revenue, cost, and gross profit by section, with the agency fee applied. What the client PDF is built from.</p></div>
+  </div>
+  <div class="measure">
+  <p>Above the tabs, five cards track the money live as you work: <strong>Gross Revenue, Net Revenue, Total Cost, GP, and GP%</strong>. If GP% drops below the company threshold, it turns amber — that's your early warning before approval sees it.</p>
+  <h3>A few behaviors to expect</h3>
+  <ul>
+    <li>The <strong>agency fee</strong> line is created automatically for clients that carry one. Don't add it by hand.</li>
+    <li>Multi-city events: use <span class="btn-label">Add Location</span>. Each location gets its own schedule, labor, and workflow status.</li>
+    <li>Items picked from the rate card carry their price and accounting codes with them. Custom items can be typed in, but they start at $0 — and $0 lines block approval, which is the next section.</li>
+  </ul>
+  </div>
+</section>
+
+<section id="prices">
+  <div class="measure">
+  <h2><span class="n">05</span>Where prices come from</h2>
+  <p>Every client has a rate card — the agreed price list for that client, loaded from your master pricing. When you add an item, its rate comes from there. Rate cards are managed by admins under <strong>Rate Cards</strong>; estimators don't edit prices, they use them.</p>
+  <h3>Three pricing rules the app enforces</h3>
+  <ul>
+    <li><strong>"No rate on file"</strong> — an item the client has no agreed price for is marked in amber in the picker. You can still add it, but the estimate <em>cannot be submitted for review</em> while any line has a zero or missing rate. Price it or remove it.</li>
+    <li><strong>"Billed at markup"</strong> — travel, and most production and logistics items, are pass-throughs: they bill at actual cost plus the client's markup percentage, so they deliberately have no fixed rate. This is not an error.</li>
+    <li><strong>Overtime</strong> lives on the parent item (e.g. Event Director Days carries its own OT rate). You don't add overtime as a separate line.</li>
+  </ul>
+  <h3>Office vs. corporate cost</h3>
+  <p>For <strong>office</strong> events, cost is the office's payout share of the rate (typically 75%). For <strong>corporate</strong> events, cost comes from the rate card's corporate cost (typically 50% of rate; 100% on pass-throughs). Flipping the Corporate/Office toggle recalculates every labor row — margins will visibly change, and that's correct.</p>
+  </div>
+</section>
+
+<section id="ai">
+  <div class="measure">
+  <h2><span class="n">06</span>The AI tools</h2>
+  <p>Three assists, all optional, all grounded in DriveShop's own historical events (about 1,700 past estimates).</p>
+  </div>
+  <div class="card-grid">
+    <div class="card"><h4>AI Intelligence panel</h4><p>The collapsible right-hand panel inside an estimate. It reads your numbers and flags things worth a look — staffing that doesn't match the schedule, ratios out of line with similar past events. Nudges are suggestions, never blockers.</p></div>
+    <div class="card"><h4>Chat</h4><p>Ask questions about the open estimate in plain English from the same panel. History clears when you leave the page.</p></div>
+    <div class="card"><h4>AI Scoping</h4><p>Describe an event — client, type, size — and it drafts a full scope priced on that client's rate card, using similar past events as reference. One click turns the draft into a real estimate you then edit like any other.</p></div>
+  </div>
+  <div class="measure">
+  <div class="callout"><span class="t">Good habit</span><p>Treat AI output as a first draft from a well-read colleague. It knows the history; you know this event. Review before you submit.</p></div>
+  </div>
+</section>
+
+<section id="approval">
+  <div class="measure">
+  <h2><span class="n">07</span>Approval</h2>
+  <p>When the estimate is ready, click <span class="btn-label">Submit for Review</span>. The confirmation tells you exactly who it's going to.</p>
+  <ol class="steps">
+    <li><strong>Account manager gate</strong> — the client's assigned approver (or all AMs if none is set) reviews and approves.</li>
+    <li><strong>CFO gate</strong> — only for estimates over the approval threshold set in System Settings.</li>
+    <li><strong>Client gate</strong> — client sign-off, recorded manually during the beta (see <a href="#beta">Beta notes</a>).</li>
+  </ol>
+  <p>Approved means <span class="status ok">active</span>: the plan locks and the event runs. If the reviewer wants changes, <span class="btn-label">Send Back to Estimate</span> returns it with everything editable. Every submit, approval, and version is kept in the history panel — nothing is lost when things bounce back.</p>
+  </div>
+</section>
+
+<section id="recap">
+  <div class="measure">
+  <h2><span class="n">08</span>Recap &amp; change orders</h2>
+  <h3>After the event: recap</h3>
+  <p>Move the segment to recap and enter what actually happened. Planned numbers stay untouched — actuals are recorded alongside them, so the Summary tab shows estimated vs. actual with variance.</p>
+  <ul>
+    <li>Schedule hours pre-fill from plan; correct only what changed.</li>
+    <li>Things that weren't planned get added with the rose <span class="btn-label">+ Add Unplanned</span> buttons. They're badged, kept out of planned totals, and land as visible overrun — never buried.</li>
+    <li>Receipts attach to pass-through line items, feeding the Receipt Backup Packet and accounting review.</li>
+    <li>Every staff row needs a <strong>real person's name</strong> before the segment can be invoiced. The app blocks it otherwise.</li>
+  </ul>
+  <h3>Mid-event changes: change orders</h3>
+  <p>If scope changes while the event is <span class="status ok">active</span>, use <span class="btn-label">Request Edit</span> for small corrections, or <span class="btn-label">Create Change Order</span> for a formal, numbered CO. The app computes the delta from the approved baseline automatically, and the CO routes through approval like the original.</p>
+  <h3>Accounting review — office events</h3>
+  <p>Office-produced events must pass accounting before invoicing: <span class="btn-label">Submit to Accounting</span> → accounting reviews actuals and receipts → <span class="btn-label">Approve Recap</span> moves it to <span class="status">export ready</span>. Corrections can be requested, which sends it back with notes.</p>
+  </div>
+</section>
+
+<section id="export">
+  <div class="measure">
+  <h2><span class="n">09</span>PDFs &amp; Intacct export</h2>
+  <h3>PDFs — the Export menu on any estimate</h3>
+  </div>
+  <div class="tbl-scroll"><table>
+    <tr><th>Document</th><th>Audience</th><th>What's in it</th></tr>
+    <tr><td><strong>Client Estimate (Summary)</strong></td><td>Client</td><td>Section totals only</td></tr>
+    <tr><td><strong>Client Estimate (Detailed)</strong></td><td>Client</td><td>Full line-item detail</td></tr>
+    <tr><td><strong>Internal P&amp;L</strong></td><td>Internal</td><td>Revenue, cost, and margin — never send to a client</td></tr>
+    <tr><td><strong>Receipt Backup Packet</strong></td><td>Client / accounting</td><td>Invoice detail with every uploaded receipt appended</td></tr>
+  </table></div>
+  <div class="measure">
+  <h3>Intacct CSVs — office events at <span class="status">export ready</span></h3>
+  <p>Two files, matching accounting's upload templates exactly: <span class="btn-label">Download AR Invoice Upload CSV</span> (what the client owes) and <span class="btn-label">Download AP Bill Upload CSV</span> (what the office is owed). Customer IDs, payment terms, item codes, and GL accounts fill in automatically from the accounting setup. Every download is logged.</p>
+  <div class="callout"><span class="t">Before an export will pass</span><p>The estimate itself needs four things filled in: a <strong>revenue segment</strong> (this is also the Intacct department), a <strong>project ID</strong>, and the <strong>event city and state</strong>. The export check names anything missing rather than producing a bad file.</p></div>
+  </div>
+</section>
+
+<section id="admin">
+  <div class="measure">
+  <h2><span class="n">10</span>Admin</h2>
+  </div>
+  <div class="card-grid">
+    <div class="card"><h4>Rate Cards</h4><p>Per-client pricing, client settings (markup %, agency fee %, office payout %, approver), contacts, and bulk import from spreadsheet.</p></div>
+    <div class="card"><h4>User Management</h4><p>Create accounts and assign roles. You set the password and pass it on directly — no invite email in the beta.</p></div>
+    <div class="card"><h4>System Settings</h4><p>The GP% warning threshold and the CFO approval threshold. Changes apply to the next submission.</p></div>
+    <div class="card"><h4>Accounting Setup</h4><p>The Intacct mappings behind exports: item catalog, office vendor profiles, revenue segments, customer IDs. Rarely touched once set.</p></div>
+  </div>
+</section>
+
+<section id="roles">
+  <div class="measure">
+  <h2><span class="n">11</span>Who can do what</h2>
+  </div>
+  <div class="tbl-scroll"><table>
+    <tr><th></th><th>Admin</th><th>CFO</th><th>Accounting</th><th>Account Mgr</th><th>Operations</th><th>Production Mgr</th></tr>
+    <tr><td>Create &amp; edit estimates</td><td class="c"><span class="dot">●</span></td><td class="c"><span class="dot">●</span></td><td class="c"><span class="dash">—</span></td><td class="c"><span class="dot">●</span></td><td class="c"><span class="dot">●</span></td><td class="c"><span class="dot">●</span></td></tr>
+    <tr><td>Submit for review</td><td class="c"><span class="dot">●</span></td><td class="c"><span class="dot">●</span></td><td class="c"><span class="dash">—</span></td><td class="c"><span class="dot">●</span></td><td class="c"><span class="dot">●</span></td><td class="c"><span class="dot">●</span></td></tr>
+    <tr><td>Approve (standard)</td><td class="c"><span class="dot">●</span></td><td class="c"><span class="dot">●</span></td><td class="c"><span class="dash">—</span></td><td class="c"><span class="dot">●</span></td><td class="c"><span class="dash">—</span></td><td class="c"><span class="dash">—</span></td></tr>
+    <tr><td>Approve over threshold</td><td class="c"><span class="dot">●</span></td><td class="c"><span class="dot">●</span></td><td class="c"><span class="dash">—</span></td><td class="c"><span class="dash">—</span></td><td class="c"><span class="dash">—</span></td><td class="c"><span class="dash">—</span></td></tr>
+    <tr><td>Enter recap actuals</td><td class="c"><span class="dot">●</span></td><td class="c"><span class="dot">●</span></td><td class="c"><span class="dot">●</span></td><td class="c"><span class="dot">●</span></td><td class="c"><span class="dot">●</span></td><td class="c"><span class="dot">●</span></td></tr>
+    <tr><td>Accounting review &amp; approve recap</td><td class="c"><span class="dot">●</span></td><td class="c"><span class="dot">●</span></td><td class="c"><span class="dot">●</span></td><td class="c"><span class="dash">—</span></td><td class="c"><span class="dash">—</span></td><td class="c"><span class="dash">—</span></td></tr>
+    <tr><td>Intacct CSV export</td><td class="c"><span class="dot">●</span></td><td class="c"><span class="dot">●</span></td><td class="c"><span class="dot">●</span></td><td class="c"><span class="dash">—</span></td><td class="c"><span class="dash">—</span></td><td class="c"><span class="dash">—</span></td></tr>
+    <tr><td>Edit rate cards</td><td class="c"><span class="dot">●</span></td><td class="c"><span class="dash">—</span></td><td class="c"><span class="dash">—</span></td><td class="c"><span class="dash">—</span></td><td class="c"><span class="dash">—</span></td><td class="c"><span class="dash">—</span></td></tr>
+    <tr><td>Users &amp; system settings</td><td class="c"><span class="dot">●</span></td><td class="c"><span class="dash">—</span></td><td class="c"><span class="dash">—</span></td><td class="c"><span class="dash">—</span></td><td class="c"><span class="dash">—</span></td><td class="c"><span class="dash">—</span></td></tr>
+  </table></div>
+</section>
+
+<section id="beta">
+  <div class="measure">
+  <h2><span class="n">12</span>Beta notes</h2>
+  <p>Honest limits of the current release, so nothing surprises you mid-demo.</p>
+  <ul>
+    <li><strong>Client approval emails are off.</strong> Internal approvals work end to end; the client's sign-off is recorded manually by your team until the DriveShop email domain is verified.</li>
+    <li><strong>Notifications are in-app only</strong> — the bell in the header, not your inbox.</li>
+    <li><strong>Start with office events.</strong> They're the fully exercised path, including the accounting lane and Intacct export.</li>
+    <li><strong>Volvo MS pricing is seeded from Volvo</strong> as a starting point — adjust its rate card if its program rates differ.</li>
+    <li><strong>Professional Chauffeur bills at the standard-market rate</strong> for now; the high-market rate needs a second Intacct item code before it can bill separately.</li>
+  </ul>
+  <div class="callout stop"><span class="t">One rule during beta</span><p>Don't send a client-facing PDF from an estimate that's in recap with unplanned additions — the labor rollup on that specific combination is a known issue being consolidated. Estimate-stage and approval-stage PDFs are exact.</p></div>
+  <p>Found something off? The <strong>Submit Feedback</strong> page goes straight to the team, and screenshots help.</p>
+  </div>
+</section>
+
+<footer>DriveShop Event Estimate Engine · User guide · Statuses shown as they appear in the app.</footer>
+</main>
+</div>
+</body>
+</html>

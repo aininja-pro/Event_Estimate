@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { NavLink } from 'react-router-dom'
-import { BarChart3, ClipboardList, Bot, Layers, Database, GitBranch, Map, FileSpreadsheet, DollarSign, MessageSquare, Briefcase, Users, ChevronsLeft, ChevronsRight, LayoutDashboard, Settings, Landmark } from 'lucide-react'
+import { BarChart3, ClipboardList, Bot, Layers, Database, GitBranch, Map, FileSpreadsheet, DollarSign, MessageSquare, Briefcase, Users, ChevronsLeft, ChevronsRight, LayoutDashboard, Settings, Landmark, BookOpen } from 'lucide-react'
 import { Separator } from '@/components/ui/separator'
 import { useAuth } from '@/lib/auth'
 import { hasPermission } from '@/lib/permissions'
@@ -53,6 +53,27 @@ function NavSection({ title, items, collapsed }: { title: string; items: NavItem
       ))}
       <div className="my-3" />
     </>
+  )
+}
+
+function ExternalNavItem({ href, label, icon: Icon, collapsed }: { href: string; label: string; icon: React.ComponentType<{ className?: string }>; collapsed?: boolean }) {
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener"
+      title={collapsed ? label : undefined}
+      className={[
+        'flex items-center rounded-md text-sm font-medium transition-colors',
+        collapsed ? 'justify-center px-0 py-2' : 'gap-3 px-3 py-2',
+        collapsed
+          ? 'text-zinc-400 hover:bg-sidebar-accent/50 hover:text-zinc-300'
+          : 'border-l-[3px] border-transparent text-zinc-400 hover:bg-sidebar-accent/50 hover:text-zinc-300',
+      ].join(' ')}
+    >
+      <Icon className="h-4 w-4 shrink-0" />
+      {!collapsed && label}
+    </a>
   )
 }
 
@@ -115,6 +136,8 @@ export function Sidebar() {
           </>
         )}
         <NavSection title="Production" items={productionItems} collapsed={collapsed} />
+        <ExternalNavItem href="/guide.html" label="User Guide" icon={BookOpen} collapsed={collapsed} />
+        <div className="my-3" />
         {!SHOW_DEMO_NAV_ONLY && <NavSection title="UI Concepts" items={uiConceptItems} collapsed={collapsed} />}
         {canEditAccountingSetup && <NavSection title="Admin" items={visibleAdminItems} collapsed={collapsed} />}
       </nav>
