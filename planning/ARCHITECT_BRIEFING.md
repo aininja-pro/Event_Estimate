@@ -109,3 +109,42 @@ Why this is a real, if small, residual: the fallback is written with the segment
 **Do:** Apply the payment-terms SQL and run the two-direction precedence check, then close 023. Send Dave the catalog list including Volvo MS prices and the 83-item proposal.
 **Owner:** Ray.
 **Decision:** Still open from Sprint 021 — whether to build the deploy verification script before Sprint 025. Sprint 025 is the first sprint whose success depends on production behaving as expected, and no deploy has ever been confirmed by command.
+
+---
+
+# 2026-08-27 — Rapid-delivery record: sprints 024-026 built, full handover to DriveShop
+
+*This record supersedes everything above it where they disagree. The work below ran outside the formal flight cadence at Ray's direction ("no blocks, best guess"), so it is logged as one consolidated record rather than per-sprint briefings.*
+
+## Where things stand
+
+The app is live on DriveShop's own infrastructure and in Dave's hands. GitHub (`DriveShopDave/Event_Estimate`), Render (both services), Supabase (ownership transferred; ref/URL/keys unchanged), and the Anthropic key are all theirs. Ray is an admin collaborator, not the host. Push to `origin` `main` to deploy their production.
+
+## Shipped since the Sprint 023 record
+
+- **Sprint 024 — catalog amendments, decided without Dave.** Volvo MS's rate card seeded from Volvo (69 rows, idempotent); `I0124` Travel overtime set to $80 on Lucid/MB. Three items deliberately NOT guessed because they need an Intacct Item ID only accounting can issue (chauffeur High Markets split, flat-rate EV/Per Diem, the `I00601` malformation) — a fabricated identifier on a real invoice is worse than the gap. Three of Dave's asks turned out to need no work at all (the four "Duplicate???" items are on zero rate cards; the estimate-facing column is moot because the builder reads per-client rate cards; `4000.99` is referenced nowhere). Applied by operator. **Post-script: Dave's own punch list later answered EV Charging — `I0012` = Flat Rate, `I00601` = Pass Through — so that gap closed itself.**
+- **Sprint 025 (partial) — AP `dueDate` derived from payment terms** (`dueDateFromTerms()`, UTC arithmetic, blank on unparseable rather than guessed; 9 cases verified incl. leap day). `transactionType`/`exchRateType` confirmed already correctly defaulted. **The real finish line — an end-to-end AR+AP export on a priced estimate — has still never been run.**
+- **Sprint 026 — corporate cost.** `corporateCostRate()` in `estimate-totals.ts` mirrors `officeCostRate()`; wired into both add paths AND both halves of the Corporate↔Office toggle recompute (the W8 lesson). Returns null, never 0, for uncosted rows. Load SQL: pass-throughs 100%, everything else 50% (recovered from the Sprint 016 cost card; Ray confirmed). First apply was **correctly rejected by its own guard** — 1466 rows vs the planned 1397, exactly the 69 Volvo MS rows Sprint 024 had added the same day. Expectations corrected; **operator re-apply not confirmed**.
+- **Rate card UI:** OFFICE COST column shows the live derived payout on labor rows instead of a permanent dash (derived, deliberately not stored).
+- **User Guide** shipped in-app (`public/guide.html`, sidebar link) — full lifecycle, role table, honest beta notes.
+- **Admin Punch List** shipped (`punch_list_items` + RLS, service, page, sidebar) seeded from Dave's spreadsheet — the shared tracker replacing emailed spreadsheets. **Migration apply unconfirmed.**
+- **AI outage fixed:** the three AI services were pinned to retired `claude-sonnet-4-20250514`, which DriveShop's brand-new Anthropic org couldn't use. Now `claude-opus-5`, parsing the first *text* block (Opus 5 can lead with a thinking block). Confirmed working on their key.
+
+## Evidence
+
+- `tsc` exit 0 and eslint at the 21-problem baseline after every code change; production build passes.
+- Sprint 026 guard rejection + clean rollback observed by operator; corrected SQL regenerated.
+- AI confirmed working by operator on DriveShop's key after the model fix.
+- Handover verified: push to `DriveShopDave/Event_Estimate` succeeded; both Render services green on the new repo; Supabase transfer completed by operator.
+
+## Plan corrections
+
+- The roadmap's "blocked on Dave" for 024 dissolved under a no-blocks directive: most of his items needed verification, not answers. The one class never to guess: accounting identifiers.
+- Sprint 026's guard caught same-day drift between sprints (Volvo MS seed). Guards with hardcoded expectations are doing exactly their job; keep them hardcoded.
+- The briefing cadence itself lapsed during rapid delivery — this consolidated record is the correction.
+
+## Recommended next Architect action
+
+**Do:** Confirm the two unconfirmed applies (punch list migration, corporate-costs re-apply); then drive one real estimate to an accepted AR+AP export — that closes 025 and is the actual finish line. Work Dave's punch list as the beta backlog.
+**Owner:** Ray (applies + export test), Dave (punch list answers).
+**Decision:** When beta feedback slows, whether to resume formal sprint cadence or stay in directed rapid-delivery mode.

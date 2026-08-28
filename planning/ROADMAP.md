@@ -3,7 +3,7 @@
 > A living estimate, not a contract. Sprints get added, split, re-ordered, or dropped as the work teaches us. The Architect updates this file at every session and shows the change in git; the Builder marks a row `done` when that sprint closes.
 
 **About:** 7 sprints on the road
-**Last estimated:** 2026-08-10
+**Last estimated:** 2026-08-27
 **Completed before this roadmap existed:** sprints 001-019 (the record lives in
 `planning/sprints/` and `planning/STATE.md`)
 
@@ -13,11 +13,15 @@
 | 021 | Production Branch Consolidation | Beta launch | done | Moved both Render services onto `main`, which put Sprint 020's price guard into production for the first time. Operator-executed, no build. Key rotation was dropped from scope (see Notes). |
 | 022 | Client Accounting Identity + VW Merge | Accounting go-live | done | Loaded the 21 Intacct customer IDs Tatiana confirmed, collapsed the duplicate VW/Volkswagen client into one record keeping its 70 prices and its 80% payout, and produced a read-only audit naming exactly which export fields are still empty. No application code. |
 | 023 | Export Unblock: Payment Terms + Department | Accounting go-live | done | Loads the 21 AR payment terms Tatiana supplied and makes the exporter resolve department from the estimate's revenue segment, which is what she says a department is. Closes the last client-level export blocker. Not blocked on anyone. |
-| 024 | Catalog Amendments (decided without Dave) | Accounting go-live | planned | Seeds Volvo MS's rate card from Volvo and sets the Travel overtime rate Dave implied. Three items needing an Intacct Item ID are deliberately left alone rather than guessed. Three more turned out to need no work at all. No longer blocked on anyone. |
+| 024 | Catalog Amendments (decided without Dave) | Accounting go-live | done | Seeds Volvo MS's rate card from Volvo and sets the Travel overtime rate Dave implied. Three items needing an Intacct Item ID are deliberately left alone rather than guessed. Three more turned out to need no work at all. No longer blocked on anyone. |
 | 025 | First Real Intacct Export End-to-End | Accounting go-live | planned | Finishes Sprint 018 Phase 2 — wire `dueDate`, confirm default scalars, decide corporate scope — and runs a real AR+AP export on a priced estimate. The actual finish line for accounting. |
 | 026 | Corporate Event Cost & Gross Profit | Margin correctness | planned | Corporate-structure estimates record no cost today, so they show roughly 100% gross profit. Restores true margin and makes the GP threshold meaningful on non-office events. |
 
 ## Notes
+
+- **2026-08-27 — handover complete.** The app runs on DriveShop's GitHub (`DriveShopDave/Event_Estimate`), Render, Supabase, and Anthropic key. Shipped the same day, outside numbered sprints: the in-app User Guide, the admin Punch List (seeded from Dave's spreadsheet), and the AI model move to `claude-opus-5`.
+- **025 is partially done:** AP due dates now derive from payment terms and the default scalars were confirmed already correct — but the actual finish line, a real AR+AP export run end to end on a priced estimate, has still never happened. Keep the row `planned` until a file is produced and accepted.
+- **026 is built, apply unconfirmed:** the corporate-cost code shipped and the load SQL was corrected after its guard caught the Volvo MS drift (1466 rows, not 1397); the operator re-apply was never confirmed. Confirm before calling it done.
 
 - **Sprint 021 shipped narrower than planned, deliberately.** It was scoped as "Production Hardening" (key rotation + branch consolidation + deploy verification). Only the branch consolidation was done. Two scope decisions, both Ray's, 2026-08-10:
   - **Key rotation dropped.** Investigation showed no `.env` file was ever committed and no real credential exists in any tracked file (the only pattern matches are 10-to-20-character placeholders in `.env.example` and `planning/sprints/002-ai-nudges/blueprint.md`). The exposure was local-machine plaintext only, never the repository. Ray judged it not worth a sprint. If it is ever revisited, note that `api/.env` is mode 644 where the root `.env` is 600.

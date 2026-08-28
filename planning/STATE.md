@@ -6,6 +6,23 @@
 
 ## Active Sprint
 
+None in flight. Sprints 020-024 shipped; 025/026 are built and partially applied (see Recently Shipped and the 2026-08-27 briefing record). **The app is handed over and live on DriveShop's own infrastructure.**
+
+## Infrastructure — HANDED OVER TO DRIVESHOP (2026-08-27)
+
+The entire stack now runs on DriveShop's accounts. Ray is a collaborator, not the host.
+
+- **Code:** `https://github.com/DriveShopDave/Event_Estimate` (private) is the canonical repo; Dave's Render deploys from its `main`. Ray's `aininja-pro/Event_Estimate` is a backup mirror. Local remotes: `origin` = DriveShopDave (push to deploy production), `mine` = the backup.
+- **Render:** two services in DriveShop's account — Python backend `driveshop-api` (root dir blank so the `Aptfile` installs WeasyPrint libs) and static `event-history`. Rebuilt by hand after the Blueprint apply dropped the `sync: false` env vars (known quirk — vars must be re-entered or copied from the old service).
+- **Supabase:** project ownership transferred to DriveShop's org. **The project ref, URL and keys are unchanged by a transfer**, so no Render env changes were needed. Database, auth users, and the `receipts` storage bucket all moved together.
+- **Anthropic:** AI features run on DriveShop's own Console org and key. The three AI services were moved off the retired `claude-sonnet-4-20250514` snapshot to `claude-opus-5` (a brand-new org cannot use the old snapshot — this outage is what surfaced it), and response parsing now takes the first *text* block since Opus 5 responses can lead with a thinking block.
+- **Render GitHub credential gotcha (learned twice):** Render binds one GitHub identity to one Render user. Sharing Ray's GitHub across both Render accounts caused a credential tug-of-war; the fix was giving DriveShop's Render its own GitHub identity (DriveShopDave). If a deploy fails with `could not read Username`, the credential dropped — reconnect it in Render Account settings.
+- **Ray's old Render services:** redundant; suspend (not delete) until the new stack has run clean for a few weeks — they hold the reference env vars.
+
+**Still open (small):** punch list migration SQL apply unconfirmed; corporate-costs SQL re-apply (corrected 1466-row expectations) unconfirmed; Resend domain verification for client-facing email; optional custom domain.
+
+## Previous Sprint
+
 Sprint 023 — Export Unblock: Payment Terms + Department — **SHIPPED (2026-08-10).**
 
 The last client-level export blockers are closed. Everything still missing is per-estimate data a user types in.
@@ -16,9 +33,9 @@ The last client-level export blockers are closed. Everything still missing is pe
 - **Residual:** the override direction was not exercised. Confirm during Sprint 025 that an explicit department beats the segment.
 - **Decided, not built:** office payout stays per client. Per-item payout would rewrite office margin calculation, and that formula was found inverted and fixed only in Sprint 018.
 
-## Production Deployment — LIVE (since 2026-07-02)
+## Production Deployment
 
-Render Blueprint `driveshop-event-estimate` from `render.yaml`, deploying from branch **`main`** since 2026-08-10 (Sprint 021). Static frontend `event-history` + Python backend `driveshop-api`; the Branch setting was changed on both services. Push to `main` to deploy. Before 2026-08-10 the tracked branch was `sprint-018-office-cost-correction`; older notes describe that period. Full detail in DECISIONS §"Render deployment".
+**Superseded 2026-08-27 — see "Infrastructure — HANDED OVER TO DRIVESHOP" above.** Production is DriveShop's Render, deploying `main` of `DriveShopDave/Event_Estimate`. History: Ray's Render hosted production from the first deploy (2026-07-02) until the handover; branch was `sprint-018-office-cost-correction` until 2026-08-10, then `main`.
 
 **Both former operational items are closed (Sprint 021, 2026-08-10):** the branch was consolidated onto `main`, which is what finally put Sprint 020's price guard into production. Key rotation was **dropped by decision** after investigation showed no `.env` was ever committed and no real credential appears in any tracked file; the exposure was local-machine only. See RISKS for the full reasoning.
 
@@ -56,11 +73,11 @@ Render Blueprint `driveshop-event-estimate` from `render.yaml`, deploying from b
 
 ## Next Up
 
-See `planning/ROADMAP.md`. Sprints 020-023 are done; three remain.
+See `planning/ROADMAP.md`. Sprints 020-024 done. What remains:
 
-- **Sprint 024 — Catalog Amendments.** Dave's follow-ups: an Item ID for the chauffeur market split, the four "Duplicate???" items, flat-rate EV Charging and Per Diem, the `I00601` typo, and Volvo MS prices. Blocked on Dave and on accounting issuing IDs.
-- **Sprint 025 — First Real Intacct Export End-to-End.** Finishes Sprint 018 Phase 2: wire `dueDate`, confirm default scalars, decide corporate scope, run a real AR+AP export. **No longer blocked on Tatiana** — every client-level field is now loaded. Blocked only on per-estimate data a user enters: project ID, revenue segment, event city and state.
-- **Sprint 026 — Corporate Event Cost & Gross Profit.** Corporate estimates record no cost, so they show ~100% GP.
+- **Sprint 025 — First Real Intacct Export End-to-End.** Partially done: AP due dates derive from payment terms, default scalars confirmed. The finish line — an actual AR+AP export produced on a priced estimate and accepted — has never been run. Nothing external blocks it; it needs a user to fill the per-estimate fields (project ID, revenue segment, city, state) and click export.
+- **Sprint 026 — Corporate Event Cost.** Code shipped; the corrected load SQL (1466 rows) awaits confirmed operator apply.
+- **Beta feedback loop:** the Punch List is the intake now. Dave's open items are the working backlog.
 
 ## Open Questions — routed to DriveShop
 

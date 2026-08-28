@@ -203,8 +203,10 @@ For the HOW of a specific subsystem, read the service file(s) listed below.
 ## Environment & Deployment
 
 - **Env vars:** See `.env.example` in repo root (single source of truth)
-- **Frontend deploy:** Render static site with SPA rewrite, auto-deploys on push to `main`
-- **Backend deploy:** Render web service. Build command must include: `apt-get install -y libpango-1.0-0 libpangocairo-1.0-0 libgdk-pixbuf2.0-0 libcairo2` (WeasyPrint dependencies)
+- **Hosting (since 2026-08-27):** everything runs on DriveShop's accounts — GitHub `DriveShopDave/Event_Estimate`, Render (both services), Supabase, Anthropic. Push to `main` of that repo to deploy.
+- **Frontend deploy:** Render static site with SPA rewrite, auto-deploys on push to `main`. `public/guide.html` ships the in-app User Guide.
+- **Backend deploy:** Render web service, **root directory blank** so the repo-root `Aptfile` installs WeasyPrint's native libs (Pango/Cairo/gdk-pixbuf). Build `cd api && pip install -r requirements.txt`; start `cd api && uvicorn main:app --host 0.0.0.0 --port $PORT`
+- **AI:** three FastAPI services call Claude (`claude-opus-5`) on DriveShop's key; responses are parsed from the first text block because Opus 5 can lead with a thinking block
 - **Local backend:** `cd api && uvicorn main:app --reload --port 8000`
 - **Local frontend:** `npm run dev`
 

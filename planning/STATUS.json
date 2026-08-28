@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "phase": "awaiting-approval",
-  "sprint": "024-catalog-amendments",
-  "updated": "2026-08-10T00:00:00Z",
-  "note": "Built, awaiting operator apply of scripts/import_catalog_amendments.sql. Decided without Dave per Ray 2026-08-10. Item-ID-dependent items deliberately not guessed."
+  "phase": "sprint-closed",
+  "sprint": "handover-2026-08-27",
+  "updated": "2026-08-27T00:00:00Z",
+  "note": "Full infrastructure handover to DriveShop complete (GitHub, Render, Supabase, Anthropic). Sprints 024 done; 025 partial (no end-to-end export yet); 026 built, SQL re-apply unconfirmed. See ARCHITECT_BRIEFING 2026-08-27 record."
 }

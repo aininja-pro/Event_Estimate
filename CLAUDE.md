@@ -54,7 +54,7 @@ Web application replacing DriveShop's spreadsheet-based event estimation workflo
 | Preview build | `npm run preview` |
 | Lint | `npx eslint .` |
 | Type check (force) | `npx tsc -b --force` |
-| Deploy | Push to main (Render auto-deploys) |
+| Deploy | Push to `origin` main (= DriveShopDave/Event_Estimate; DriveShop's Render auto-deploys). `mine` = Ray's backup mirror |
 
 ## Working Mode
 
